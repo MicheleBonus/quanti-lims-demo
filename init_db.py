@@ -178,7 +178,8 @@ def seed_database():
     for rname, vol_det, vol_blind, is_tit in mr_data_ass:
         db.session.add(MethodReagent(
             method=methods["I.2"], reagent=reagents[rname],
-            volume_per_determination_ml=vol_det, volume_per_blind_ml=vol_blind,
+            amount_per_determination=vol_det, amount_per_blind=vol_blind,
+            amount_unit="mL",
             is_titrant=is_tit,
         ))
 
@@ -192,7 +193,8 @@ def seed_database():
     for rname, vol_det, vol_blind, is_tit in mr_data_asc:
         db.session.add(MethodReagent(
             method=methods["II.1"], reagent=reagents[rname],
-            volume_per_determination_ml=vol_det, volume_per_blind_ml=vol_blind,
+            amount_per_determination=vol_det, amount_per_blind=vol_blind,
+            amount_unit="mL",
             is_titrant=is_tit,
         ))
 
@@ -209,7 +211,8 @@ def seed_database():
     for rname, vol_det, vol_blind, is_tit in mr_data_res:
         db.session.add(MethodReagent(
             method=methods["II.4"], reagent=reagents[rname],
-            volume_per_determination_ml=vol_det, volume_per_blind_ml=vol_blind,
+            amount_per_determination=vol_det, amount_per_blind=vol_blind,
+            amount_unit="mL",
             is_titrant=is_tit,
         ))
 
