@@ -17,7 +17,7 @@ from models import (
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
 
 
 
@@ -648,19 +648,44 @@ def register_routes(app):
         item = SampleBatch.query.get(id) if id else SampleBatch()
         sem = active_semester()
         analyses = Analysis.query.order_by(Analysis.ordinal).all()
+        analysis_modes = {a.id: resolve_mode(a.calculation_mode) for a in analyses}
         lots = SubstanceLot.query.order_by(SubstanceLot.id.desc()).all()
         n_students = Student.query.filter_by(semester_id=sem.id).count() if sem else 0
         if request.method == "POST":
             item.semester_id = sem.id
             item.analysis_id = int(request.form["analysis_id"])
+            analysis = Analysis.query.get(item.analysis_id)
+            mode = resolve_mode(analysis.calculation_mode if analysis else None)
+
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
-            item.target_m_s_min_g = float(request.form["target_m_s_min_g"])
-            item.target_m_ges_g = float(request.form["target_m_ges_g"])
+            item.target_m_s_min_g = _float(request.form.get("target_m_s_min_g"))
+            item.target_m_ges_g = _float(request.form.get("target_m_ges_g"))
+            item.target_v_min_ml = _float(request.form.get("target_v_min_ml"))
+            item.target_v_max_ml = _float(request.form.get("target_v_max_ml"))
+            item.dilution_factor = _float(request.form.get("dilution_factor"))
+            item.dilution_solvent = request.form.get("dilution_solvent") or None
+            item.dilution_notes = request.form.get("dilution_notes") or None
             item.titer = float(request.form.get("titer", 1.0))
             item.total_samples_prepared = int(request.form["total_samples_prepared"])
             item.preparation_date = request.form.get("preparation_date") or None
             item.prepared_by = request.form.get("prepared_by") or None
             item.notes = request.form.get("notes") or None
+
+            if mode == MODE_ASSAY_MASS_BASED:
+                if item.target_m_s_min_g is None or item.target_m_ges_g is None:
+                    flash("Für massenbasierte Analysen sind Ziel-m_S,min und Ziel-m_ges erforderlich.", "danger")
+                    ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
+                    lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
+                    return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
+                                           lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+            elif mode == MODE_TITRANT_STANDARDIZATION:
+                if item.target_v_min_ml is None or item.target_v_max_ml is None:
+                    flash("Für Titerstandardisierung sind Ziel-V_min und Ziel-V_max erforderlich.", "danger")
+                    ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
+                    lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
+                    return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
+                                           lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+
             duplicate = SampleBatch.query.filter(
                 SampleBatch.semester_id == sem.id,
                 SampleBatch.analysis_id == item.analysis_id,
@@ -671,7 +696,7 @@ def register_routes(app):
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
                 lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
                 return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                                       lot_opts=lot_opts, semester=sem, n_students=n_students)
+                                       lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
             if not id:
                 db.session.add(item)
             try:
@@ -691,7 +716,7 @@ def register_routes(app):
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
         lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
         return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                               lot_opts=lot_opts, semester=sem, n_students=n_students)
+                               lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
 
     @app.route("/admin/batches/<int:id>/assign-initial", methods=["POST"])
     def admin_batch_assign_initial(id):
