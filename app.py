@@ -106,11 +106,22 @@ def register_routes(app):
             item.g_ab_min_pct = _float(request.form.get("g_ab_min_pct"))
             item.g_ab_max_pct = _float(request.form.get("g_ab_max_pct"))
             item.notes = request.form.get("notes") or None
+            duplicate = Substance.query.filter(
+                Substance.name == item.name,
+                Substance.id != (item.id or 0),
+            ).first()
+            if duplicate:
+                flash("Eine Substanz mit diesem Namen existiert bereits.", "danger")
+                return render_template("admin/substance_form.html", item=item)
             if not id:
                 db.session.add(item)
-            db.session.commit()
-            flash("Substanz gespeichert.", "success")
-            return redirect(url_for("admin_substances"))
+            try:
+                db.session.commit()
+                flash("Substanz gespeichert.", "success")
+                return redirect(url_for("admin_substances"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Substanz konnte nicht gespeichert werden (Name ist bereits vergeben).", "danger")
         return render_template("admin/substance_form.html", item=item)
 
     @app.route("/admin/substances/<int:id>/delete", methods=["POST"])
@@ -145,11 +156,24 @@ def register_routes(app):
             item.g_analytical_date = request.form.get("g_analytical_date") or None
             item.g_analytical_method = request.form.get("g_analytical_method") or None
             item.notes = request.form.get("notes") or None
+            duplicate = SubstanceLot.query.filter(
+                SubstanceLot.substance_id == item.substance_id,
+                SubstanceLot.lot_number == item.lot_number,
+                SubstanceLot.id != (item.id or 0),
+            ).first()
+            if duplicate:
+                flash("Diese Chargennummer existiert für die gewählte Substanz bereits.", "danger")
+                sub_opts = [(s.id, s.name) for s in substances]
+                return render_template("admin/lot_form.html", item=item, sub_opts=sub_opts)
             if not id:
                 db.session.add(item)
-            db.session.commit()
-            flash("Charge gespeichert.", "success")
-            return redirect(url_for("admin_lots"))
+            try:
+                db.session.commit()
+                flash("Charge gespeichert.", "success")
+                return redirect(url_for("admin_lots"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Charge konnte nicht gespeichert werden (Substanz + Chargennummer muss eindeutig sein).", "danger")
         sub_opts = [(s.id, s.name) for s in substances]
         return render_template("admin/lot_form.html", item=item, sub_opts=sub_opts)
 
@@ -179,11 +203,24 @@ def register_routes(app):
             item.tolerance_override_min_pct = _float(request.form.get("tolerance_override_min_pct"))
             item.tolerance_override_max_pct = _float(request.form.get("tolerance_override_max_pct"))
             item.notes = request.form.get("notes") or None
+            duplicate = Analysis.query.filter(
+                Analysis.code == item.code,
+                Analysis.id != (item.id or 0),
+            ).first()
+            if duplicate:
+                flash("Der Analyse-Code ist bereits vergeben.", "danger")
+                block_opts = [(b.id, b.code) for b in blocks]
+                sub_opts = [(s.id, s.name) for s in substances]
+                return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts)
             if not id:
                 db.session.add(item)
-            db.session.commit()
-            flash("Analyse gespeichert.", "success")
-            return redirect(url_for("admin_analyses"))
+            try:
+                db.session.commit()
+                flash("Analyse gespeichert.", "success")
+                return redirect(url_for("admin_analyses"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Analyse konnte nicht gespeichert werden (Code ist bereits vergeben).", "danger")
         block_opts = [(b.id, b.code) for b in blocks]
         sub_opts = [(s.id, s.name) for s in substances]
         return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts)
@@ -213,9 +250,13 @@ def register_routes(app):
             item.description = request.form.get("description") or None
             if not id:
                 db.session.add(item)
-            db.session.commit()
-            flash("Methode gespeichert.", "success")
-            return redirect(url_for("admin_methods"))
+            try:
+                db.session.commit()
+                flash("Methode gespeichert.", "success")
+                return redirect(url_for("admin_methods"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
         return render_template("admin/method_form.html", item=item, ana_opts=ana_opts)
 
@@ -241,11 +282,22 @@ def register_routes(app):
             item.hazard_symbols = request.form.get("hazard_symbols") or None
             item.storage_info = request.form.get("storage_info") or None
             item.notes = request.form.get("notes") or None
+            duplicate = Reagent.query.filter(
+                Reagent.name == item.name,
+                Reagent.id != (item.id or 0),
+            ).first()
+            if duplicate:
+                flash("Eine Reagenz mit diesem Namen existiert bereits.", "danger")
+                return render_template("admin/reagent_form.html", item=item)
             if not id:
                 db.session.add(item)
-            db.session.commit()
-            flash("Reagenz gespeichert.", "success")
-            return redirect(url_for("admin_reagents"))
+            try:
+                db.session.commit()
+                flash("Reagenz gespeichert.", "success")
+                return redirect(url_for("admin_reagents"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Reagenz konnte nicht gespeichert werden (Name ist bereits vergeben).", "danger")
         return render_template("admin/reagent_form.html", item=item)
 
     # ═══════════════════════════════════════════════════════════════
@@ -268,9 +320,14 @@ def register_routes(app):
             per_parent_volume_ml=_float(request.form.get("per_parent_volume_ml")),
         )
         db.session.add(rc)
-        db.session.commit()
-        flash("Komponente hinzugefügt.", "success")
-        return redirect(url_for("admin_reagent_components", reagent_id=reagent_id))
+        try:
+            db.session.commit()
+            flash("Komponente hinzugefügt.", "success")
+            return redirect(url_for("admin_reagent_components", reagent_id=reagent_id))
+        except IntegrityError:
+            db.session.rollback()
+            flash("Komponente konnte nicht hinzugefügt werden (Integritätsfehler).", "danger")
+            return redirect(url_for("admin_reagent_components", reagent_id=reagent_id))
 
     @app.route("/admin/reagent-components/<int:id>/delete", methods=["POST"])
     def admin_reagent_component_delete(id):
@@ -302,9 +359,14 @@ def register_routes(app):
             step_description=request.form.get("step_description") or None,
         )
         db.session.add(mr)
-        db.session.commit()
-        flash("Reagenz-Zuordnung hinzugefügt.", "success")
-        return redirect(url_for("admin_method_reagents", method_id=method_id))
+        try:
+            db.session.commit()
+            flash("Reagenz-Zuordnung hinzugefügt.", "success")
+            return redirect(url_for("admin_method_reagents", method_id=method_id))
+        except IntegrityError:
+            db.session.rollback()
+            flash("Reagenz-Zuordnung konnte nicht hinzugefügt werden (Integritätsfehler).", "danger")
+            return redirect(url_for("admin_method_reagents", method_id=method_id))
 
     @app.route("/admin/method-reagents/<int:id>/delete", methods=["POST"])
     def admin_method_reagent_delete(id):
@@ -333,14 +395,25 @@ def register_routes(app):
             item.start_date = request.form.get("start_date") or None
             item.end_date = request.form.get("end_date") or None
             item.is_active = "is_active" in request.form
+            duplicate = Semester.query.filter(
+                Semester.code == item.code,
+                Semester.id != (item.id or 0),
+            ).first()
+            if duplicate:
+                flash("Der Semester-Code ist bereits vergeben.", "danger")
+                return render_template("admin/semester_form.html", item=item)
             if not id:
                 db.session.add(item)
             # Deactivate other semesters if this one is active
             if item.is_active:
                 Semester.query.filter(Semester.id != item.id).update({"is_active": False})
-            db.session.commit()
-            flash("Semester gespeichert.", "success")
-            return redirect(url_for("admin_semesters"))
+            try:
+                db.session.commit()
+                flash("Semester gespeichert.", "success")
+                return redirect(url_for("admin_semesters"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Semester konnte nicht gespeichert werden (Code ist bereits vergeben).", "danger")
         return render_template("admin/semester_form.html", item=item)
 
     # ═══════════════════════════════════════════════════════════════
@@ -366,11 +439,41 @@ def register_routes(app):
             item.running_number = int(request.form["running_number"])
             item.email = request.form.get("email") or None
             item.notes = request.form.get("notes") or None
+            duplicate_matrikel = Student.query.filter(
+                Student.semester_id == sem.id,
+                Student.matrikel == item.matrikel,
+                Student.id != (item.id or 0),
+            ).first()
+            if duplicate_matrikel:
+                flash("Die Matrikelnummer existiert in diesem Semester bereits.", "danger")
+                next_num = 1
+                if sem:
+                    max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar()
+                    next_num = (max_num or 0) + 1
+                return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num)
+
+            duplicate_running_number = Student.query.filter(
+                Student.semester_id == sem.id,
+                Student.running_number == item.running_number,
+                Student.id != (item.id or 0),
+            ).first()
+            if duplicate_running_number:
+                flash("Die Laufnummer ist in diesem Semester bereits vergeben.", "danger")
+                next_num = 1
+                if sem:
+                    max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar()
+                    next_num = (max_num or 0) + 1
+                return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num)
+
             if not id:
                 db.session.add(item)
-            db.session.commit()
-            flash("Studierende/r gespeichert.", "success")
-            return redirect(url_for("admin_students"))
+            try:
+                db.session.commit()
+                flash("Studierende/r gespeichert.", "success")
+                return redirect(url_for("admin_students"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Studierende/r konnte nicht gespeichert werden (Matrikelnummer/Laufnummer muss je Semester eindeutig sein).", "danger")
         next_num = 1
         if sem:
             max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar()
@@ -536,18 +639,33 @@ def register_routes(app):
             item.preparation_date = request.form.get("preparation_date") or None
             item.prepared_by = request.form.get("prepared_by") or None
             item.notes = request.form.get("notes") or None
+            duplicate = SampleBatch.query.filter(
+                SampleBatch.semester_id == sem.id,
+                SampleBatch.analysis_id == item.analysis_id,
+                SampleBatch.id != (item.id or 0),
+            ).first()
+            if duplicate:
+                flash("Für dieses Semester existiert bereits ein Probenansatz für die gewählte Analyse.", "danger")
+                ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
+                lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
+                return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
+                                       lot_opts=lot_opts, semester=sem, n_students=n_students)
             if not id:
                 db.session.add(item)
-            db.session.flush()
-            # Auto-generate samples if none exist
-            existing = Sample.query.filter_by(batch_id=item.id).count()
-            if existing == 0:
-                for i in range(1, item.total_samples_prepared + 1):
-                    s = Sample(batch=item, running_number=i, is_buffer=(i > n_students))
-                    db.session.add(s)
-            db.session.commit()
-            flash("Probenansatz gespeichert. Proben generiert.", "success")
-            return redirect(url_for("admin_batches"))
+            try:
+                db.session.flush()
+                # Auto-generate samples if none exist
+                existing = Sample.query.filter_by(batch_id=item.id).count()
+                if existing == 0:
+                    for i in range(1, item.total_samples_prepared + 1):
+                        s = Sample(batch=item, running_number=i, is_buffer=(i > n_students))
+                        db.session.add(s)
+                db.session.commit()
+                flash("Probenansatz gespeichert. Proben generiert.", "success")
+                return redirect(url_for("admin_batches"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Probenansatz konnte nicht gespeichert werden (Analyse je Semester nur einmal erlaubt).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
         lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
         return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
