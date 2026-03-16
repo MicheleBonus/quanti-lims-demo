@@ -68,6 +68,21 @@ Die Berechnungen erfolgen modus-spezifisch über `calculation_modes.py` und werd
 - **titrant_standardization**: `Sample.v_expected` und `titer_expected`; Bewertung über berechneten `titer_result` gegen Titer-Grenzen.
 - **Bewertung**: `Result.evaluate()` delegiert an den jeweiligen Mode-Evaluator und persistiert mode-spezifische Referenzwerte.
 
+
+## Wo liegen die Daten / wie sichern?
+
+- Standardmäßig nutzt die App SQLite mit der Datei `quanti_lims.db` im Projektverzeichnis (`Config.SQLALCHEMY_DATABASE_URI` in `config.py`).
+- Den aktuell aktiven DB-URI/Pfad zeigt die Admin-Seite **System** als read-only Hinweis an.
+- Zentrale Tabellen lassen sich als CSV/JSON exportieren:
+  - Semester
+  - Studierende
+  - Ergebnisse
+  - Reagenzienbedarf
+- Optional kann ein DB-Backup (Download der SQLite-Datei) über `/admin/backup/database` erfolgen.
+  - Zugriff nur mit Admin-Rolle vorgesehen (Session-Flag oder optionaler `ADMIN_BACKUP_TOKEN` via URL-Parameter `?token=...`).
+
+Empfehlung: Regelmäßig DB-Datei sichern und zusätzlich fachliche Exporte (CSV/JSON) versioniert ablegen.
+
 ## Lizenz
 
 Intern – AG Gohlke / CPCLab, HHU Düsseldorf

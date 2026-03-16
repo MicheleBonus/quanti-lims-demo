@@ -25,3 +25,4 @@ class Config:
         "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'quanti_lims.db')}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    ADMIN_BACKUP_TOKEN = os.environ.get("ADMIN_BACKUP_TOKEN")
