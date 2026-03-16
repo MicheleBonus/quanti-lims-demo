@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import delete_btn, status_badge %}
+{% from "macros.html" import status_badge %}
 {% block title %}Zuweisungen{% endblock %}
 {% block content %}
 <h4 class="mb-4"><i class="bi bi-arrow-left-right"></i> Zuweisungen & Wiederholungsanalysen</h4>
@@ -7,6 +7,14 @@
 {% if not semester %}
 <div class="alert alert-warning">Kein aktives Semester.</div>
 {% else %}
+
+{% if semester %}
+<div class="alert alert-info">
+  <strong>Datenlebenszyklus:</strong> Zuweisungen werden standardmäßig <em>storniert</em>, damit Ansagen als Historie erhalten bleiben.
+  Eine <em>endgültige Löschung</em> ist nur als explizite Admin-Aktion verfügbar und entfernt ggf. auch Ergebnisse.
+</div>
+{% endif %}
+
 
 {% for a in analyses %}
 {% set d = data.get(a.code) %}
@@ -36,7 +44,13 @@
       <td>
         {% if sa.status == 'assigned' %}
           <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard-check"></i> Ansage</a>
-          {{ delete_btn(url_for('assignment_cancel', id=sa.id)) }}
+          <form method="POST" action="{{ url_for('assignment_cancel', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung stornieren? Ergebnisse bleiben als Historie erhalten.')">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle"></i></button>
+          </form>
+          <form method="POST" action="{{ url_for('assignment_delete', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung endgültig löschen? Dadurch werden ggf. auch Ergebnisse unwiderruflich entfernt.')">
+            <input type="hidden" name="force" value="1">
+            <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button>
+          </form>
         {% elif sa.status == 'failed' %}
           <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
             <input type="hidden" name="student_id" value="{{ sa.student_id }}">

@@ -210,8 +210,12 @@ class Student(db.Model):
     notes = db.Column(db.Text)
 
     semester = db.relationship("Semester", back_populates="students")
-    # Keep assignments as historical records; student deletion is restricted when linked assignments exist.
-    assignments = db.relationship("SampleAssignment", back_populates="student")
+    assignments = db.relationship(
+        "SampleAssignment",
+        back_populates="student",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         db.UniqueConstraint("semester_id", "matrikel"),
@@ -331,7 +335,7 @@ class SampleAssignment(db.Model):
     __tablename__ = "sample_assignment"
     id = db.Column(db.Integer, primary_key=True)
     sample_id = db.Column(db.Integer, db.ForeignKey("sample.id"), nullable=False)
-    student_id = db.Column(db.Integer, db.ForeignKey("student.id", ondelete="RESTRICT"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id", ondelete="CASCADE"), nullable=False)
     attempt_number = db.Column(db.Integer, nullable=False, default=1)
     attempt_type = db.Column(db.String(2), nullable=False, default="A")
     assigned_date = db.Column(db.String(20), nullable=False)
@@ -341,7 +345,12 @@ class SampleAssignment(db.Model):
 
     sample = db.relationship("Sample", back_populates="assignments")
     student = db.relationship("Student", back_populates="assignments")
-    results = db.relationship("Result", back_populates="assignment")
+    results = db.relationship(
+        "Result",
+        back_populates="assignment",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     @property
     def latest_result(self):
@@ -353,7 +362,11 @@ class SampleAssignment(db.Model):
 class Result(db.Model):
     __tablename__ = "result"
     id = db.Column(db.Integer, primary_key=True)
-    assignment_id = db.Column(db.Integer, db.ForeignKey("sample_assignment.id"), nullable=False)
+    assignment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sample_assignment.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     ansage_value = db.Column(db.Float, nullable=False)
     ansage_unit = db.Column(db.String(20), nullable=False)
     g_wahr = db.Column(db.Float)
