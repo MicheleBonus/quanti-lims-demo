@@ -37,7 +37,7 @@
   <td>{{ d.b }}</td>
   <td>{{ d.n }}</td>
   <td class="text-end"><strong>{{ d.total }}</strong></td>
-  <td>{{ d.unit }}</td>
+  <td>{{ d.unit|unit }}</td>
   <td>{% if d.is_titrant %}<span class="badge bg-info">Titrant</span>{% endif %}</td>
 </tr>
 {% endfor %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import field, textarea, checkbox %}
+{% from "macros.html" import field, textarea, checkbox, select %}
 {% block title %}Reagenz {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
 {% block content %}
 <h4 class="mb-4">Reagenz {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
@@ -9,7 +9,7 @@
   <div class="row">
     <div class="col-md-5">{{ field("name", "Name", item.name, required=true) }}</div>
     <div class="col-md-3">{{ field("abbreviation", "Kürzel", item.abbreviation) }}</div>
-    <div class="col-md-2">{{ field("base_unit", "Einheit", item.base_unit or 'mL') }}</div>
+    <div class="col-md-2">{{ select("base_unit", "Einheit", unit_options, selected=item.base_unit or 'mL', required=true, blank=None) }}</div>
   </div>
   <div class="row">
     <div class="col-md-3">{{ checkbox("is_composite", "Zusammengesetztes Reagenz", item.is_composite) }}</div>

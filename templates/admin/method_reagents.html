@@ -16,7 +16,7 @@
   <td>{{ mr.reagent.name }}</td>
   <td>{{ mr.amount_per_determination }}</td>
   <td>{{ mr.amount_per_blind }}</td>
-  <td>{{ mr.amount_unit }}</td>
+  <td>{{ mr.amount_unit|unit }}</td>
   <td>{% if mr.is_titrant %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}–{% endif %}</td>
   <td class="text-body-secondary small">{{ mr.step_description or '–' }}</td>
   <td>

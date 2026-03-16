@@ -11,7 +11,7 @@
 <tr>
   <td><a href="{{ url_for('admin_reagent_form', id=r.id) }}">{{ r.name }}</a></td>
   <td class="text-body-secondary">{{ r.abbreviation or '–' }}</td>
-  <td>{{ r.base_unit }}</td>
+  <td>{{ r.base_unit|unit }}</td>
   <td>{% if r.is_composite %}<span class="badge bg-warning text-dark">Ja</span>{% else %}–{% endif %}</td>
   <td class="text-body-secondary">{{ r.cas_number or '–' }}</td>
   <td>{% if r.is_composite %}<a href="{{ url_for('admin_reagent_components', reagent_id=r.id) }}" class="btn btn-outline-secondary btn-sm">{{ r.components|length }} Komp.</a>{% endif %}</td>
