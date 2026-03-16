@@ -12,7 +12,7 @@
   <td><strong>{{ m.analysis.code }}</strong> {{ m.analysis.name }}</td>
   <td><span class="badge bg-info">{{ m.method_type }}</span></td>
   <td>{{ m.m_eq_mg|fmt(2) }}</td>
-  <td>{{ m.titrant_name or '–' }}</td>
+  <td>{{ m.derived_titrant_name or '–' }}</td>
   <td>{{ m.titrant_concentration or '–' }}</td>
   <td>{% if m.blind_required %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}–{% endif %}</td>
   <td>{{ m.b_blind_determinations }}</td>

@@ -36,6 +36,11 @@ def _method_supports_titrant_flag(method: Method) -> bool:
     return mode != MODE_TITRANT_STANDARDIZATION and method.method_type in {"direct", "back"}
 
 
+def _sync_method_titrant_name(method: Method) -> None:
+    usage = next((u for u in method.reagent_usages if u.is_titrant and u.reagent), None)
+    method.titrant_name = usage.reagent.name if usage else None
+
+
 def resolve_standardization_titer(semester_id: int) -> dict | None:
     latest = (
         Result.query
@@ -311,7 +316,6 @@ def register_routes(app):
             item.analysis_id = int(request.form["analysis_id"])
             item.method_type = request.form["method_type"]
             item.m_eq_mg = _float(request.form.get("m_eq_mg"))
-            item.titrant_name = request.form.get("titrant_name") or None
             item.titrant_concentration = request.form.get("titrant_concentration") or None
             item.blind_required = "blind_required" in request.form
             item.b_blind_determinations = int(request.form.get("b_blind_determinations", 1))
@@ -453,11 +457,16 @@ def register_routes(app):
         if not is_known_unit(mr.amount_unit):
             flash("Ungültige Einheit für Methoden-Reagenz.", "danger")
             return redirect(url_for("admin_method_reagents", method_id=method_id))
-        db.session.add(mr)
         if mr.amount_unit_type != AMOUNT_UNIT_VOLUME and mr.is_titrant:
-            db.session.rollback()
             flash("Titrant-Markierung ist nur für Volumen-Einheiten zulässig.", "danger")
             return redirect(url_for("admin_method_reagents", method_id=method_id))
+
+        if mr.is_titrant:
+            MethodReagent.query.filter_by(method_id=method_id, is_titrant=True).update({"is_titrant": False})
+
+        db.session.add(mr)
+        db.session.flush()
+        _sync_method_titrant_name(method)
         try:
             db.session.commit()
             flash("Reagenz-Zuordnung hinzugefügt.", "success")
@@ -472,6 +481,10 @@ def register_routes(app):
         mr = MethodReagent.query.get_or_404(id)
         mid = mr.method_id
         db.session.delete(mr)
+        db.session.flush()
+        method = Method.query.get(mid)
+        if method:
+            _sync_method_titrant_name(method)
         db.session.commit()
         flash("Zuordnung entfernt.", "warning")
         return redirect(url_for("admin_method_reagents", method_id=mid))
