@@ -715,6 +715,26 @@ def register_routes(app):
     def results_submit(assignment_id):
         assignment = SampleAssignment.query.get_or_404(assignment_id)
         analysis = assignment.sample.batch.analysis
+
+        sample = assignment.sample
+        method = analysis.method
+        missing_requirements = []
+        if sample.m_s_actual_g is None or sample.m_ges_actual_g is None:
+            missing_requirements.append("Einwaagedaten der Probe")
+        if method is None or method.m_eq_mg is None:
+            missing_requirements.append("Methodenäquivalent (m_eq)")
+        if analysis.tol_min is None or analysis.tol_max is None:
+            missing_requirements.append("Toleranzgrenzen")
+
+        if missing_requirements:
+            flash(
+                "Ansage kann derzeit nicht bewertet werden. Bitte vervollständigen: "
+                + ", ".join(missing_requirements)
+                + ".",
+                "warning",
+            )
+            return redirect(url_for("results_overview", analysis_id=analysis.id))
+
         if request.method == "POST":
             val = float(request.form["ansage_value"].replace(",", "."))
             r = Result(
@@ -724,13 +744,24 @@ def register_routes(app):
             )
             r.evaluate()
             db.session.add(r)
-            assignment.status = "passed" if r.passed else "failed"
-            db.session.commit()
-            if r.passed:
-                flash(f"✅ Bestanden! Ansage: {val} {analysis.result_unit}", "success")
+            if r.passed is True:
+                assignment.status = "passed"
+            elif r.passed is False:
+                assignment.status = "failed"
             else:
+                assignment.status = "submitted"
+            db.session.commit()
+            if r.passed is True:
+                flash(f"✅ Bestanden! Ansage: {val} {analysis.result_unit}", "success")
+            elif r.passed is False:
+                if r.a_min is not None and r.a_max is not None:
+                    tolerance_text = f"(Toleranz: {r.a_min:.4f} – {r.a_max:.4f})"
+                else:
+                    tolerance_text = ""
                 flash(f"❌ Nicht bestanden. Ansage: {val} {analysis.result_unit} "
-                      f"(Toleranz: {r.a_min:.4f} – {r.a_max:.4f})", "danger")
+                      f"{tolerance_text}".strip(), "danger")
+            else:
+                flash("⚠️ Bewertung nicht möglich – Einwaage/Toleranzdaten fehlen.", "warning")
             return redirect(url_for("results_overview", analysis_id=analysis.id))
         return render_template("results/submit.html", assignment=assignment, analysis=analysis)
 
