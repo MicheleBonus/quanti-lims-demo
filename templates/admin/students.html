@@ -1,8 +1,16 @@
 {% extends "base.html" %}
-{% from "macros.html" import page_header, delete_btn %}
+{% from "macros.html" import page_header %}
 {% block title %}Studierende – Admin{% endblock %}
 {% block content %}
 {{ page_header("Studierende", semester.code if semester else "Kein aktives Semester", url_for('admin_student_form')) }}
+
+{% if semester %}
+<div class="alert alert-info">
+  <strong>Datenlebenszyklus:</strong> Standardmäßig werden Zuweisungen nur storniert, damit Ergebnisse historisch erhalten bleiben.
+  Das Löschen von Studierenden mit verknüpften Zuweisungen ist deshalb blockiert. Für bereinigende Eingriffe gibt es
+  die explizite Aktion <em>Endgültig löschen</em>.
+</div>
+{% endif %}
 
 {% if semester %}
 <div class="card mb-3">
@@ -36,7 +44,13 @@
   <td class="text-body-secondary">{{ s.email or '–' }}</td>
   <td class="text-end">
     <a href="{{ url_for('admin_student_form', id=s.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
-    {{ delete_btn(url_for('admin_student_delete', id=s.id)) }}
+    <form method="POST" action="{{ url_for('admin_student_delete', id=s.id) }}" class="d-inline" onsubmit="return confirm('Studierende/n löschen? Ohne Freigabe wird bei bestehenden Zuweisungen blockiert.')">
+      <button type="submit" class="btn btn-outline-danger btn-sm" title="Standard-Löschversuch"><i class="bi bi-trash"></i></button>
+    </form>
+    <form method="POST" action="{{ url_for('admin_student_delete', id=s.id) }}" class="d-inline" onsubmit="return confirm('Endgültig löschen? Dadurch werden auch alle Zuweisungen und Ergebnisse unwiderruflich entfernt.')">
+      <input type="hidden" name="force" value="1">
+      <button type="submit" class="btn btn-danger btn-sm" title="Erzwingt kaskadierendes Löschen inkl. Historie"><i class="bi bi-exclamation-triangle"></i></button>
+    </form>
   </td>
 </tr>
 {% endfor %}
