@@ -684,7 +684,13 @@ def register_routes(app):
             sample = next((s for s in samples if s.running_number == st.running_number), None)
             if not sample:
                 continue
-            existing = SampleAssignment.query.filter_by(sample_id=sample.id, student_id=st.id).first()
+            existing = (
+                SampleAssignment.query
+                .filter_by(sample_id=sample.id, student_id=st.id)
+                # Cancelled assignments are historical and should not block a fresh initial assignment.
+                .filter(SampleAssignment.status != "cancelled")
+                .first()
+            )
             if existing:
                 continue
             sa = SampleAssignment(
