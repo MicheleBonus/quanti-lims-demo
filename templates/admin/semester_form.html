@@ -5,6 +5,7 @@
 <h4 class="mb-4">Semester {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 <div class="card"><div class="card-body">
 <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
     <div class="col-md-3">{{ field("code", "Code", item.code, required=true, placeholder="z.B. WS2025/26") }}</div>
     <div class="col-md-5">{{ field("name", "Name", item.name, required=true, placeholder="Wintersemester 2025/26") }}</div>

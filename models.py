@@ -311,8 +311,10 @@ class Sample(db.Model):
     __table_args__ = (db.UniqueConstraint("batch_id", "running_number"),)
 
     def _calc(self):
-        evaluator = get_evaluator(self.batch.analysis.calculation_mode)
-        return evaluator.calculate_sample(self)
+        if not hasattr(self, '_calc_cache'):
+            evaluator = get_evaluator(self.batch.analysis.calculation_mode)
+            self._calc_cache = evaluator.calculate_sample(self)
+        return self._calc_cache
 
     @property
     def g_wahr(self) -> float | None:

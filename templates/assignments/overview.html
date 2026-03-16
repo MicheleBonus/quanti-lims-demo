@@ -45,14 +45,17 @@
         {% if sa.status == 'assigned' %}
           <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard-check"></i> Ansage</a>
           <form method="POST" action="{{ url_for('assignment_cancel', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung stornieren? Ergebnisse bleiben als Historie erhalten.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle"></i></button>
           </form>
           <form method="POST" action="{{ url_for('assignment_delete', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung endgültig löschen? Dadurch werden ggf. auch Ergebnisse unwiderruflich entfernt.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="force" value="1">
             <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button>
           </form>
         {% elif sa.status == 'failed' %}
           <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="student_id" value="{{ sa.student_id }}">
             <input type="hidden" name="analysis_id" value="{{ a.id }}">
             <button type="submit" class="btn btn-outline-warning btn-sm" {% if d.buffer_count == 0 %}disabled{% endif %}>

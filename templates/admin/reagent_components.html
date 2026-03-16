@@ -19,6 +19,7 @@
   <td>{{ c.per_parent_volume_ml or '–' }}</td>
   <td>
     <form method="POST" action="{{ url_for('admin_reagent_component_delete', id=c.id) }}" class="d-inline" onsubmit="return confirm('Entfernen?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
     </form>
   </td>
@@ -33,6 +34,7 @@
 <div class="card-header">Komponente hinzufügen</div>
 <div class="card-body">
 <form method="POST" action="{{ url_for('admin_reagent_component_add', reagent_id=parent.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row g-2 align-items-end">
     <div class="col-md-4">
       {{ select("child_reagent_id", "Reagenz", reag_opts, required=true, blank="– Reagenz wählen –") }}

@@ -82,14 +82,17 @@ def seed_database():
     # ── Methoden (exemplarisch) ────────────────────────────────────
     methods = {}
     meth_data = [
+        ("I.1",  "direct",   3.646, "Salzsäure",          "0,1 mol/L",  False, 0, None),
         ("I.2",  "back",     45.04, "Salzsäure",          "0,5 mol/L",  True,  1, 50.0),
         ("I.3",  "direct",   19.07, "Salzsäure",          "0,1 mol/L",  False, 0, None),
+        ("I.4",  "direct",   9.403, "Salzsäure",          "0,1 mol/L",  False, 0, None),
         ("II.1", "direct",    8.81, "Iod-Lösung",         "0,05 mol/L", False, 0, None),
         ("II.2", "direct",   None,  "Silbernitrat-Lösung", "0,1 mol/L", False, 0, None),
         ("II.3", "back",     None,  "Natriumthiosulfat",   "0,1 mol/L", True,  1, None),
         ("II.4", "back",     None,  "Natriumthiosulfat",   "0,1 mol/L", True,  2, None),
         ("III.1","complexometric", None, "Zinksulfat-Lösung", "0,1 mol/L", False, 0, None),
         ("III.2","argentometric",  None, "Ammoniumthiocyanat", "0,1 mol/L", False, 0, None),
+        ("III.3","direct",   None,  "Perchlorsäure",       "0,1 mol/L", False, 0, None),
         ("III.4","gravimetric",    None, None,              None,          False, 0, None),
     ]
     for acode, mtype, meq, tname, tconc, blind, b_det, vorlage in meth_data:

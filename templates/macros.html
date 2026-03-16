@@ -50,6 +50,7 @@
 
 {% macro delete_btn(url) %}
 <form method="POST" action="{{ url }}" class="d-inline" onsubmit="return confirm('Wirklich löschen?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
 </form>
 {% endmacro %}

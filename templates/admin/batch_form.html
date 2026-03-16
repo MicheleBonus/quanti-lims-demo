@@ -5,6 +5,7 @@
 <h4 class="mb-4">Probenansatz {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 <div class="card"><div class="card-body">
 <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
     <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
     <div class="col-md-4">{{ select("substance_lot_id", "Charge (optional)", lot_opts, item.substance_lot_id, blank="– Keine Charge (p=100%) –") }}</div>
@@ -44,7 +45,7 @@
   </div>
 
   <div class="row">
-    <div class="col-md-3">{{ field("total_samples_prepared", "Anzahl Proben (gesamt)", item.total_samples_prepared or (n_students + 50), type="number", required=true, help="Inkl. Puffer. Aktuell " ~ n_students ~ " Studierende.") }}</div>
+    <div class="col-md-3">{{ field("total_samples_prepared", "Anzahl Proben (gesamt)", item.total_samples_prepared or (n_students + (n_students * 0.3)|round(0, 'ceil')|int), type="number", required=true, help="Inkl. ~30 % Puffer. Aktuell " ~ n_students ~ " Studierende.") }}</div>
     <div class="col-md-3">{{ field("preparation_date", "Herstellungsdatum", item.preparation_date, type="date") }}</div>
     <div class="col-md-3">{{ field("prepared_by", "Hergestellt von", item.prepared_by) }}</div>
   </div>
