@@ -3,6 +3,10 @@
 {% block title %}Studierende – Admin{% endblock %}
 {% block content %}
 {{ page_header("Studierende", semester.code if semester else "Kein aktives Semester", url_for('admin_student_form')) }}
+<div class="mb-3 d-flex gap-2">
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_students', fmt='csv') }}"><i class="bi bi-download"></i> CSV-Export</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_students', fmt='json') }}"><i class="bi bi-filetype-json"></i> JSON-Export</a>
+</div>
 
 {% if semester %}
 <div class="alert alert-info">

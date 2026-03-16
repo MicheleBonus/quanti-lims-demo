@@ -35,6 +35,8 @@
               <li><a class="dropdown-item" href="{{ url_for('admin_reagents') }}"><i class="bi bi-prescription2"></i> Reagenzien</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{{ url_for('admin_batches') }}"><i class="bi bi-collection"></i> Probenansätze</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_system') }}"><i class="bi bi-hdd-stack"></i> System</a></li>
             </ul>
           </li>
           <li class="nav-item">
@@ -71,6 +73,15 @@
       {% endfor %}
     {% endif %}
     {% endwith %}
+
+    {% if save_timestamps %}
+    <div class="alert alert-light border small" role="status">
+      <strong>Zuletzt gespeichert:</strong>
+      {% for entity, ts in save_timestamps.items() %}
+        <span class="badge text-bg-secondary me-1">{{ entity }}: {{ ts }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     {% block content %}{% endblock %}
   </main>

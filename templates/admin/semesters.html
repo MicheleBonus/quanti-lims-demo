@@ -3,6 +3,10 @@
 {% block title %}Semester – Admin{% endblock %}
 {% block content %}
 {{ page_header("Semesterverwaltung", "", url_for('admin_semester_form')) }}
+<div class="mb-3 d-flex gap-2">
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_semesters', fmt='csv') }}"><i class="bi bi-download"></i> CSV-Export</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_semesters', fmt='json') }}"><i class="bi bi-filetype-json"></i> JSON-Export</a>
+</div>
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Start</th><th>Ende</th><th>Status</th><th>Studierende</th><th></th></tr></thead>

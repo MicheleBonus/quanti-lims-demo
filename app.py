@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import os
 from functools import wraps
 from datetime import date
 from sqlalchemy.exc import IntegrityError
 
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash, jsonify,
+    Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, session,
 )
 from flask_wtf.csrf import CSRFProtect
 from config import Config
@@ -146,6 +148,61 @@ def register_routes(app):
 
         return decorator
 
+    def _iso_now() -> str:
+        return date.today().isoformat()
+
+    def flash_saved(entity_label: str, details: str | None = None) -> None:
+        timestamp = _iso_now()
+        save_times = session.get("save_timestamps", {})
+        save_times[entity_label] = timestamp
+        session["save_timestamps"] = save_times
+        suffix = f" ({details})" if details else ""
+        flash(f"{entity_label} gespeichert – zuletzt gespeichert: {timestamp}{suffix}", "success")
+
+    def _dict_rows(rows: list[dict], filename: str, fmt: str):
+        if fmt == "json":
+            payload = json.dumps(rows, ensure_ascii=False, indent=2)
+            return Response(
+                payload,
+                mimetype="application/json",
+                headers={"Content-Disposition": f"attachment; filename={filename}.json"},
+            )
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()) if rows else [])
+        if rows:
+            writer.writeheader()
+            writer.writerows(rows)
+        else:
+            output.write("\n")
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}.csv"},
+        )
+
+    @app.context_processor
+    def inject_save_feedback():
+        return {"save_timestamps": session.get("save_timestamps", {})}
+
+    def _db_file_path() -> str | None:
+        uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        prefix = "sqlite:///"
+        if not uri.startswith(prefix):
+            return None
+        raw_path = uri[len(prefix):]
+        if not raw_path:
+            return None
+        return raw_path if os.path.isabs(raw_path) else os.path.abspath(raw_path)
+
+    def _is_admin_request() -> bool:
+        if session.get("is_admin") is True:
+            return True
+        token = app.config.get("ADMIN_BACKUP_TOKEN")
+        if token and request.args.get("token") == token:
+            session["is_admin"] = True
+            return True
+        return False
+
     # ═══════════════════════════════════════════════════════════════
     # DASHBOARD
     # ═══════════════════════════════════════════════════════════════
@@ -187,7 +244,7 @@ def register_routes(app):
                 db.session.add(item)
             try:
                 db.session.commit()
-                flash("Substanz gespeichert.", "success")
+                flash_saved("Substanz")
                 return redirect(url_for("admin_substances"))
             except IntegrityError:
                 db.session.rollback()
@@ -243,7 +300,7 @@ def register_routes(app):
                 db.session.add(item)
             try:
                 db.session.commit()
-                flash("Charge gespeichert.", "success")
+                flash_saved("Charge")
                 return redirect(url_for("admin_lots"))
             except IntegrityError:
                 db.session.rollback()
@@ -299,7 +356,7 @@ def register_routes(app):
                 db.session.add(item)
             try:
                 db.session.commit()
-                flash("Analyse gespeichert.", "success")
+                flash_saved("Analyse")
                 return redirect(url_for("admin_analyses"))
             except IntegrityError:
                 db.session.rollback()
@@ -350,7 +407,7 @@ def register_routes(app):
                 db.session.add(item)
             try:
                 db.session.commit()
-                flash("Methode gespeichert.", "success")
+                flash_saved("Methode")
                 return redirect(url_for("admin_methods"))
             except IntegrityError:
                 db.session.rollback()
@@ -395,7 +452,7 @@ def register_routes(app):
                 db.session.add(item)
             try:
                 db.session.commit()
-                flash("Reagenz gespeichert.", "success")
+                flash_saved("Reagenz")
                 return redirect(url_for("admin_reagents"))
             except IntegrityError:
                 db.session.rollback()
@@ -546,7 +603,7 @@ def register_routes(app):
                 Semester.query.filter(Semester.id != item.id).update({"is_active": False})
             try:
                 db.session.commit()
-                flash("Semester gespeichert.", "success")
+                flash_saved("Semester")
                 return redirect(url_for("admin_semesters"))
             except IntegrityError:
                 db.session.rollback()
@@ -606,7 +663,7 @@ def register_routes(app):
                 db.session.add(item)
             try:
                 db.session.commit()
-                flash("Studierende/r gespeichert.", "success")
+                flash_saved("Studierende")
                 return redirect(url_for("admin_students"))
             except IntegrityError:
                 db.session.rollback()
@@ -856,7 +913,7 @@ def register_routes(app):
                         s = Sample(batch=item, running_number=i, is_buffer=(i > n_students))
                         db.session.add(s)
                 db.session.commit()
-                flash("Probenansatz gespeichert. Proben generiert.", "success")
+                flash_saved("Probenansatz", "Proben generiert")
                 return redirect(url_for("admin_batches"))
             except IntegrityError:
                 db.session.rollback()
@@ -934,7 +991,7 @@ def register_routes(app):
                 s.weighed_by = request.form.get("weighed_by") or s.weighed_by
                 s.weighed_date = date.today().isoformat()
             db.session.commit()
-            flash("Einwaagen gespeichert.", "success")
+            flash_saved("Einwaagen")
             return redirect(url_for("ta_weighing_batch", batch_id=batch_id))
         return render_template("ta/weighing.html", batch=batch, samples=samples, titer_label=mode_titer_label(batch.analysis.calculation_mode))
 
@@ -1148,6 +1205,7 @@ def register_routes(app):
             db.session.commit()
             if r.passed is True:
                 flash(f"✅ Bestanden! Ansage: {val} {analysis.result_unit}", "success")
+                flash_saved("Ergebnisse")
             elif r.passed is False:
                 if r.a_min is not None and r.a_max is not None:
                     tolerance_text = f"(Toleranz: {r.a_min:.4f} – {r.a_max:.4f})"
@@ -1155,6 +1213,7 @@ def register_routes(app):
                     tolerance_text = ""
                 flash(f"❌ Nicht bestanden. Ansage: {val} {analysis.result_unit} "
                       f"{tolerance_text}".strip(), "danger")
+                flash_saved("Ergebnisse")
             else:
                 flash("⚠️ Bewertung nicht möglich – Einwaage/Toleranzdaten fehlen.", "warning")
             return redirect(url_for("results_overview", analysis_id=analysis.id))
@@ -1246,6 +1305,102 @@ def register_routes(app):
                 })
         has_non_volume_units = any(get_amount_unit_type(d["unit"]) != AMOUNT_UNIT_VOLUME for d in demand)
         return render_template("reports/reagents.html", semester=sem, demand=demand, has_non_volume_units=has_non_volume_units)
+
+    @app.route("/admin/system")
+    def admin_system():
+        return render_template("admin/system.html", db_uri=app.config.get("SQLALCHEMY_DATABASE_URI", ""), is_admin=_is_admin_request())
+
+    @app.route("/admin/backup/database")
+    def admin_backup_database():
+        if not _is_admin_request():
+            flash("Backup-Download nur mit Admin-Rolle erlaubt (optional via ?token=...).", "danger")
+            return redirect(url_for("admin_system"))
+        db_path = _db_file_path()
+        if not db_path or not os.path.exists(db_path):
+            flash("SQLite-Datei nicht gefunden oder kein SQLite-Backend aktiv.", "danger")
+            return redirect(url_for("admin_system"))
+        return send_file(db_path, as_attachment=True, download_name=os.path.basename(db_path), mimetype="application/x-sqlite3")
+
+    @app.route("/export/semesters.<fmt>")
+    def export_semesters(fmt):
+        if fmt not in {"csv", "json"}:
+            return ("Unsupported format", 400)
+        rows = [{
+            "id": s.id, "code": s.code, "name": s.name, "start_date": s.start_date,
+            "end_date": s.end_date, "is_active": s.is_active, "students_count": len(s.students),
+        } for s in Semester.query.order_by(Semester.id).all()]
+        return _dict_rows(rows, "semesters", fmt)
+
+    @app.route("/export/students.<fmt>")
+    def export_students(fmt):
+        if fmt not in {"csv", "json"}:
+            return ("Unsupported format", 400)
+        sem = active_semester()
+        query = Student.query.order_by(Student.semester_id, Student.running_number)
+        if sem:
+            query = query.filter_by(semester_id=sem.id)
+        rows = [{
+            "id": st.id, "semester_id": st.semester_id, "semester_code": st.semester.code if st.semester else None,
+            "matrikel": st.matrikel, "last_name": st.last_name, "first_name": st.first_name,
+            "running_number": st.running_number, "email": st.email,
+        } for st in query.all()]
+        return _dict_rows(rows, "students", fmt)
+
+    @app.route("/export/results.<fmt>")
+    def export_results(fmt):
+        if fmt not in {"csv", "json"}:
+            return ("Unsupported format", 400)
+        rows = []
+        assignments = (
+            SampleAssignment.query
+            .join(Sample, SampleAssignment.sample_id == Sample.id)
+            .join(SampleBatch, Sample.batch_id == SampleBatch.id)
+            .join(Analysis, SampleBatch.analysis_id == Analysis.id)
+            .join(Student, SampleAssignment.student_id == Student.id)
+            .outerjoin(Result, Result.assignment_id == SampleAssignment.id)
+            .order_by(SampleBatch.semester_id, Analysis.ordinal, Student.running_number, SampleAssignment.id)
+            .all()
+        )
+        for sa in assignments:
+            latest = sa.latest_result
+            rows.append({
+                "assignment_id": sa.id, "semester_code": sa.sample.batch.semester.code if sa.sample and sa.sample.batch and sa.sample.batch.semester else None,
+                "analysis_code": sa.sample.batch.analysis.code if sa.sample and sa.sample.batch and sa.sample.batch.analysis else None,
+                "student_matrikel": sa.student.matrikel if sa.student else None, "student_name": sa.student.full_name if sa.student else None,
+                "attempt_type": sa.attempt_type, "status": sa.status,
+                "ansage_value": latest.ansage_value if latest else None,
+                "ansage_unit": latest.ansage_unit if latest else None,
+                "passed": latest.passed if latest else None,
+                "submitted_date": latest.submitted_date if latest else None,
+            })
+        return _dict_rows(rows, "results", fmt)
+
+    @app.route("/export/reagents-demand.<fmt>")
+    def export_reagents_demand(fmt):
+        if fmt not in {"csv", "json"}:
+            return ("Unsupported format", 400)
+        sem = active_semester()
+        if not sem:
+            return _dict_rows([], "reagents_demand", fmt)
+        rows = []
+        batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
+        for batch in batches:
+            analysis = batch.analysis
+            method = analysis.method
+            if not method:
+                continue
+            for mr in method.reagent_usages:
+                k = analysis.k_determinations
+                b = method.b_blind_determinations if method.blind_required else 0
+                n = batch.total_samples_prepared
+                total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * 1.2
+                rows.append({
+                    "semester_code": sem.code, "analysis_code": analysis.code, "analysis_name": analysis.name,
+                    "reagent": mr.reagent.name if mr.reagent else None, "amount_per_determination": mr.amount_per_determination,
+                    "amount_per_blind": mr.amount_per_blind, "k": k, "b": b, "n": n,
+                    "total_with_safety": round(total, 1), "unit": canonical_unit_label(mr.amount_unit), "is_titrant": mr.is_titrant,
+                })
+        return _dict_rows(rows, "reagents_demand", fmt)
 
     # ═══════════════════════════════════════════════════════════════
     # API endpoints (for HTMX / JS)

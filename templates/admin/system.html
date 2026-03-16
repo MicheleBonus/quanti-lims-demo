@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}System – Admin{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-hdd-stack"></i> System</h4>
+<div class="card mb-3"><div class="card-body">
+<h6 class="card-title">Aktiver Datenbankpfad (read-only)</h6>
+<code>{{ db_uri }}</code>
+<p class="text-body-secondary small mt-2 mb-0">Hinweis: Anzeige aus <code>Config.SQLALCHEMY_DATABASE_URI</code>; nur zur Einsicht.</p>
+</div></div>
+<div class="card"><div class="card-body">
+<h6 class="card-title">Optionales DB-Backup</h6>
+<p class="text-body-secondary">Download der SQLite-Datei ist nur mit Admin-Rolle möglich (Session oder optional <code>?token=...</code>).</p>
+{% if is_admin %}<a href="{{ url_for('admin_backup_database') }}" class="btn btn-primary"><i class="bi bi-download"></i> SQLite-Backup herunterladen</a>{% else %}<a href="{{ url_for('admin_backup_database') }}" class="btn btn-outline-secondary"><i class="bi bi-lock"></i> Backup (Admin)</a>{% endif %}
+</div></div>
+{% endblock %}
