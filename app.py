@@ -31,6 +31,11 @@ def mode_titer_label(mode: str | None) -> str:
     return "Titer"
 
 
+def _method_supports_titrant_flag(method: Method) -> bool:
+    mode = resolve_mode(method.analysis.calculation_mode if method.analysis else None)
+    return mode != MODE_TITRANT_STANDARDIZATION and method.method_type in {"direct", "back"}
+
+
 def resolve_standardization_titer(semester_id: int) -> dict | None:
     latest = (
         Result.query
@@ -418,17 +423,31 @@ def register_routes(app):
         reagents = Reagent.query.order_by(Reagent.name).all()
         reag_opts = [(r.id, r.name) for r in reagents]
         amount_units = get_unit_options()
-        return render_template("admin/method_reagents.html", method=method, reag_opts=reag_opts, amount_units=amount_units)
+        analysis_mode = resolve_mode(method.analysis.calculation_mode if method.analysis else None)
+        return render_template(
+            "admin/method_reagents.html",
+            method=method,
+            reag_opts=reag_opts,
+            amount_units=amount_units,
+            analysis_mode=analysis_mode,
+            can_mark_titrant=_method_supports_titrant_flag(method),
+        )
 
     @app.route("/admin/methods/<int:method_id>/reagents/add", methods=["POST"])
     def admin_method_reagent_add(method_id):
+        method = Method.query.get_or_404(method_id)
+        is_titrant_requested = "is_titrant" in request.form
+        if is_titrant_requested and not _method_supports_titrant_flag(method):
+            flash("Titrant-Markierung ist für diesen Methodentyp/Berechnungsmodus nicht zulässig.", "danger")
+            return redirect(url_for("admin_method_reagents", method_id=method_id))
+
         mr = MethodReagent(
             method_id=method_id,
             reagent_id=int(request.form["reagent_id"]),
             amount_per_determination=float(request.form["amount_per_determination"]),
             amount_per_blind=float(request.form.get("amount_per_blind", 0)),
             amount_unit=normalize_unit(request.form.get("amount_unit") or "mL"),
-            is_titrant="is_titrant" in request.form,
+            is_titrant=is_titrant_requested,
             step_description=request.form.get("step_description") or None,
         )
         if not is_known_unit(mr.amount_unit):
