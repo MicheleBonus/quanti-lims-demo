@@ -50,6 +50,14 @@
           <tr><th>V_erwartet</th><td>{{ assignment.sample.v_expected|fmt(3) if assignment.sample.v_expected else '–' }} mL</td></tr>
           <tr><th>Reinheit (p)</th><td>{{ assignment.sample.batch.p_effective|fmt(2) }}% ({{ assignment.sample.batch.p_source }})</td></tr>
           <tr><th>{{ titer_label }}</th><td>{{ assignment.sample.batch.titer|fmt(3) }} <span class="text-body-secondary">({{ assignment.sample.batch.titer_source_label }})</span></td></tr>
+          <tr><th>Einwaage-Logik</th><td>
+            {% if analysis.method %}
+              {{ analysis.method.weighing_basis_label }}
+              {% if analysis.method.weighing_basis == 'per_determination' %}(n_aliquots = {{ analysis.method.n_aliquots }}){% endif %}
+            {% else %}
+              –
+            {% endif %}
+          </td></tr>
         </table>
       </div>
     </div>

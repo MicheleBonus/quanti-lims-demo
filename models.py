@@ -17,6 +17,13 @@ AMOUNT_UNIT_MASS = "mass"
 AMOUNT_UNIT_VOLUME = "volume"
 AMOUNT_UNIT_COUNT = "count"
 
+WEIGHING_BASIS_PER_PREPARATION = "per_preparation"
+WEIGHING_BASIS_PER_DETERMINATION = "per_determination"
+WEIGHING_BASIS_OPTIONS = (
+    (WEIGHING_BASIS_PER_PREPARATION, "Einwaage gilt für Gesamtansatz"),
+    (WEIGHING_BASIS_PER_DETERMINATION, "Einwaage gilt je Bestimmung"),
+)
+
 UNIT_DEFINITIONS = (
     ("mg", "mg", AMOUNT_UNIT_MASS),
     ("g", "g", AMOUNT_UNIT_MASS),
@@ -201,6 +208,8 @@ class Method(db.Model):
     blind_required = db.Column(db.Boolean, nullable=False, default=False)
     b_blind_determinations = db.Column(db.Integer, nullable=False, default=1)
     v_vorlage_ml = db.Column(db.Float)
+    weighing_basis = db.Column(db.String(30), nullable=False, default=WEIGHING_BASIS_PER_PREPARATION)
+    n_aliquots = db.Column(db.Integer)
     description = db.Column(db.Text)
 
     analysis = db.relationship("Analysis", back_populates="method")
@@ -216,6 +225,11 @@ class Method(db.Model):
         if usage and usage.reagent:
             return usage.reagent.name
         return self.titrant_name
+
+    @property
+    def weighing_basis_label(self) -> str:
+        labels = dict(WEIGHING_BASIS_OPTIONS)
+        return labels.get(self.weighing_basis or WEIGHING_BASIS_PER_PREPARATION, "Einwaage gilt für Gesamtansatz")
 
 
 # ── Reagenzien-BOM ────────────────────────────────────────────────────────
@@ -287,6 +301,12 @@ def migrate_schema() -> None:
         if "amount_unit" not in cols:
             conn.exec_driver_sql("ALTER TABLE method_reagent ADD COLUMN amount_unit VARCHAR(20) DEFAULT 'mL'")
 
+        method_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method)").fetchall()}
+        if "weighing_basis" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN weighing_basis VARCHAR(30) DEFAULT 'per_preparation'")
+        if "n_aliquots" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN n_aliquots INTEGER")
+
         cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method_reagent)").fetchall()}
         if "volume_per_determination_ml" in cols:
             conn.exec_driver_sql(
@@ -315,6 +335,14 @@ def migrate_schema() -> None:
         conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'mL' WHERE lower(amount_unit) = 'ml'")
         conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'L' WHERE lower(amount_unit) = 'l'")
         conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'pcs' WHERE lower(amount_unit) IN ('stk', 'piece', 'pieces')")
+
+        conn.exec_driver_sql("UPDATE method SET weighing_basis = COALESCE(weighing_basis, 'per_preparation')")
+        conn.exec_driver_sql(
+            "UPDATE method SET weighing_basis = 'per_preparation' "
+            "WHERE weighing_basis NOT IN ('per_preparation', 'per_determination')"
+        )
+        conn.exec_driver_sql("UPDATE method SET n_aliquots = NULL WHERE weighing_basis = 'per_preparation'")
+        conn.exec_driver_sql("UPDATE method SET n_aliquots = 1 WHERE weighing_basis = 'per_determination' AND COALESCE(n_aliquots, 0) < 1")
 
         valid_units_sql = "('mg','g','kg','µL','mL','L','pcs')"
         conn.exec_driver_sql(f"UPDATE reagent SET base_unit = 'mL' WHERE base_unit NOT IN {valid_units_sql}")
