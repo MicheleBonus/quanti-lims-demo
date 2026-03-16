@@ -5,7 +5,7 @@
 {{ page_header("Analysen-Definitionen", "I.1 bis III.4", url_for('admin_analysis_form')) }}
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Code</th><th>Name</th><th>Block</th><th>Substanz</th><th>k</th><th>Einheit</th><th>Tol. min</th><th>Tol. max</th><th>Methode</th><th></th></tr></thead>
+<thead class="table-light"><tr><th>Code</th><th>Name</th><th>Block</th><th>Substanz</th><th>Mode</th><th>k</th><th>Einheit</th><th>Tol. min</th><th>Tol. max</th><th>Methode</th><th></th></tr></thead>
 <tbody>
 {% for a in items %}
 <tr>
@@ -13,6 +13,7 @@
   <td>{{ a.name }}</td>
   <td>{{ a.block.code }}</td>
   <td class="text-body-secondary">{{ a.substance.name }}</td>
+  <td><code>{{ a.calculation_mode }}</code></td>
   <td>{{ a.k_determinations }}</td>
   <td>{{ a.result_label }} ({{ a.result_unit }})</td>
   <td>{{ a.tol_min|fmt(1) }}</td>

@@ -17,6 +17,8 @@ from models import (
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
 )
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION
+
 
 
 def create_app():
@@ -200,6 +202,7 @@ def register_routes(app):
             item.k_determinations = int(request.form.get("k_determinations", 3))
             item.result_unit = request.form.get("result_unit", "%")
             item.result_label = request.form.get("result_label", "Gehalt")
+            item.calculation_mode = request.form.get("calculation_mode", MODE_ASSAY_MASS_BASED)
             item.tolerance_override_min_pct = _float(request.form.get("tolerance_override_min_pct"))
             item.tolerance_override_max_pct = _float(request.form.get("tolerance_override_max_pct"))
             item.notes = request.form.get("notes") or None
@@ -211,7 +214,11 @@ def register_routes(app):
                 flash("Der Analyse-Code ist bereits vergeben.", "danger")
                 block_opts = [(b.id, b.code) for b in blocks]
                 sub_opts = [(s.id, s.name) for s in substances]
-                return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts)
+                mode_opts = [
+                    (MODE_ASSAY_MASS_BASED, "assay_mass_based"),
+                    (MODE_TITRANT_STANDARDIZATION, "titrant_standardization"),
+                ]
+                return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts, mode_opts=mode_opts)
             if not id:
                 db.session.add(item)
             try:
@@ -223,7 +230,11 @@ def register_routes(app):
                 flash("Analyse konnte nicht gespeichert werden (Code ist bereits vergeben).", "danger")
         block_opts = [(b.id, b.code) for b in blocks]
         sub_opts = [(s.id, s.name) for s in substances]
-        return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts)
+        mode_opts = [
+            (MODE_ASSAY_MASS_BASED, "assay_mass_based"),
+            (MODE_TITRANT_STANDARDIZATION, "titrant_standardization"),
+        ]
+        return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts, mode_opts=mode_opts)
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Methods
@@ -881,7 +892,9 @@ def register_routes(app):
         analyses = Analysis.query.order_by(Analysis.ordinal).all()
         selected_analysis_id = request.args.get("analysis_id", type=int)
         assignments = []
+        selected_analysis = None
         if sem and selected_analysis_id:
+            selected_analysis = Analysis.query.get(selected_analysis_id)
             batch = SampleBatch.query.filter_by(semester_id=sem.id, analysis_id=selected_analysis_id).first()
             if batch:
                 assignments = (
@@ -892,7 +905,7 @@ def register_routes(app):
                     .all()
                 )
         return render_template("results/overview.html", semester=sem, analyses=analyses,
-                               selected_analysis_id=selected_analysis_id, assignments=assignments)
+                               selected_analysis_id=selected_analysis_id, selected_analysis=selected_analysis, assignments=assignments)
 
     @app.route("/results/submit/<int:assignment_id>", methods=["GET", "POST"])
     def results_submit(assignment_id):
@@ -902,12 +915,21 @@ def register_routes(app):
         sample = assignment.sample
         method = analysis.method
         missing_requirements = []
-        if sample.m_s_actual_g is None or sample.m_ges_actual_g is None:
-            missing_requirements.append("Einwaagedaten der Probe")
-        if method is None or method.m_eq_mg is None:
-            missing_requirements.append("Methodenäquivalent (m_eq)")
-        if analysis.tol_min is None or analysis.tol_max is None:
-            missing_requirements.append("Toleranzgrenzen")
+        mode = analysis.calculation_mode or MODE_ASSAY_MASS_BASED
+        if mode == MODE_ASSAY_MASS_BASED:
+            if sample.m_s_actual_g is None or sample.m_ges_actual_g is None:
+                missing_requirements.append("Einwaagedaten der Probe")
+            if method is None or method.m_eq_mg is None:
+                missing_requirements.append("Methodenäquivalent (m_eq)")
+            if analysis.tol_min is None or analysis.tol_max is None:
+                missing_requirements.append("Toleranzgrenzen")
+        elif mode == MODE_TITRANT_STANDARDIZATION:
+            if sample.m_s_actual_g is None:
+                missing_requirements.append("Referenzeinwaage (m_S)")
+            if method is None or method.m_eq_mg is None:
+                missing_requirements.append("Methodenäquivalent (m_eq)")
+            if analysis.tol_min is None or analysis.tol_max is None:
+                missing_requirements.append("Titer-Grenzen")
 
         if missing_requirements:
             flash(
@@ -1030,6 +1052,7 @@ def register_routes(app):
             "a_min": s.a_min,
             "a_max": s.a_max,
             "v_expected": s.v_expected,
+            "titer_expected": s.titer_expected,
             "p_effective": s.batch.p_effective,
             "p_source": s.batch.p_source,
         })

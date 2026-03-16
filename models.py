@@ -5,6 +5,11 @@ from __future__ import annotations
 from datetime import date
 from flask_sqlalchemy import SQLAlchemy
 
+from calculation_modes import (
+    MODE_ASSAY_MASS_BASED,
+    get_evaluator,
+)
+
 db = SQLAlchemy()
 
 # ── Stammdaten ────────────────────────────────────────────────────────────
@@ -88,6 +93,7 @@ class Analysis(db.Model):
     k_determinations = db.Column(db.Integer, nullable=False, default=3)
     result_unit = db.Column(db.String(20), nullable=False, default="%")
     result_label = db.Column(db.String(50), nullable=False, default="Gehalt")
+    calculation_mode = db.Column(db.String(50), nullable=False, default=MODE_ASSAY_MASS_BASED)
     tolerance_override_min_pct = db.Column(db.Float)
     tolerance_override_max_pct = db.Column(db.Float)
     notes = db.Column(db.Text)
@@ -278,45 +284,29 @@ class Sample(db.Model):
 
     __table_args__ = (db.UniqueConstraint("batch_id", "running_number"),)
 
+    def _calc(self):
+        evaluator = get_evaluator(self.batch.analysis.calculation_mode)
+        return evaluator.calculate_sample(self)
+
     @property
     def g_wahr(self) -> float | None:
-        """Wahrer Gehalt (%) = (m_S / m_ges) * p."""
-        if self.m_s_actual_g and self.m_ges_actual_g and self.m_ges_actual_g > 0:
-            return (self.m_s_actual_g / self.m_ges_actual_g) * self.batch.p_effective
-        return None
+        return self._calc().g_wahr
 
     @property
     def a_min(self) -> float | None:
-        g = self.g_wahr
-        tol = self.batch.analysis.tol_min
-        if g is not None and tol is not None:
-            return round(g * tol / 100.0, 4)
-        return None
+        return self._calc().a_min
 
     @property
     def a_max(self) -> float | None:
-        g = self.g_wahr
-        tol = self.batch.analysis.tol_max
-        if g is not None and tol is not None:
-            return round(g * tol / 100.0, 4)
-        return None
+        return self._calc().a_max
 
     @property
     def v_expected(self) -> float | None:
-        """Erwarteter Titrationsverbrauch (mL)."""
-        g = self.g_wahr
-        method = self.batch.analysis.method
-        if g is None or method is None or method.m_eq_mg is None:
-            return None
-        m_s_mg = self.m_s_actual_g * 1000.0
-        t = self.batch.titer
-        if method.method_type == "direct":
-            return round(m_s_mg * (g / 100.0) / (method.m_eq_mg * t), 3)
-        elif method.method_type == "back" and method.v_vorlage_ml is not None:
-            return round(
-                method.v_vorlage_ml - m_s_mg * (g / 100.0) / (method.m_eq_mg * t), 3
-            )
-        return None
+        return self._calc().v_expected_ml
+
+    @property
+    def titer_expected(self) -> float | None:
+        return self._calc().titer_expected
 
     @property
     def is_weighed(self) -> bool:
@@ -373,6 +363,8 @@ class Result(db.Model):
     v_expected_ml = db.Column(db.Float)
     a_min = db.Column(db.Float)
     a_max = db.Column(db.Float)
+    titer_expected = db.Column(db.Float)
+    titer_result = db.Column(db.Float)
     passed = db.Column(db.Boolean)
     submitted_date = db.Column(db.String(20))
     evaluated_by = db.Column(db.String(100))
@@ -381,12 +373,16 @@ class Result(db.Model):
     assignment = db.relationship("SampleAssignment", back_populates="results")
 
     def evaluate(self):
-        """Bewertet die Ansage gegen Toleranzgrenzen der zugewiesenen Probe."""
-        sample = self.assignment.sample
-        self.g_wahr = sample.g_wahr
-        self.v_expected_ml = sample.v_expected
-        self.a_min = sample.a_min
-        self.a_max = sample.a_max
-        if self.a_min is not None and self.a_max is not None:
-            self.passed = self.a_min <= self.ansage_value <= self.a_max
+        """Bewertet die Ansage mittels modusspezifischer Logik."""
+        analysis = self.assignment.sample.batch.analysis
+        evaluator = get_evaluator(analysis.calculation_mode)
+        evaluation = evaluator.evaluate_result(self)
+
+        self.g_wahr = evaluation.g_wahr
+        self.v_expected_ml = evaluation.v_expected_ml
+        self.a_min = evaluation.a_min
+        self.a_max = evaluation.a_max
+        self.titer_expected = evaluation.titer_expected
+        self.titer_result = evaluation.titer_result
+        self.passed = evaluation.passed
         self.submitted_date = date.today().isoformat()
