@@ -23,6 +23,7 @@
   <td>
     <a href="{{ url_for('admin_batch_form', id=b.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
     <a href="{{ url_for('ta_weighing_batch', batch_id=b.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-ui-checks-grid"></i> Einwaage</a>
+    <a href="{{ url_for('admin_batch_samples', batch_id=b.id) }}" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i> Proben</a>
     <form method="POST" action="{{ url_for('admin_batch_assign_initial', id=b.id) }}" class="d-inline" onsubmit="return confirm('Erstanalysen zuweisen (Student k → Probe k)?')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-left-right"></i> Erstanalysen</button>

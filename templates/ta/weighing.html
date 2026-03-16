@@ -40,6 +40,7 @@
         <th style="width:120px">A_max</th>
         <th style="width:120px">V_erw. (mL)</th>
         <th>Status</th>
+        <th>Aktion</th>
       </tr>
     </thead>
     <tbody>
@@ -69,6 +70,14 @@
           {% else %}
             <i class="bi bi-circle text-body-secondary"></i>
           {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('ta_clear_sample_weighing', sample_id=s.id) }}" class="d-inline" onsubmit="return confirm('Einwaage für Probe #{{ s.running_number }} wirklich löschen?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-eraser"></i> Einwaage löschen
+            </button>
+          </form>
         </td>
       </tr>
       {% endfor %}

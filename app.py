@@ -953,6 +953,45 @@ def register_routes(app):
         flash(f"{count} Erstanalysen zugewiesen.", "success")
         return redirect(url_for("admin_batches"))
 
+    @app.route("/admin/batches/<int:batch_id>/samples")
+    def admin_batch_samples(batch_id):
+        batch = SampleBatch.query.get_or_404(batch_id)
+        samples = Sample.query.filter_by(batch_id=batch_id).order_by(Sample.running_number).all()
+        return render_template("admin/batch_samples.html", batch=batch, samples=samples)
+
+    @app.route("/admin/samples/<int:sample_id>/delete", methods=["POST"])
+    def admin_sample_delete(sample_id):
+        sample = Sample.query.get_or_404(sample_id)
+        batch_id = sample.batch_id
+        force = request.form.get("force") == "1"
+        assignments = list(sample.assignments)
+        assignment_count = len(assignments)
+        result_count = sum(len(assignment.results) for assignment in assignments)
+
+        if assignment_count and not force:
+            flash(
+                (
+                    f"Probe #{sample.running_number} kann nicht gelöscht werden: "
+                    f"{assignment_count} Zuweisung(en) und {result_count} Ergebnis(se) vorhanden. "
+                    "Bitte Löschung bestätigen, um Probe und Verknüpfungen endgültig zu entfernen."
+                ),
+                "danger",
+            )
+            return redirect(url_for("admin_batch_samples", batch_id=batch_id))
+
+        for assignment in assignments:
+            db.session.delete(assignment)
+        db.session.delete(sample)
+        db.session.commit()
+        flash(
+            (
+                f"Probe #{sample.running_number} gelöscht. "
+                f"Entfernt: {assignment_count} Zuweisung(en), {result_count} Ergebnis(se)."
+            ),
+            "warning" if assignment_count else "success",
+        )
+        return redirect(url_for("admin_batch_samples", batch_id=batch_id))
+
     # ═══════════════════════════════════════════════════════════════
     # TA: WEIGHING (Einwaage-Eingabe)
     # ═══════════════════════════════════════════════════════════════
@@ -973,27 +1012,50 @@ def register_routes(app):
                 return redirect(url_for("admin_method_form", id=method.id))
         samples = Sample.query.filter_by(batch_id=batch_id).order_by(Sample.running_number).all()
         if request.method == "POST":
+            ignored_empty_fields = 0
             for s in samples:
-                m_s = request.form.get(f"m_s_{s.id}")
-                m_ges = request.form.get(f"m_ges_{s.id}")
+                m_s_raw = request.form.get(f"m_s_{s.id}")
+                m_ges_raw = request.form.get(f"m_ges_{s.id}")
+                m_s = (m_s_raw or "").strip()
+                m_ges = (m_ges_raw or "").strip()
                 if m_s:
                     parsed = _float(m_s)
                     if parsed is not None:
                         s.m_s_actual_g = parsed
                     else:
                         flash(f"Ungültiger Wert für m_S bei Probe {s.running_number}.", "danger")
+                elif m_s_raw is not None and s.m_s_actual_g is not None:
+                    ignored_empty_fields += 1
                 if m_ges:
                     parsed = _float(m_ges)
                     if parsed is not None:
                         s.m_ges_actual_g = parsed
                     else:
                         flash(f"Ungültiger Wert für m_ges bei Probe {s.running_number}.", "danger")
+                elif m_ges_raw is not None and s.m_ges_actual_g is not None:
+                    ignored_empty_fields += 1
                 s.weighed_by = request.form.get("weighed_by") or s.weighed_by
                 s.weighed_date = date.today().isoformat()
+            if ignored_empty_fields:
+                flash(
+                    "Leere Eingabefelder löschen bestehende Werte nicht. Bitte „Einwaage löschen“ nutzen.",
+                    "warning",
+                )
             db.session.commit()
             flash_saved("Einwaagen")
             return redirect(url_for("ta_weighing_batch", batch_id=batch_id))
         return render_template("ta/weighing.html", batch=batch, samples=samples, titer_label=mode_titer_label(batch.analysis.calculation_mode))
+
+    @app.route("/ta/samples/<int:sample_id>/clear-weighing", methods=["POST"])
+    def ta_clear_sample_weighing(sample_id):
+        sample = Sample.query.get_or_404(sample_id)
+        sample.m_s_actual_g = None
+        sample.m_ges_actual_g = None
+        sample.weighed_by = None
+        sample.weighed_date = None
+        db.session.commit()
+        flash(f"Einwaage für Probe #{sample.running_number} wurde gelöscht.", "success")
+        return redirect(url_for("ta_weighing_batch", batch_id=sample.batch_id))
 
     @app.route("/ta/samples/<int:batch_id>")
     def ta_sample_overview(batch_id):
