@@ -163,9 +163,6 @@ def register_routes(app):
             item.name = request.form["name"]
             item.formula = request.form.get("formula") or None
             item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
-            item.e_ab_g = _float(request.form.get("e_ab_g"))
-            item.g_ab_min_pct = _float(request.form.get("g_ab_min_pct"))
-            item.g_ab_max_pct = _float(request.form.get("g_ab_max_pct"))
             item.notes = request.form.get("notes") or None
             duplicate = Substance.query.filter(
                 Substance.name == item.name,
@@ -266,6 +263,10 @@ def register_routes(app):
             item.result_unit = request.form.get("result_unit", "%")
             item.result_label = request.form.get("result_label", "Gehalt")
             item.calculation_mode = request.form.get("calculation_mode", MODE_ASSAY_MASS_BASED)
+            item.e_ab_g = _float(request.form.get("e_ab_g"))
+            item.g_ab_min_pct = _float(request.form.get("g_ab_min_pct"))
+            item.g_ab_max_pct = _float(request.form.get("g_ab_max_pct"))
+            item.source_reference = request.form.get("source_reference") or None
             item.tolerance_override_min_pct = _float(request.form.get("tolerance_override_min_pct"))
             item.tolerance_override_max_pct = _float(request.form.get("tolerance_override_max_pct"))
             item.notes = request.form.get("notes") or None

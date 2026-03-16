@@ -11,11 +11,6 @@
     <div class="col-md-3">{{ field("formula", "Summenformel", item.formula) }}</div>
     <div class="col-md-3">{{ field("molar_mass_gmol", "Molare Masse (g/mol)", item.molar_mass_gmol, type="number", step="0.01") }}</div>
   </div>
-  <div class="row">
-    <div class="col-md-4">{{ field("e_ab_g", "E_AB – Einwaage pro Ansatz (g)", item.e_ab_g, type="number", step="0.001") }}</div>
-    <div class="col-md-4">{{ field("g_ab_min_pct", "G_AB,min – Sollgehalt min (%)", item.g_ab_min_pct, type="number", step="0.1") }}</div>
-    <div class="col-md-4">{{ field("g_ab_max_pct", "G_AB,max – Sollgehalt max (%)", item.g_ab_max_pct, type="number", step="0.1") }}</div>
-  </div>
   {{ textarea("notes", "Notizen", item.notes) }}
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>
   <a href="{{ url_for('admin_substances') }}" class="btn btn-outline-secondary">Abbrechen</a>

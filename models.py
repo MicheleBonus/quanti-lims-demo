@@ -156,6 +156,10 @@ class Analysis(db.Model):
     result_unit = db.Column(db.String(20), nullable=False, default="%")
     result_label = db.Column(db.String(50), nullable=False, default="Gehalt")
     calculation_mode = db.Column(db.String(50), nullable=False, default=MODE_ASSAY_MASS_BASED)
+    e_ab_g = db.Column(db.Float)
+    g_ab_min_pct = db.Column(db.Float)
+    g_ab_max_pct = db.Column(db.Float)
+    source_reference = db.Column(db.String(255))
     tolerance_override_min_pct = db.Column(db.Float)
     tolerance_override_max_pct = db.Column(db.Float)
     notes = db.Column(db.Text)
@@ -169,6 +173,8 @@ class Analysis(db.Model):
     def tol_min(self) -> float | None:
         if self.tolerance_override_min_pct is not None:
             return self.tolerance_override_min_pct
+        if self.g_ab_min_pct is not None:
+            return self.g_ab_min_pct
         if self.substance and self.substance.g_ab_min_pct is not None:
             return self.substance.g_ab_min_pct
         return None
@@ -177,6 +183,8 @@ class Analysis(db.Model):
     def tol_max(self) -> float | None:
         if self.tolerance_override_max_pct is not None:
             return self.tolerance_override_max_pct
+        if self.g_ab_max_pct is not None:
+            return self.g_ab_max_pct
         if self.substance and self.substance.g_ab_max_pct is not None:
             return self.substance.g_ab_max_pct
         return None

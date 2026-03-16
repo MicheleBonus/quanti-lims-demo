@@ -73,6 +73,9 @@ def seed_database():
             block=blocks[blk], code=code, ordinal=ordinal, name=name,
             substance=substances[sub_name], k_determinations=k,
             result_unit=unit, result_label=label, calculation_mode=mode,
+            e_ab_g=substances[sub_name].e_ab_g,
+            g_ab_min_pct=substances[sub_name].g_ab_min_pct,
+            g_ab_max_pct=substances[sub_name].g_ab_max_pct,
             tolerance_override_min_pct=tmin, tolerance_override_max_pct=tmax,
         )
         db.session.add(a)
