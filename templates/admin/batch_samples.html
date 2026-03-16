@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Proben löschen – {{ batch.analysis.code }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0">Probenverwaltung: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
+    <small class="text-body-secondary">Charge mit {{ samples|length }} Probe(n)</small>
+  </div>
+  <a href="{{ url_for('admin_batches') }}" class="btn btn-outline-secondary btn-sm">Zurück</a>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <thead class="table-light">
+      <tr>
+        <th>#</th>
+        <th>Typ</th>
+        <th>Einwaage</th>
+        <th>Zuweisungen</th>
+        <th>Ergebnisse</th>
+        <th>Aktion</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for s in samples %}
+      {% set assignment_count = s.assignments|length %}
+      {% set ns = namespace(result_count=0) %}
+      {% for a in s.assignments %}{% set ns.result_count = ns.result_count + (a.results|length) %}{% endfor %}
+      <tr>
+        <td><strong>{{ s.running_number }}</strong></td>
+        <td>{% if s.is_buffer %}<span class="badge bg-secondary">Puffer</span>{% else %}<span class="badge bg-primary">Erst</span>{% endif %}</td>
+        <td>
+          {% if s.is_weighed %}
+            {{ s.m_s_actual_g|fmt(4) }} / {{ s.m_ges_actual_g|fmt(4) }} g
+          {% else %}
+            <span class="text-body-secondary">–</span>
+          {% endif %}
+        </td>
+        <td>{{ assignment_count }}</td>
+        <td>{{ ns.result_count }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('admin_sample_delete', sample_id=s.id) }}" class="d-inline" onsubmit="return confirm('Probe #{{ s.running_number }} endgültig löschen?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if assignment_count > 0 %}
+            <input type="hidden" name="force" value="1">
+            {% endif %}
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Probe löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not samples %}
+      <tr><td colspan="6" class="text-center text-body-secondary py-3">Keine Proben vorhanden.</td></tr>
+      {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
