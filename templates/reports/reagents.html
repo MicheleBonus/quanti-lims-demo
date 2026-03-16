@@ -9,13 +9,17 @@
 <div class="alert alert-info">Keine Reagenzien-Zuordnungen vorhanden. Bitte Methoden-Reagenzien pflegen.</div>
 {% else %}
 
-<p class="text-body-secondary">V_gesamt = n × (k × V_Einzel + b × V_Blind) × 1,2 (Sicherheitsfaktor)</p>
+{% if has_non_volume_units %}
+<p class="text-body-secondary">Gesamtmenge = n × (k × Menge/Best. + b × Menge/Blind) × 1,2 (Sicherheitsfaktor)</p>
+{% else %}
+<p class="text-body-secondary">V<sub>gesamt</sub> = n × (k × V<sub>Einzel</sub> + b × V<sub>Blind</sub>) × 1,2 (Sicherheitsfaktor)</p>
+{% endif %}
 
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light">
-<tr><th>Analyse</th><th>Reagenz</th><th>V/Best.</th><th>V/Blind</th><th>k</th><th>b</th><th>n</th><th class="text-end">Gesamt (inkl. 20 %)</th><th>Einheit</th><th></th></tr>
+<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>k</th><th>b</th><th>n</th><th class="text-end">Gesamt (inkl. 20 %)</th><th>Einheit</th><th></th></tr>
 </thead>
 <tbody>
 {% set ns = namespace(current_analysis='') %}

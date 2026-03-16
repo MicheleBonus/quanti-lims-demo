@@ -17,6 +17,7 @@ from models import (
     db, Block, Substance, SubstanceLot, Analysis, Method,
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
+    AMOUNT_UNIT_VOLUME, get_amount_unit_type, migrate_schema,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
 
@@ -59,6 +60,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        migrate_schema()
         from init_db import seed_database
         seed_database()
 
@@ -403,19 +405,25 @@ def register_routes(app):
         method = Method.query.get_or_404(method_id)
         reagents = Reagent.query.order_by(Reagent.name).all()
         reag_opts = [(r.id, r.name) for r in reagents]
-        return render_template("admin/method_reagents.html", method=method, reag_opts=reag_opts)
+        amount_units = [("mL", "mL"), ("L", "L"), ("g", "g"), ("mg", "mg"), ("pcs", "Stk")]
+        return render_template("admin/method_reagents.html", method=method, reag_opts=reag_opts, amount_units=amount_units)
 
     @app.route("/admin/methods/<int:method_id>/reagents/add", methods=["POST"])
     def admin_method_reagent_add(method_id):
         mr = MethodReagent(
             method_id=method_id,
             reagent_id=int(request.form["reagent_id"]),
-            volume_per_determination_ml=float(request.form["volume_per_determination_ml"]),
-            volume_per_blind_ml=float(request.form.get("volume_per_blind_ml", 0)),
+            amount_per_determination=float(request.form["amount_per_determination"]),
+            amount_per_blind=float(request.form.get("amount_per_blind", 0)),
+            amount_unit=request.form.get("amount_unit") or "mL",
             is_titrant="is_titrant" in request.form,
             step_description=request.form.get("step_description") or None,
         )
         db.session.add(mr)
+        if mr.amount_unit_type != AMOUNT_UNIT_VOLUME and mr.is_titrant:
+            db.session.rollback()
+            flash("Titrant-Markierung ist nur für Volumen-Einheiten zulässig.", "danger")
+            return redirect(url_for("admin_method_reagents", method_id=method_id))
         try:
             db.session.commit()
             flash("Reagenz-Zuordnung hinzugefügt.", "success")
@@ -1139,21 +1147,24 @@ def register_routes(app):
                 b = method.b_blind_determinations if method.blind_required else 0
                 n = batch.total_samples_prepared
                 safety = 1.2
-                total = n * (k * mr.volume_per_determination_ml + b * mr.volume_per_blind_ml) * safety
+                formula_kind = "volumetric" if mr.amount_unit_type == AMOUNT_UNIT_VOLUME else "generic"
+                total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
                 demand.append({
                     "analysis": analysis.code,
                     "analysis_name": analysis.name,
                     "reagent": mr.reagent.name,
-                    "unit": mr.reagent.base_unit,
-                    "per_det": mr.volume_per_determination_ml,
-                    "per_blind": mr.volume_per_blind_ml,
+                    "unit": mr.amount_unit,
+                    "per_det": mr.amount_per_determination,
+                    "per_blind": mr.amount_per_blind,
+                    "formula_kind": formula_kind,
                     "k": k,
                     "b": b,
                     "n": n,
                     "total": round(total, 1),
                     "is_titrant": mr.is_titrant,
                 })
-        return render_template("reports/reagents.html", semester=sem, demand=demand)
+        has_non_volume_units = any(get_amount_unit_type(d["unit"]) != AMOUNT_UNIT_VOLUME for d in demand)
+        return render_template("reports/reagents.html", semester=sem, demand=demand, has_non_volume_units=has_non_volume_units)
 
     # ═══════════════════════════════════════════════════════════════
     # API endpoints (for HTMX / JS)

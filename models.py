@@ -13,6 +13,21 @@ from calculation_modes import (
 
 db = SQLAlchemy()
 
+AMOUNT_UNIT_VOLUME = "volume"
+AMOUNT_UNIT_MASS = "mass"
+AMOUNT_UNIT_OTHER = "other"
+AMOUNT_UNIT_TYPES = {
+    "mL": AMOUNT_UNIT_VOLUME,
+    "L": AMOUNT_UNIT_VOLUME,
+    "g": AMOUNT_UNIT_MASS,
+    "mg": AMOUNT_UNIT_MASS,
+    "pcs": AMOUNT_UNIT_OTHER,
+}
+
+
+def get_amount_unit_type(unit: str | None) -> str:
+    return AMOUNT_UNIT_TYPES.get(unit or "", AMOUNT_UNIT_OTHER)
+
 # ── Stammdaten ────────────────────────────────────────────────────────────
 
 class Block(db.Model):
@@ -180,14 +195,50 @@ class MethodReagent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     method_id = db.Column(db.Integer, db.ForeignKey("method.id"), nullable=False)
     reagent_id = db.Column(db.Integer, db.ForeignKey("reagent.id"), nullable=False)
-    volume_per_determination_ml = db.Column(db.Float, nullable=False)
-    volume_per_blind_ml = db.Column(db.Float, nullable=False, default=0)
+    amount_per_determination = db.Column(db.Float, nullable=False)
+    amount_per_blind = db.Column(db.Float, nullable=False, default=0)
+    amount_unit = db.Column(db.String(20), nullable=False, default="mL")
     is_titrant = db.Column(db.Boolean, nullable=False, default=False)
     step_description = db.Column(db.Text)
     notes = db.Column(db.Text)
 
     method = db.relationship("Method", back_populates="reagent_usages")
     reagent = db.relationship("Reagent", back_populates="method_usages")
+
+    @property
+    def amount_unit_type(self) -> str:
+        return get_amount_unit_type(self.amount_unit)
+
+
+def migrate_schema() -> None:
+    """Lightweight schema migration for existing SQLite installations."""
+    conn = db.engine.connect()
+    try:
+        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method_reagent)").fetchall()}
+        if "amount_per_determination" not in cols:
+            conn.exec_driver_sql("ALTER TABLE method_reagent ADD COLUMN amount_per_determination FLOAT")
+        if "amount_per_blind" not in cols:
+            conn.exec_driver_sql("ALTER TABLE method_reagent ADD COLUMN amount_per_blind FLOAT DEFAULT 0")
+        if "amount_unit" not in cols:
+            conn.exec_driver_sql("ALTER TABLE method_reagent ADD COLUMN amount_unit VARCHAR(20) DEFAULT 'mL'")
+
+        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method_reagent)").fetchall()}
+        if "volume_per_determination_ml" in cols:
+            conn.exec_driver_sql(
+                "UPDATE method_reagent SET amount_per_determination = COALESCE(amount_per_determination, volume_per_determination_ml) "
+                "WHERE volume_per_determination_ml IS NOT NULL"
+            )
+        if "volume_per_blind_ml" in cols:
+            conn.exec_driver_sql(
+                "UPDATE method_reagent SET amount_per_blind = COALESCE(amount_per_blind, volume_per_blind_ml, 0)"
+            )
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_per_determination = COALESCE(amount_per_determination, 0)")
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_per_blind = COALESCE(amount_per_blind, 0)")
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = COALESCE(amount_unit, 'mL')")
+        conn.commit()
+    finally:
+        conn.close()
+
 
 
 # ── Semesterbetrieb ───────────────────────────────────────────────────────
