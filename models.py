@@ -198,6 +198,17 @@ class Method(db.Model):
     analysis = db.relationship("Analysis", back_populates="method")
     reagent_usages = db.relationship("MethodReagent", back_populates="method")
 
+    @property
+    def titrant_reagent_usage(self) -> MethodReagent | None:
+        return next((usage for usage in self.reagent_usages if usage.is_titrant), None)
+
+    @property
+    def derived_titrant_name(self) -> str | None:
+        usage = self.titrant_reagent_usage
+        if usage and usage.reagent:
+            return usage.reagent.name
+        return self.titrant_name
+
 
 # ── Reagenzien-BOM ────────────────────────────────────────────────────────
 
@@ -310,6 +321,52 @@ def migrate_schema() -> None:
             "WHERE analysis.calculation_mode = 'titrant_standardization'"
             ")"
         )
+
+        # Legacy cleanup: if no flag exists, infer titrant from method.titrant_name.
+        conn.exec_driver_sql(
+            "UPDATE method_reagent SET is_titrant = 1 "
+            "WHERE id IN ("
+            "SELECT mr.id FROM method_reagent mr "
+            "JOIN method m ON m.id = mr.method_id "
+            "LEFT JOIN (SELECT method_id, SUM(CASE WHEN is_titrant = 1 THEN 1 ELSE 0 END) AS titrant_count "
+            "           FROM method_reagent GROUP BY method_id) c ON c.method_id = m.id "
+            "WHERE COALESCE(c.titrant_count, 0) = 0 "
+            "AND m.titrant_name IS NOT NULL "
+            "AND trim(m.titrant_name) <> '' "
+            "AND lower(trim(m.titrant_name)) = lower(trim((SELECT r.name FROM reagent r WHERE r.id = mr.reagent_id)))"
+            ")"
+        )
+
+        # Consistency: keep at most one titrant usage per method.
+        conn.exec_driver_sql(
+            "UPDATE method_reagent SET is_titrant = 0 "
+            "WHERE id IN ("
+            "SELECT newer.id FROM method_reagent newer "
+            "JOIN method_reagent older "
+            "  ON older.method_id = newer.method_id "
+            " AND older.is_titrant = 1 "
+            " AND newer.is_titrant = 1 "
+            " AND older.id < newer.id"
+            ")"
+        )
+
+        # Keep method.titrant_name aligned as legacy/read model fallback.
+        conn.exec_driver_sql(
+            "UPDATE method "
+            "SET titrant_name = ("
+            "  SELECT r.name FROM method_reagent mr "
+            "  JOIN reagent r ON r.id = mr.reagent_id "
+            "  WHERE mr.method_id = method.id AND mr.is_titrant = 1 "
+            "  ORDER BY mr.id LIMIT 1"
+            ")"
+        )
+
+        indexes = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(method_reagent)").fetchall()}
+        if "uq_method_reagent_single_titrant" not in indexes:
+            conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX uq_method_reagent_single_titrant "
+                "ON method_reagent(method_id) WHERE is_titrant = 1"
+            )
         conn.commit()
     finally:
         conn.close()
