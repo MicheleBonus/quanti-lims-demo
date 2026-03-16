@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="de" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Quanti-LIMS{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg border-bottom">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+        <i class="bi bi-droplet-fill text-primary"></i> Quanti-LIMS
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+              <i class="bi bi-gear"></i> Admin
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{{ url_for('admin_semesters') }}"><i class="bi bi-calendar3"></i> Semester</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_students') }}"><i class="bi bi-people"></i> Studierende</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_substances') }}"><i class="bi bi-flask-vial"></i> Substanzen</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_lots') }}"><i class="bi bi-box-seam"></i> Chargen / CoA</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_analyses') }}"><i class="bi bi-list-ol"></i> Analysen</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_methods') }}"><i class="bi bi-diagram-3"></i> Methoden</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_reagents') }}"><i class="bi bi-prescription2"></i> Reagenzien</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_batches') }}"><i class="bi bi-collection"></i> Probenansätze</a></li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('ta_weighing') }}"><i class="bi bi-ui-checks-grid"></i> Einwaage</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('assignments_overview') }}"><i class="bi bi-arrow-left-right"></i> Zuweisungen</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('results_overview') }}"><i class="bi bi-clipboard-check"></i> Ergebnisse</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+              <i class="bi bi-bar-chart"></i> Berichte
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{{ url_for('reports_progress') }}">Fortschritt</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('reports_reagents') }}">Reagenzienbedarf</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid py-4 px-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

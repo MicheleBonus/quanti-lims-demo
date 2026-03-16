@@ -1,0 +1,101 @@
+/* Quanti-LIMS – Custom Styles */
+
+:root {
+  --ql-primary: #2563eb;
+  --ql-bg: #f8fafc;
+}
+
+body {
+  background: var(--ql-bg);
+  font-size: 0.9rem;
+}
+
+.navbar {
+  background: #fff;
+}
+.navbar-brand i {
+  color: var(--ql-primary);
+}
+
+/* Compact table inputs for weighing screen */
+.weighing-input {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  text-align: right;
+  max-width: 140px;
+}
+
+.calc-g-wahr {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-weight: 600;
+}
+
+/* Progress heatmap cells */
+.progress-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Hover card effect */
+.hover-card {
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.hover-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Sticky columns in progress table */
+table th[style*="sticky"],
+table td[style*="sticky"] {
+  z-index: 1;
+}
+
+/* Badge refinements */
+.badge {
+  font-weight: 500;
+}
+
+/* Card headers */
+.card-header {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+/* Alert refinements */
+.alert {
+  font-size: 0.875rem;
+}
+
+/* Form label refinements */
+.form-label {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+
+.form-text {
+  font-size: 0.75rem;
+}
+
+/* Table refinements */
+.table th {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Dropdown refinements */
+.dropdown-item i {
+  width: 20px;
+  text-align: center;
+}

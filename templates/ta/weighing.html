@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Einwaage: {{ batch.analysis.code }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0">Einwaage: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
+    <small class="text-body-secondary">
+      Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges = {{ batch.target_m_ges_g }} g |
+      p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) |
+      Titer = {{ batch.titer|fmt(3) }}
+    </small>
+  </div>
+  <a href="{{ url_for('ta_sample_overview', batch_id=batch.id) }}" class="btn btn-outline-info btn-sm">
+    <i class="bi bi-eye"></i> Probenübersicht
+  </a>
+</div>
+
+<form method="POST">
+  <div class="mb-3 row">
+    <div class="col-md-3">
+      <label class="form-label">Eingewogen von</label>
+      <input type="text" class="form-control" name="weighed_by" value="{{ samples[0].weighed_by or '' }}" placeholder="TA Name">
+    </div>
+  </div>
+
+  <div class="card">
+  <div class="table-responsive">
+  <table class="table table-sm mb-0 align-middle" id="weighing-table">
+    <thead class="table-light">
+      <tr>
+        <th style="width:60px">#</th>
+        <th style="width:70px">Typ</th>
+        <th style="width:160px">m_S,ist (g)</th>
+        <th style="width:160px">m_ges,ist (g)</th>
+        <th style="width:120px">G_wahr (%)</th>
+        <th style="width:120px">A_min</th>
+        <th style="width:120px">A_max</th>
+        <th style="width:120px">V_erw. (mL)</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in samples %}
+      <tr class="{% if s.is_buffer %}table-light{% endif %}">
+        <td><strong>{{ s.running_number }}</strong></td>
+        <td>{% if s.is_buffer %}<span class="badge bg-secondary">Puffer</span>{% else %}<span class="badge bg-primary">Erst</span>{% endif %}</td>
+        <td>
+          <input type="text" class="form-control form-control-sm weighing-input"
+                 name="m_s_{{ s.id }}" value="{{ s.m_s_actual_g if s.m_s_actual_g else '' }}"
+                 data-sample-id="{{ s.id }}" data-field="m_s"
+                 placeholder="0.0000" inputmode="decimal">
+        </td>
+        <td>
+          <input type="text" class="form-control form-control-sm weighing-input"
+                 name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
+                 data-sample-id="{{ s.id }}" data-field="m_ges"
+                 placeholder="0.0000" inputmode="decimal">
+        </td>
+        <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
+        <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
+        <td class="text-end" id="amax-{{ s.id }}">{{ s.a_max|fmt(4) if s.a_max else '' }}</td>
+        <td class="text-end" id="vexp-{{ s.id }}">{{ s.v_expected|fmt(3) if s.v_expected else '' }}</td>
+        <td>
+          {% if s.is_weighed %}
+            <i class="bi bi-check-circle-fill text-success"></i>
+          {% else %}
+            <i class="bi bi-circle text-body-secondary"></i>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div></div>
+
+  <div class="mt-3">
+    <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-save"></i> Einwaagen speichern</button>
+    <a href="{{ url_for('ta_weighing') }}" class="btn btn-outline-secondary">Zurück</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Live G_wahr calculation on input
+const P_EFF = {{ batch.p_effective }};
+const TITER = {{ batch.titer }};
+const M_EQ = {{ batch.analysis.method.m_eq_mg if batch.analysis.method and batch.analysis.method.m_eq_mg else 'null' }};
+const METHOD = '{{ batch.analysis.method.method_type if batch.analysis.method else "" }}';
+const V_VORLAGE = {{ batch.analysis.method.v_vorlage_ml if batch.analysis.method and batch.analysis.method.v_vorlage_ml else 'null' }};
+const TOL_MIN = {{ batch.analysis.tol_min or 'null' }};
+const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
+
+document.querySelectorAll('.weighing-input').forEach(input => {
+  input.addEventListener('input', () => {
+    const sid = input.dataset.sampleId;
+    const row = input.closest('tr');
+    const msInput = row.querySelector('[data-field="m_s"]');
+    const mgesInput = row.querySelector('[data-field="m_ges"]');
+    const ms = parseFloat(msInput.value.replace(',', '.'));
+    const mges = parseFloat(mgesInput.value.replace(',', '.'));
+
+    if (!isNaN(ms) && !isNaN(mges) && mges > 0) {
+      const gw = (ms / mges) * P_EFF;
+      document.getElementById('gw-' + sid).textContent = gw.toFixed(4);
+
+      if (TOL_MIN !== null && TOL_MAX !== null) {
+        const amin = gw * TOL_MIN / 100;
+        const amax = gw * TOL_MAX / 100;
+        document.getElementById('amin-' + sid).textContent = amin.toFixed(4);
+        document.getElementById('amax-' + sid).textContent = amax.toFixed(4);
+      }
+
+      if (M_EQ !== null) {
+        const msMg = ms * 1000;
+        let vExp = null;
+        if (METHOD === 'direct') {
+          vExp = (msMg * gw / 100) / (M_EQ * TITER);
+        } else if (METHOD === 'back' && V_VORLAGE !== null) {
+          vExp = V_VORLAGE - (msMg * gw / 100) / (M_EQ * TITER);
+        }
+        if (vExp !== null) {
+          document.getElementById('vexp-' + sid).textContent = vExp.toFixed(3);
+        }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% from "macros.html" import status_badge %}
+
+{% block title %}Dashboard – Quanti-LIMS{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h4>
+      <i class="bi bi-speedometer2"></i> Dashboard
+      {% if semester %}
+        <span class="badge bg-primary ms-2">{{ semester.code }}</span>
+      {% endif %}
+    </h4>
+  </div>
+</div>
+
+{% if not semester %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle"></i>
+  Kein aktives Semester. <a href="{{ url_for('admin_semesters') }}">Semester anlegen →</a>
+</div>
+{% else %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <h2 class="card-title text-primary">{{ semester.students | length }}</h2>
+        <p class="card-text text-body-secondary">Studierende</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <h2 class="card-title text-success">{{ analyses | length }}</h2>
+        <p class="card-text text-body-secondary">Analysen</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <h2 class="card-title text-info">{{ batches | length }}</h2>
+        <p class="card-text text-body-secondary">Probenansätze</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <h2 class="card-title text-warning">{{ analyses | length - batches | length }}</h2>
+        <p class="card-text text-body-secondary">Offene Ansätze</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="bi bi-table"></i> Analysen-Übersicht</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Code</th>
+          <th>Analyse</th>
+          <th>Block</th>
+          <th>Einheit</th>
+          <th>Batch</th>
+          <th>Proben</th>
+          <th>Aktionen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in analyses %}
+        {% set b = batches.get(a.id) %}
+        <tr>
+          <td><strong>{{ a.code }}</strong></td>
+          <td>{{ a.name }}</td>
+          <td><span class="badge bg-secondary">{{ a.block.name }}</span></td>
+          <td>{{ a.result_label }} ({{ a.result_unit }})</td>
+          <td>
+            {% if b %}
+              <span class="badge bg-success"><i class="bi bi-check"></i> {{ b.total_samples_prepared }} Proben</span>
+            {% else %}
+              <span class="badge bg-light text-dark border">Noch nicht angelegt</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if b %}
+              {% set weighed = b.samples | selectattr('is_weighed') | list | length %}
+              {{ weighed }}/{{ b.samples | length }} eingewogen
+            {% else %}–{% endif %}
+          </td>
+          <td>
+            {% if b %}
+              <a href="{{ url_for('ta_weighing_batch', batch_id=b.id) }}" class="btn btn-outline-primary btn-sm">Einwaage</a>
+              <a href="{{ url_for('ta_sample_overview', batch_id=b.id) }}" class="btn btn-outline-secondary btn-sm">Proben</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row mt-4 g-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-ui-checks-grid fs-1 text-primary"></i>
+        <h5 class="mt-2">Einwaage</h5>
+        <p class="text-body-secondary small">Ist-Einwaagen der Proben eintragen</p>
+        <a href="{{ url_for('ta_weighing') }}" class="btn btn-primary btn-sm">Zur Einwaage →</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-clipboard-check fs-1 text-success"></i>
+        <h5 class="mt-2">Ergebnisse</h5>
+        <p class="text-body-secondary small">Ansagen eingeben und bewerten</p>
+        <a href="{{ url_for('results_overview') }}" class="btn btn-success btn-sm">Zu den Ergebnissen →</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-bar-chart fs-1 text-info"></i>
+        <h5 class="mt-2">Fortschritt</h5>
+        <p class="text-body-secondary small">Gesamtfortschritt der Studierenden</p>
+        <a href="{{ url_for('reports_progress') }}" class="btn btn-info btn-sm">Zum Fortschritt →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header %}
+{% block title %}Reagenzien – Admin{% endblock %}
+{% block content %}
+{{ page_header("Reagenzien-Katalog", "Grundchemikalien und zusammengesetzte Reagenzien", url_for('admin_reagent_form')) }}
+<div class="card"><div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light"><tr><th>Name</th><th>Kürzel</th><th>Einheit</th><th>Zusammengesetzt?</th><th>CAS</th><th>BOM</th><th></th></tr></thead>
+<tbody>
+{% for r in items %}
+<tr>
+  <td><a href="{{ url_for('admin_reagent_form', id=r.id) }}">{{ r.name }}</a></td>
+  <td class="text-body-secondary">{{ r.abbreviation or '–' }}</td>
+  <td>{{ r.base_unit }}</td>
+  <td>{% if r.is_composite %}<span class="badge bg-warning text-dark">Ja</span>{% else %}–{% endif %}</td>
+  <td class="text-body-secondary">{{ r.cas_number or '–' }}</td>
+  <td>{% if r.is_composite %}<a href="{{ url_for('admin_reagent_components', reagent_id=r.id) }}" class="btn btn-outline-secondary btn-sm">{{ r.components|length }} Komp.</a>{% endif %}</td>
+  <td><a href="{{ url_for('admin_reagent_form', id=r.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a></td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

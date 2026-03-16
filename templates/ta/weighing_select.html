@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Einwaage – Batch auswählen{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-ui-checks-grid"></i> Einwaage-Eingabe</h4>
+{% if not batches %}
+<div class="alert alert-info">Keine Probenansätze im aktiven Semester vorhanden.</div>
+{% else %}
+<div class="row g-3">
+{% for b in batches %}
+{% set weighed = b.samples | selectattr('is_weighed') | list | length %}
+{% set pct = (weighed / b.samples|length * 100)|round(0)|int if b.samples|length > 0 else 0 %}
+<div class="col-md-4">
+  <a href="{{ url_for('ta_weighing_batch', batch_id=b.id) }}" class="card text-decoration-none h-100 hover-card">
+    <div class="card-body">
+      <h5 class="card-title">{{ b.analysis.code }}</h5>
+      <p class="card-text text-body-secondary">{{ b.analysis.name }}</p>
+      <div class="progress mb-2" style="height: 6px">
+        <div class="progress-bar {% if pct == 100 %}bg-success{% else %}bg-primary{% endif %}" style="width:{{ pct }}%"></div>
+      </div>
+      <small class="text-body-secondary">{{ weighed }}/{{ b.samples|length }} eingewogen</small>
+    </div>
+  </a>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

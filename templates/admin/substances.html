@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header, delete_btn %}
+{% block title %}Substanzen – Admin{% endblock %}
+{% block content %}
+{{ page_header("Substanzen", "Arzneistoff-Referenzdatenbank", url_for('admin_substance_form')) }}
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light"><tr><th>Name</th><th>Formel</th><th>M (g/mol)</th><th>E_AB (g)</th><th>G_AB,min (%)</th><th>G_AB,max (%)</th><th></th></tr></thead>
+<tbody>
+{% for s in items %}
+<tr>
+  <td><a href="{{ url_for('admin_substance_form', id=s.id) }}">{{ s.name }}</a></td>
+  <td class="text-body-secondary">{{ s.formula or '–' }}</td>
+  <td>{{ s.molar_mass_gmol|fmt(2) }}</td>
+  <td>{{ s.e_ab_g|fmt(3) }}</td>
+  <td>{{ s.g_ab_min_pct|fmt(1) }}</td>
+  <td>{{ s.g_ab_max_pct|fmt(1) }}</td>
+  <td>{{ delete_btn(url_for('admin_substance_delete', id=s.id)) }}</td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

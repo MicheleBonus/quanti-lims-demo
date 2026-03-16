@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Proben: {{ batch.analysis.code }}{% endblock %}
+{% block content %}
+<h4 class="mb-1">Probenübersicht: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
+<p class="text-body-secondary mb-4">
+  p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) | Titer = {{ batch.titer|fmt(3) }} |
+  Toleranz: {{ batch.analysis.tol_min|fmt(1) }}% – {{ batch.analysis.tol_max|fmt(1) }}%
+</p>
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light">
+<tr>
+  <th>#</th><th>Typ</th>
+  <th>m_S,ist (g)</th><th>m_ges,ist (g)</th>
+  <th>G_wahr (%)</th><th>A_min</th><th>A_max</th>
+  <th>V_erw. (mL)</th><th>Zugewiesen an</th>
+</tr>
+</thead>
+<tbody>
+{% for s in samples %}
+<tr class="{% if not s.is_weighed %}table-warning{% elif s.is_buffer %}table-light{% endif %}">
+  <td><strong>{{ s.running_number }}</strong></td>
+  <td>{% if s.is_buffer %}<span class="badge bg-secondary">Puffer</span>{% else %}<span class="badge bg-primary">Erst</span>{% endif %}</td>
+  <td>{{ s.m_s_actual_g|fmt(4) }}</td>
+  <td>{{ s.m_ges_actual_g|fmt(4) }}</td>
+  <td><strong>{{ s.g_wahr|fmt(4) }}</strong></td>
+  <td>{{ s.a_min|fmt(4) }}</td>
+  <td>{{ s.a_max|fmt(4) }}</td>
+  <td>{{ s.v_expected|fmt(3) }}</td>
+  <td>
+    {% if s.active_assignment %}
+      {{ s.active_assignment.student.full_name }}
+      <span class="badge {% if s.active_assignment.status == 'passed' %}bg-success{% elif s.active_assignment.status == 'failed' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+        {{ s.active_assignment.attempt_type }}
+      </span>
+    {% else %}
+      <span class="text-body-secondary">–</span>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+
+<a href="{{ url_for('ta_weighing_batch', batch_id=batch.id) }}" class="btn btn-outline-primary mt-3"><i class="bi bi-pencil"></i> Einwaage bearbeiten</a>
+<a href="{{ url_for('ta_weighing') }}" class="btn btn-outline-secondary mt-3">Zurück</a>
+{% endblock %}

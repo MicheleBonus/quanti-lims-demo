@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "macros.html" import select, field, checkbox %}
+{% block title %}Reagenzien: {{ method.analysis.code }}{% endblock %}
+{% block content %}
+<h4 class="mb-1">Reagenzien pro Methode</h4>
+<p class="text-body-secondary mb-4">{{ method.analysis.code }} – {{ method.analysis.name }} ({{ method.method_type }})</p>
+
+<div class="card mb-4">
+<div class="card-header">Zugeordnete Reagenzien</div>
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light"><tr><th>Reagenz</th><th>V/Bestimmung (mL)</th><th>V/Blind (mL)</th><th>Titrant?</th><th>Schritt</th><th></th></tr></thead>
+<tbody>
+{% for mr in method.reagent_usages %}
+<tr>
+  <td>{{ mr.reagent.name }}</td>
+  <td>{{ mr.volume_per_determination_ml }}</td>
+  <td>{{ mr.volume_per_blind_ml }}</td>
+  <td>{% if mr.is_titrant %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}–{% endif %}</td>
+  <td class="text-body-secondary small">{{ mr.step_description or '–' }}</td>
+  <td>
+    <form method="POST" action="{{ url_for('admin_method_reagent_delete', id=mr.id) }}" class="d-inline" onsubmit="return confirm('Entfernen?')">
+      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+{% if not method.reagent_usages %}
+<tr><td colspan="6" class="text-center text-body-secondary py-3">Noch keine Reagenzien zugeordnet.</td></tr>
+{% endif %}
+</tbody></table></div></div>
+
+<div class="card">
+<div class="card-header">Reagenz zuordnen</div>
+<div class="card-body">
+<form method="POST" action="{{ url_for('admin_method_reagent_add', method_id=method.id) }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">{{ select("reagent_id", "Reagenz", reag_opts, required=true) }}</div>
+    <div class="col-md-2">{{ field("volume_per_determination_ml", "V/Best. (mL)", type="number", step="0.1", required=true) }}</div>
+    <div class="col-md-2">{{ field("volume_per_blind_ml", "V/Blind (mL)", "0", type="number", step="0.1") }}</div>
+    <div class="col-md-2">{{ checkbox("is_titrant", "Titrant") }}</div>
+    <div class="col-md-2 mb-3">
+      <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Hinzufügen</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">{{ field("step_description", "Schrittbeschreibung") }}</div>
+  </div>
+</form>
+</div></div>
+
+<a href="{{ url_for('admin_methods') }}" class="btn btn-outline-secondary mt-3"><i class="bi bi-arrow-left"></i> Zurück</a>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Reagenzienbedarf{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-prescription2"></i> Reagenzienbedarf {{ semester.code if semester else '' }}</h4>
+
+{% if not semester %}
+<div class="alert alert-warning">Kein aktives Semester.</div>
+{% elif not demand %}
+<div class="alert alert-info">Keine Reagenzien-Zuordnungen vorhanden. Bitte Methoden-Reagenzien pflegen.</div>
+{% else %}
+
+<p class="text-body-secondary">V_gesamt = n × (k × V_Einzel + b × V_Blind) × 1,2 (Sicherheitsfaktor)</p>
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light">
+<tr><th>Analyse</th><th>Reagenz</th><th>V/Best.</th><th>V/Blind</th><th>k</th><th>b</th><th>n</th><th class="text-end">Gesamt (inkl. 20 %)</th><th>Einheit</th><th></th></tr>
+</thead>
+<tbody>
+{% set ns = namespace(current_analysis='') %}
+{% for d in demand|sort(attribute='analysis') %}
+{% if d.analysis != ns.current_analysis %}
+{% set ns.current_analysis = d.analysis %}
+<tr class="table-light"><td colspan="10"><strong>{{ d.analysis }} – {{ d.analysis_name }}</strong></td></tr>
+{% endif %}
+<tr>
+  <td></td>
+  <td>{{ d.reagent }}</td>
+  <td>{{ d.per_det }}</td>
+  <td>{{ d.per_blind }}</td>
+  <td>{{ d.k }}</td>
+  <td>{{ d.b }}</td>
+  <td>{{ d.n }}</td>
+  <td class="text-end"><strong>{{ d.total }}</strong></td>
+  <td>{{ d.unit }}</td>
+  <td>{% if d.is_titrant %}<span class="badge bg-info">Titrant</span>{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+
+{% endif %}
+{% endblock %}

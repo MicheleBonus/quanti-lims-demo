@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "macros.html" import status_badge %}
+{% block title %}Fortschritt{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-bar-chart"></i> Studierenden-Fortschritt {{ semester.code if semester else '' }}</h4>
+
+{% if not semester %}
+<div class="alert alert-warning">Kein aktives Semester.</div>
+{% elif not students %}
+<div class="alert alert-info">Keine Studierenden im aktiven Semester.</div>
+{% else %}
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light">
+  <tr>
+    <th style="position:sticky;left:0;background:#f8f9fa;z-index:1">#</th>
+    <th style="position:sticky;left:40px;background:#f8f9fa;z-index:1;min-width:150px">Name</th>
+    {% for a in analyses %}
+    <th class="text-center" style="min-width:60px;font-size:0.75rem">{{ a.code }}</th>
+    {% endfor %}
+  </tr>
+</thead>
+<tbody>
+{% for st in students %}
+<tr>
+  <td style="position:sticky;left:0;background:#fff;z-index:1"><strong>{{ st.running_number }}</strong></td>
+  <td style="position:sticky;left:40px;background:#fff;z-index:1">{{ st.full_name }}</td>
+  {% for a in analyses %}
+  {% set p = progress[st.id][a.code] %}
+  <td class="text-center">
+    {% if p is none %}
+      <span class="progress-cell bg-light" title="Kein Batch">–</span>
+    {% elif p.status == 'not_assigned' %}
+      <span class="progress-cell bg-light border" title="Nicht zugewiesen">–</span>
+    {% elif p.status == 'passed' %}
+      <span class="progress-cell bg-success text-white" title="Bestanden ({{ p.attempt }})">✓{% if p.attempts > 1 %}<sub>{{ p.attempt }}</sub>{% endif %}</span>
+    {% elif p.status == 'failed' %}
+      <span class="progress-cell bg-danger text-white" title="Nicht bestanden ({{ p.attempt }})">✗<sub>{{ p.attempt }}</sub></span>
+    {% elif p.status == 'assigned' %}
+      <span class="progress-cell bg-warning" title="Zugewiesen ({{ p.attempt }})">○</span>
+    {% elif p.status == 'submitted' %}
+      <span class="progress-cell bg-info text-white" title="Eingereicht">…</span>
+    {% else %}
+      <span class="progress-cell bg-secondary">?</span>
+    {% endif %}
+  </td>
+  {% endfor %}
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+
+<div class="mt-3 d-flex gap-3 flex-wrap">
+  <span><span class="progress-cell bg-success text-white">✓</span> Bestanden</span>
+  <span><span class="progress-cell bg-danger text-white">✗</span> Nicht bestanden</span>
+  <span><span class="progress-cell bg-warning">○</span> Zugewiesen</span>
+  <span><span class="progress-cell bg-light border">–</span> Offen</span>
+</div>
+{% endif %}
+{% endblock %}

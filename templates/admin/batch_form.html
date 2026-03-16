@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, textarea %}
+{% block title %}Probenansatz {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
+{% block content %}
+<h4 class="mb-4">Probenansatz {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
+<div class="card"><div class="card-body">
+<form method="POST">
+  <div class="row">
+    <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
+    <div class="col-md-4">{{ select("substance_lot_id", "Charge (optional)", lot_opts, item.substance_lot_id, blank="– Keine Charge (p=100%) –") }}</div>
+  </div>
+  <div class="row">
+    <div class="col-md-3">{{ field("target_m_s_min_g", "Ziel m_S,min (g)", item.target_m_s_min_g, type="number", step="0.001", required=true, help="Mindestmasse Substanz") }}</div>
+    <div class="col-md-3">{{ field("target_m_ges_g", "Ziel m_ges (g)", item.target_m_ges_g, type="number", step="0.001", required=true, help="Soll-Gesamtmasse") }}</div>
+    <div class="col-md-3">{{ field("titer", "Titer (Faktor)", item.titer or 1.000, type="number", step="0.001") }}</div>
+  </div>
+  <div class="row">
+    <div class="col-md-3">{{ field("total_samples_prepared", "Anzahl Proben (gesamt)", item.total_samples_prepared or (n_students + 50), type="number", required=true, help="Inkl. Puffer. Aktuell " ~ n_students ~ " Studierende.") }}</div>
+    <div class="col-md-3">{{ field("preparation_date", "Herstellungsdatum", item.preparation_date, type="date") }}</div>
+    <div class="col-md-3">{{ field("prepared_by", "Hergestellt von", item.prepared_by) }}</div>
+  </div>
+  {{ textarea("notes", "Notizen", item.notes) }}
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern & Proben generieren</button>
+  <a href="{{ url_for('admin_batches') }}" class="btn btn-outline-secondary">Abbrechen</a>
+</form>
+</div></div>
+{% endblock %}

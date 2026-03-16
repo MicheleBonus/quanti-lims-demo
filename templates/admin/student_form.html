@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, textarea %}
+{% block title %}Studierende/r {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
+{% block content %}
+<h4 class="mb-4">Studierende/r {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
+<div class="card"><div class="card-body">
+<form method="POST">
+  <div class="row">
+    <div class="col-md-2">{{ field("running_number", "Laufnummer", item.running_number or next_num, type="number", required=true) }}</div>
+    <div class="col-md-3">{{ field("matrikel", "Matrikelnummer", item.matrikel, required=true) }}</div>
+    <div class="col-md-3">{{ field("last_name", "Nachname", item.last_name, required=true) }}</div>
+    <div class="col-md-3">{{ field("first_name", "Vorname", item.first_name, required=true) }}</div>
+  </div>
+  <div class="row">
+    <div class="col-md-5">{{ field("email", "Email", item.email, type="email") }}</div>
+  </div>
+  {{ textarea("notes", "Notizen", item.notes) }}
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>
+  <a href="{{ url_for('admin_students') }}" class="btn btn-outline-secondary">Abbrechen</a>
+</form>
+</div></div>
+{% endblock %}

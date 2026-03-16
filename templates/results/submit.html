@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Ansage eingeben{% endblock %}
+{% block content %}
+<h4 class="mb-4">Ansage eingeben</h4>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card mb-3">
+      <div class="card-header">Zuweisungsdetails</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><th style="width:40%">Student/in</th><td>{{ assignment.student.full_name }} (#{{ assignment.student.running_number }})</td></tr>
+          <tr><th>Analyse</th><td>{{ analysis.code }} – {{ analysis.name }}</td></tr>
+          <tr><th>Versuch</th><td>{{ assignment.attempt_type }}-Analyse (Versuch {{ assignment.attempt_number }})</td></tr>
+          <tr><th>Probe</th><td>#{{ assignment.sample.running_number }}</td></tr>
+          <tr><th>Erwartete Einheit</th><td><strong>{{ analysis.result_label }} in {{ analysis.result_unit }}</strong></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Ergebnis eingeben</div>
+      <div class="card-body">
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ analysis.result_label }} ({{ analysis.result_unit }})</label>
+            <div class="input-group input-group-lg">
+              <input type="text" class="form-control" name="ansage_value"
+                     placeholder="Ergebnis eingeben" inputmode="decimal" required autofocus>
+              <span class="input-group-text">{{ analysis.result_unit }}</span>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success btn-lg w-100">
+            <i class="bi bi-check-circle"></i> Ansage abgeben
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card border-info">
+      <div class="card-header bg-info text-white"><i class="bi bi-info-circle"></i> Referenzwerte (nur Praktikumsleitung)</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><th>G_wahr</th><td>{{ assignment.sample.g_wahr|fmt(4) if assignment.sample.g_wahr else '–' }}</td></tr>
+          <tr><th>A_min</th><td>{{ assignment.sample.a_min|fmt(4) if assignment.sample.a_min else '–' }}</td></tr>
+          <tr><th>A_max</th><td>{{ assignment.sample.a_max|fmt(4) if assignment.sample.a_max else '–' }}</td></tr>
+          <tr><th>V_erwartet</th><td>{{ assignment.sample.v_expected|fmt(3) if assignment.sample.v_expected else '–' }} mL</td></tr>
+          <tr><th>Reinheit (p)</th><td>{{ assignment.sample.batch.p_effective|fmt(2) }}% ({{ assignment.sample.batch.p_source }})</td></tr>
+          <tr><th>Titer</th><td>{{ assignment.sample.batch.titer|fmt(3) }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<a href="{{ url_for('results_overview', analysis_id=analysis.id) }}" class="btn btn-outline-secondary mt-3"><i class="bi bi-arrow-left"></i> Zurück</a>
+{% endblock %}

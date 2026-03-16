@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "macros.html" import status_badge %}
+{% block title %}Ergebnisse{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-clipboard-check"></i> Ergebnisse / Ansagen</h4>
+
+<div class="card mb-4">
+<div class="card-body">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-5">
+      <label class="form-label">Analyse auswählen</label>
+      <select name="analysis_id" class="form-select" onchange="this.form.submit()">
+        <option value="">– Analyse wählen –</option>
+        {% for a in analyses %}
+        <option value="{{ a.id }}" {% if a.id == selected_analysis_id %}selected{% endif %}>{{ a.code }} – {{ a.name }} ({{ a.result_label }} in {{ a.result_unit }})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+</div></div>
+
+{% if selected_analysis_id and assignments %}
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light">
+<tr><th>#</th><th>Student/in</th><th>Versuch</th><th>Probe</th><th>G_wahr</th><th>A_min</th><th>A_max</th><th>Ansage</th><th>Status</th><th>Aktion</th></tr>
+</thead>
+<tbody>
+{% for sa in assignments %}
+{% set s = sa.sample %}
+{% set r = sa.latest_result %}
+<tr>
+  <td>{{ sa.student.running_number }}</td>
+  <td>{{ sa.student.full_name }}</td>
+  <td>{{ sa.attempt_type }}</td>
+  <td>#{{ s.running_number }}</td>
+  <td>{{ s.g_wahr|fmt(4) }}</td>
+  <td>{{ s.a_min|fmt(4) }}</td>
+  <td>{{ s.a_max|fmt(4) }}</td>
+  <td>
+    {% if r %}
+      <strong>{{ r.ansage_value|fmt(4) }}</strong> {{ r.ansage_unit }}
+    {% else %}–{% endif %}
+  </td>
+  <td>{{ status_badge(sa.status) }}</td>
+  <td>
+    {% if sa.status == 'assigned' %}
+      <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-pencil"></i> Eingeben
+      </a>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% elif selected_analysis_id %}
+<div class="alert alert-info">Keine Zuweisungen für diese Analyse.</div>
+{% endif %}
+{% endblock %}

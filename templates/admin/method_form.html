@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, textarea, checkbox %}
+{% block title %}Methode {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
+{% block content %}
+<h4 class="mb-4">Methode {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
+<div class="card"><div class="card-body">
+<form method="POST">
+  <div class="row">
+    <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
+    <div class="col-md-3">{{ select("method_type", "Methodentyp", [('direct','Direkttitration'),('back','Rücktitration'),('gravimetric','Gravimetrie'),('complexometric','Komplexometrie'),('argentometric','Argentometrie'),('other','Sonstige')], item.method_type, required=true) }}</div>
+    <div class="col-md-2">{{ field("m_eq_mg", "m_eq (mg/mL)", item.m_eq_mg, type="number", step="0.01") }}</div>
+  </div>
+  <div class="row">
+    <div class="col-md-4">{{ field("titrant_name", "Titrant", item.titrant_name) }}</div>
+    <div class="col-md-3">{{ field("titrant_concentration", "Konzentration", item.titrant_concentration, placeholder="z.B. 0,1 mol/L") }}</div>
+    <div class="col-md-2">{{ field("v_vorlage_ml", "V_Vorlage (mL)", item.v_vorlage_ml, type="number", step="0.1", help="Nur bei Rücktitration") }}</div>
+  </div>
+  <div class="row">
+    <div class="col-md-3">{{ checkbox("blind_required", "Blindversuch zwingend", item.blind_required) }}</div>
+    <div class="col-md-3">{{ field("b_blind_determinations", "Anzahl Blindversuche (b)", item.b_blind_determinations or 1, type="number") }}</div>
+  </div>
+  {{ textarea("description", "Beschreibung / Vorschrift", item.description) }}
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>
+  <a href="{{ url_for('admin_methods') }}" class="btn btn-outline-secondary">Abbrechen</a>
+</form>
+</div></div>
+{% endblock %}

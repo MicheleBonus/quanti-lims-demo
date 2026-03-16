@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header %}
+{% block title %}Semester – Admin{% endblock %}
+{% block content %}
+{{ page_header("Semesterverwaltung", "", url_for('admin_semester_form')) }}
+<div class="card"><div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light"><tr><th>Code</th><th>Name</th><th>Start</th><th>Ende</th><th>Status</th><th>Studierende</th><th></th></tr></thead>
+<tbody>
+{% for s in items %}
+<tr>
+  <td><strong><a href="{{ url_for('admin_semester_form', id=s.id) }}">{{ s.code }}</a></strong></td>
+  <td>{{ s.name }}</td>
+  <td>{{ s.start_date or '–' }}</td>
+  <td>{{ s.end_date or '–' }}</td>
+  <td>{% if s.is_active %}<span class="badge bg-success">Aktiv</span>{% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}</td>
+  <td>{{ s.students|length }}</td>
+  <td><a href="{{ url_for('admin_semester_form', id=s.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a></td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

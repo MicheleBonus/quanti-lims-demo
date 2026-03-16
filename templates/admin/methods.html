@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header %}
+{% block title %}Methoden – Admin{% endblock %}
+{% block content %}
+{{ page_header("Methoden-Datenbank", "Titrationsparameter und Äquivalente", url_for('admin_method_form')) }}
+<div class="card"><div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light"><tr><th>Analyse</th><th>Typ</th><th>m_eq (mg/mL)</th><th>Titrant</th><th>Konz.</th><th>Blind?</th><th>b</th><th>V_Vorlage</th><th>Reagenzien</th><th></th></tr></thead>
+<tbody>
+{% for m in items %}
+<tr>
+  <td><strong>{{ m.analysis.code }}</strong> {{ m.analysis.name }}</td>
+  <td><span class="badge bg-info">{{ m.method_type }}</span></td>
+  <td>{{ m.m_eq_mg|fmt(2) }}</td>
+  <td>{{ m.titrant_name or '–' }}</td>
+  <td>{{ m.titrant_concentration or '–' }}</td>
+  <td>{% if m.blind_required %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}–{% endif %}</td>
+  <td>{{ m.b_blind_determinations }}</td>
+  <td>{{ m.v_vorlage_ml|fmt(1) if m.v_vorlage_ml else '–' }} mL</td>
+  <td><a href="{{ url_for('admin_method_reagents', method_id=m.id) }}" class="btn btn-outline-secondary btn-sm">{{ m.reagent_usages|length }} <i class="bi bi-prescription2"></i></a></td>
+  <td><a href="{{ url_for('admin_method_form', id=m.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a></td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

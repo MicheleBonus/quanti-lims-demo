@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "macros.html" import status_badge %}
+{% block title %}Zuweisungen{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-arrow-left-right"></i> Zuweisungen & Wiederholungsanalysen</h4>
+
+{% if not semester %}
+<div class="alert alert-warning">Kein aktives Semester.</div>
+{% else %}
+
+{% for a in analyses %}
+{% set d = data.get(a.code) %}
+{% if d %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><strong>{{ a.code }}</strong> – {{ a.name }}</span>
+    <span class="badge bg-secondary">{{ d.buffer_count }} Pufferproben frei</span>
+  </div>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover mb-0 align-middle">
+    <thead class="table-light"><tr><th>#</th><th>Student/in</th><th>Versuch</th><th>Probe</th><th>Status</th><th>Ansage</th><th>Aktion</th></tr></thead>
+    <tbody>
+    {% for sa in d.assignments %}
+    <tr>
+      <td>{{ sa.student.running_number }}</td>
+      <td>{{ sa.student.full_name }}</td>
+      <td><span class="badge {% if sa.attempt_type == 'A' %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ sa.attempt_type }}-Analyse</span></td>
+      <td>Probe #{{ sa.sample.running_number }}</td>
+      <td>{{ status_badge(sa.status) }}</td>
+      <td>
+        {% if sa.latest_result %}
+          {{ sa.latest_result.ansage_value|fmt(4) }} {{ sa.latest_result.ansage_unit }}
+          {% if sa.latest_result.passed %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-x-circle-fill text-danger"></i>{% endif %}
+        {% else %}–{% endif %}
+      </td>
+      <td>
+        {% if sa.status == 'assigned' %}
+          <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard-check"></i> Ansage</a>
+        {% elif sa.status == 'failed' %}
+          <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
+            <input type="hidden" name="student_id" value="{{ sa.student_id }}">
+            <input type="hidden" name="analysis_id" value="{{ a.id }}">
+            <button type="submit" class="btn btn-outline-warning btn-sm" {% if d.buffer_count == 0 %}disabled{% endif %}>
+              <i class="bi bi-plus-circle"></i> Wiederholung
+            </button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% endif %}
+{% endblock %}

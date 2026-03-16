@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header %}
+{% block title %}Analysen – Admin{% endblock %}
+{% block content %}
+{{ page_header("Analysen-Definitionen", "I.1 bis III.4", url_for('admin_analysis_form')) }}
+<div class="card"><div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+<thead class="table-light"><tr><th>Code</th><th>Name</th><th>Block</th><th>Substanz</th><th>k</th><th>Einheit</th><th>Tol. min</th><th>Tol. max</th><th>Methode</th><th></th></tr></thead>
+<tbody>
+{% for a in items %}
+<tr>
+  <td><strong><a href="{{ url_for('admin_analysis_form', id=a.id) }}">{{ a.code }}</a></strong></td>
+  <td>{{ a.name }}</td>
+  <td>{{ a.block.code }}</td>
+  <td class="text-body-secondary">{{ a.substance.name }}</td>
+  <td>{{ a.k_determinations }}</td>
+  <td>{{ a.result_label }} ({{ a.result_unit }})</td>
+  <td>{{ a.tol_min|fmt(1) }}</td>
+  <td>{{ a.tol_max|fmt(1) }}</td>
+  <td>{% if a.method %}<a href="{{ url_for('admin_method_form', id=a.method.id) }}">{{ a.method.method_type }}</a>{% else %}<span class="text-danger">Fehlt</span>{% endif %}</td>
+  <td><a href="{{ url_for('admin_analysis_form', id=a.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a></td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}
