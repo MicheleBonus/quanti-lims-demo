@@ -360,6 +360,23 @@ def register_routes(app):
 
     @app.route("/admin/students/import", methods=["POST"])
     def admin_students_import():
+        def normalize_header(header):
+            key = (header or "").strip().lower()
+            synonyms = {
+                "matrikelnummer": "matrikel",
+                "matrikel-nr": "matrikel",
+                "matrikel nr": "matrikel",
+                "nachname": "last_name",
+                "surname": "last_name",
+                "last name": "last_name",
+                "vorname": "first_name",
+                "firstname": "first_name",
+                "first name": "first_name",
+                "e-mail": "email",
+                "mail": "email",
+            }
+            return synonyms.get(key, key)
+
         sem = active_semester()
         if not sem:
             flash("Kein aktives Semester.", "danger")
@@ -369,26 +386,75 @@ def register_routes(app):
             flash("Keine Datei ausgewählt.", "danger")
             return redirect(url_for("admin_students"))
         content = file.stream.read().decode("utf-8-sig")
-        reader = csv.DictReader(io.StringIO(content), delimiter=";")
+        delimiter = ";"
+        try:
+            dialect = csv.Sniffer().sniff(content[:2048], delimiters=";,\t,|")
+            delimiter = dialect.delimiter
+        except csv.Error:
+            pass
+
+        reader = csv.DictReader(io.StringIO(content), delimiter=delimiter)
+        if not reader.fieldnames:
+            flash("Import fehlgeschlagen: Datei enthält keine Kopfzeile.", "danger")
+            return redirect(url_for("admin_students"))
+
+        reader.fieldnames = [normalize_header(name) for name in reader.fieldnames]
+
         max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar() or 0
-        count = 0
-        for row in reader:
-            mat = row.get("Matrikel", row.get("matrikel", "")).strip()
-            ln = row.get("Nachname", row.get("last_name", "")).strip()
-            fn = row.get("Vorname", row.get("first_name", "")).strip()
-            if not mat or not ln:
+        imported = 0
+        skipped_duplicates = 0
+        skipped_invalid = 0
+        row_warnings = []
+
+        for line_no, row in enumerate(reader, start=2):
+            if None in row:
+                skipped_invalid += 1
+                row_warnings.append(f"Zeile {line_no}: Zu viele Spalten in der CSV-Zeile.")
                 continue
+            if any(value is None for value in row.values()):
+                skipped_invalid += 1
+                row_warnings.append(f"Zeile {line_no}: Zu wenige Spalten in der CSV-Zeile.")
+                continue
+
+            mat = (row.get("matrikel") or "").strip()
+            ln = (row.get("last_name") or "").strip()
+            fn = (row.get("first_name") or "").strip()
+            email = (row.get("email") or "").strip() or None
+
+            missing = []
+            if not mat:
+                missing.append("Matrikel")
+            if not ln:
+                missing.append("Nachname")
+            if missing:
+                skipped_invalid += 1
+                row_warnings.append(f"Zeile {line_no}: Pflichtfeld fehlt ({', '.join(missing)}).")
+                continue
+
             exists = Student.query.filter_by(semester_id=sem.id, matrikel=mat).first()
             if exists:
+                skipped_duplicates += 1
                 continue
+
             max_num += 1
             st = Student(semester=sem, matrikel=mat, last_name=ln,
                          first_name=fn, running_number=max_num,
-                         email=row.get("Email", row.get("email", "")).strip() or None)
+                         email=email)
             db.session.add(st)
-            count += 1
+            imported += 1
+
         db.session.commit()
-        flash(f"{count} Studierende importiert.", "success")
+        flash(
+            (
+                "Import abgeschlossen: "
+                f"{imported} importiert, "
+                f"{skipped_duplicates} Duplikate übersprungen, "
+                f"{skipped_invalid} ungültige Zeilen übersprungen."
+            ),
+            "success",
+        )
+        if row_warnings:
+            flash("Import-Hinweise:\n" + "\n".join(row_warnings), "warning")
         return redirect(url_for("admin_students"))
 
     @app.route("/admin/students/<int:id>/delete", methods=["POST"])
