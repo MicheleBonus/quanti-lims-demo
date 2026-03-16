@@ -301,6 +301,15 @@ def migrate_schema() -> None:
         conn.exec_driver_sql(f"UPDATE reagent SET base_unit = 'mL' WHERE base_unit NOT IN {valid_units_sql}")
         conn.exec_driver_sql(f"UPDATE reagent_component SET quantity_unit = 'mL' WHERE quantity_unit NOT IN {valid_units_sql}")
         conn.exec_driver_sql(f"UPDATE method_reagent SET amount_unit = 'mL' WHERE amount_unit NOT IN {valid_units_sql}")
+
+        conn.exec_driver_sql(
+            "UPDATE method_reagent SET is_titrant = 0 "
+            "WHERE is_titrant = 1 AND method_id IN ("
+            "SELECT method.id FROM method "
+            "JOIN analysis ON analysis.id = method.analysis_id "
+            "WHERE analysis.calculation_mode = 'titrant_standardization'"
+            ")"
+        )
         conn.commit()
     finally:
         conn.close()
