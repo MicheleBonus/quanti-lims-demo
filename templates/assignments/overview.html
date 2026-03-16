@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import status_badge %}
+{% from "macros.html" import delete_btn, status_badge %}
 {% block title %}Zuweisungen{% endblock %}
 {% block content %}
 <h4 class="mb-4"><i class="bi bi-arrow-left-right"></i> Zuweisungen & Wiederholungsanalysen</h4>
@@ -36,6 +36,7 @@
       <td>
         {% if sa.status == 'assigned' %}
           <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard-check"></i> Ansage</a>
+          {{ delete_btn(url_for('assignment_cancel', id=sa.id)) }}
         {% elif sa.status == 'failed' %}
           <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
             <input type="hidden" name="student_id" value="{{ sa.student_id }}">
