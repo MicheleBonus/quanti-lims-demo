@@ -26,6 +26,9 @@ from models import (
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
 
 
+TARGET_M_GES_TOLERANCE_G = 0.005
+
+
 
 def mode_titer_label(mode: str | None) -> str:
     resolved = resolve_mode(mode)
@@ -53,6 +56,53 @@ def _validate_weighing_basis(method: Method) -> str | None:
     if basis == WEIGHING_BASIS_PER_PREPARATION and method.n_aliquots is not None:
         return "n_aliquots darf nur bei Einwaage je Bestimmung gesetzt werden."
     return None
+
+
+def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_ges_actual_g: float | None) -> dict:
+    """Evaluate whether actual weighing values are within configured limits."""
+    mode = resolve_mode(batch.analysis.calculation_mode if batch.analysis else None)
+    checks: list[str] = []
+    details: dict[str, bool] = {
+        "m_s_min_violation": False,
+        "m_ges_target_violation": False,
+        "volume_range_violation": False,
+    }
+
+    if mode == MODE_ASSAY_MASS_BASED:
+        if (
+            m_s_actual_g is not None
+            and batch.target_m_s_min_g is not None
+            and m_s_actual_g < batch.target_m_s_min_g
+        ):
+            details["m_s_min_violation"] = True
+            checks.append(f"m_S {m_s_actual_g:.3f} g < {batch.target_m_s_min_g:.3f} g")
+
+        if m_ges_actual_g is not None and batch.target_m_ges_g is not None:
+            lower = batch.target_m_ges_g - TARGET_M_GES_TOLERANCE_G
+            upper = batch.target_m_ges_g + TARGET_M_GES_TOLERANCE_G
+            if not (lower <= m_ges_actual_g <= upper):
+                details["m_ges_target_violation"] = True
+                checks.append(
+                    f"m_ges {m_ges_actual_g:.3f} g außerhalb Sollband {lower:.3f}–{upper:.3f} g"
+                )
+    else:
+        if (
+            m_ges_actual_g is not None
+            and batch.target_v_min_ml is not None
+            and batch.target_v_max_ml is not None
+            and not (batch.target_v_min_ml <= m_ges_actual_g <= batch.target_v_max_ml)
+        ):
+            details["volume_range_violation"] = True
+            checks.append(
+                f"V {m_ges_actual_g:.3f} mL außerhalb Zielbereich {batch.target_v_min_ml:.3f}–{batch.target_v_max_ml:.3f} mL"
+            )
+
+    return {
+        "mode": mode,
+        "out_of_range": bool(checks),
+        "messages": checks,
+        **details,
+    }
 
 
 def resolve_standardization_titer(semester_id: int) -> dict | None:
@@ -1011,6 +1061,10 @@ def register_routes(app):
                 flash(f"Inkonsistente Methoden-Konfiguration: {validation_error}", "danger")
                 return redirect(url_for("admin_method_form", id=method.id))
         samples = Sample.query.filter_by(batch_id=batch_id).order_by(Sample.running_number).all()
+        weighing_flags = {
+            s.id: evaluate_weighing_limits(batch, s.m_s_actual_g, s.m_ges_actual_g)
+            for s in samples
+        }
         if request.method == "POST":
             ignored_empty_fields = 0
             for s in samples:
@@ -1036,6 +1090,11 @@ def register_routes(app):
                     ignored_empty_fields += 1
                 s.weighed_by = request.form.get("weighed_by") or s.weighed_by
                 s.weighed_date = date.today().isoformat()
+
+                flags = evaluate_weighing_limits(batch, s.m_s_actual_g, s.m_ges_actual_g)
+                weighing_flags[s.id] = flags
+                if flags["out_of_range"]:
+                    flash(f"Probe #{s.running_number}: " + "; ".join(flags["messages"]), "danger")
             if ignored_empty_fields:
                 flash(
                     "Leere Eingabefelder löschen bestehende Werte nicht. Bitte „Einwaage löschen“ nutzen.",
@@ -1044,7 +1103,14 @@ def register_routes(app):
             db.session.commit()
             flash_saved("Einwaagen")
             return redirect(url_for("ta_weighing_batch", batch_id=batch_id))
-        return render_template("ta/weighing.html", batch=batch, samples=samples, titer_label=mode_titer_label(batch.analysis.calculation_mode))
+        return render_template(
+            "ta/weighing.html",
+            batch=batch,
+            samples=samples,
+            titer_label=mode_titer_label(batch.analysis.calculation_mode),
+            weighing_flags=weighing_flags,
+            target_m_ges_tolerance_g=TARGET_M_GES_TOLERANCE_G,
+        )
 
     @app.route("/ta/samples/<int:sample_id>/clear-weighing", methods=["POST"])
     def ta_clear_sample_weighing(sample_id):
@@ -1243,6 +1309,14 @@ def register_routes(app):
                 + ", ".join(missing_requirements)
                 + ".",
                 "warning",
+            )
+            return redirect(url_for("results_overview", analysis_id=analysis.id))
+
+        weighing_limits = evaluate_weighing_limits(sample.batch, sample.m_s_actual_g, sample.m_ges_actual_g)
+        if weighing_limits["out_of_range"]:
+            flash(
+                f"Ansage blockiert für Probe #{sample.running_number}: " + "; ".join(weighing_limits["messages"]),
+                "danger",
             )
             return redirect(url_for("results_overview", analysis_id=analysis.id))
 
