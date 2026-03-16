@@ -5,6 +5,7 @@
 <h4 class="mb-4">Methode {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 <div class="card"><div class="card-body">
 <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
     <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
     <div class="col-md-3">{{ select("method_type", "Methodentyp", [('direct','Direkttitration'),('back','Rücktitration'),('gravimetric','Gravimetrie'),('complexometric','Komplexometrie'),('argentometric','Argentometrie'),('other','Sonstige')], item.method_type, required=true) }}</div>

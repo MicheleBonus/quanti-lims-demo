@@ -11,19 +11,20 @@
 <tbody>
 {% for b in batches %}
 {% set weighed = b.samples | selectattr('is_weighed') | list | length %}
-{% set assigned = 0 %}
-{% for s in b.samples %}{% if s.active_assignment %}{% set assigned = assigned + 1 %}{% endif %}{% endfor %}
+{% set ns = namespace(assigned=0) %}
+{% for s in b.samples %}{% if s.active_assignment %}{% set ns.assigned = ns.assigned + 1 %}{% endif %}{% endfor %}
 <tr>
   <td><strong>{{ b.analysis.code }}</strong> {{ b.analysis.name }}</td>
   <td>{% if b.substance_lot %}{{ b.substance_lot.lot_number }} (p={{ b.p_effective|fmt(1) }}%){% else %}<span class="text-body-secondary">–</span>{% endif %}</td>
   <td>{{ b.titer|fmt(3) }}</td>
   <td>{{ b.total_samples_prepared }} <span class="text-body-secondary small">({{ b.samples|selectattr('is_buffer')|list|length }} Puffer)</span></td>
   <td>{{ weighed }}/{{ b.samples|length }}</td>
-  <td>{{ assigned }}</td>
+  <td>{{ ns.assigned }}</td>
   <td>
     <a href="{{ url_for('admin_batch_form', id=b.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
     <a href="{{ url_for('ta_weighing_batch', batch_id=b.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-ui-checks-grid"></i> Einwaage</a>
     <form method="POST" action="{{ url_for('admin_batch_assign_initial', id=b.id) }}" class="d-inline" onsubmit="return confirm('Erstanalysen zuweisen (Student k → Probe k)?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-left-right"></i> Erstanalysen</button>
     </form>
   </td>

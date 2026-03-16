@@ -5,6 +5,7 @@
 <h4 class="mb-4">Charge {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 <div class="card"><div class="card-body">
 <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
     <div class="col-md-4">{{ select("substance_id", "Substanz", sub_opts, item.substance_id, required=true) }}</div>
     <div class="col-md-4">{{ field("lot_number", "Chargennummer", item.lot_number, required=true) }}</div>

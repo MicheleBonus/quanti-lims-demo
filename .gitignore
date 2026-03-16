@@ -4,6 +4,7 @@ __pycache__/
 *.db
 *.sqlite3
 .env
+.secret_key
 venv/
 .venv/
 instance/

@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, jsonify,
 )
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 from models import (
     db, Block, Substance, SubstanceLot, Analysis, Method,
@@ -53,6 +54,7 @@ def resolve_standardization_titer(semester_id: int) -> dict | None:
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    CSRFProtect(app)
     db.init_app(app)
 
     with app.app_context():
@@ -62,6 +64,7 @@ def create_app():
 
     register_routes(app)
     register_filters(app)
+    register_error_handlers(app)
     return app
 
 
@@ -80,6 +83,16 @@ def register_filters(app):
     def options_for(items, value_attr="id", label_attr="name"):
         """Build select options from a list of ORM objects."""
         return [(getattr(i, value_attr), getattr(i, label_attr)) for i in items]
+
+
+def register_error_handlers(app):
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def internal_server_error(e):
+        return render_template("errors/500.html"), 500
 
 
 def register_routes(app):
@@ -157,7 +170,11 @@ def register_routes(app):
 
     @app.route("/admin/substances/<int:id>/delete", methods=["POST"])
     def admin_substance_delete(id):
-        db.session.delete(Substance.query.get_or_404(id))
+        item = Substance.query.get_or_404(id)
+        if item.lots or item.analyses:
+            flash("Substanz kann nicht gelöscht werden – es existieren verknüpfte Chargen oder Analysen.", "danger")
+            return redirect(url_for("admin_substances"))
+        db.session.delete(item)
         db.session.commit()
         flash("Substanz gelöscht.", "warning")
         return redirect(url_for("admin_substances"))
@@ -680,6 +697,13 @@ def register_routes(app):
         analysis_modes = {a.id: resolve_mode(a.calculation_mode) for a in analyses}
         lots = SubstanceLot.query.order_by(SubstanceLot.id.desc()).all()
         n_students = Student.query.filter_by(semester_id=sem.id).count() if sem else 0
+
+        def _render_form():
+            ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
+            lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
+            return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
+                                   lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+
         if request.method == "POST":
             item.semester_id = sem.id
             item.analysis_id = int(request.form["analysis_id"])
@@ -713,10 +737,7 @@ def register_routes(app):
             else:
                 if requested_titer is None:
                     flash("Kein auto-abgeleiteter Faktor verfügbar. Bitte manuellen Faktor angeben und als Override markieren.", "danger")
-                    ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                    lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
-                    return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                                           lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+                    return _render_form()
                 item.titer = requested_titer
                 item.titer_source = "manual_override" if manual_override else "manual"
                 item.titer_source_date = date.today().isoformat()
@@ -730,17 +751,11 @@ def register_routes(app):
             if mode == MODE_ASSAY_MASS_BASED:
                 if item.target_m_s_min_g is None or item.target_m_ges_g is None:
                     flash("Für massenbasierte Analysen sind Ziel-m_S,min und Ziel-m_ges erforderlich.", "danger")
-                    ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                    lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
-                    return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                                           lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+                    return _render_form()
             elif mode == MODE_TITRANT_STANDARDIZATION:
                 if item.target_v_min_ml is None or item.target_v_max_ml is None:
                     flash("Für Titerstandardisierung sind Ziel-V_min und Ziel-V_max erforderlich.", "danger")
-                    ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                    lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
-                    return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                                           lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+                    return _render_form()
 
             duplicate = SampleBatch.query.filter(
                 SampleBatch.semester_id == sem.id,
@@ -749,10 +764,7 @@ def register_routes(app):
             ).first()
             if duplicate:
                 flash("Für dieses Semester existiert bereits ein Probenansatz für die gewählte Analyse.", "danger")
-                ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
-                return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                                       lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+                return _render_form()
             if not id:
                 db.session.add(item)
             try:
@@ -769,10 +781,7 @@ def register_routes(app):
             except IntegrityError:
                 db.session.rollback()
                 flash("Probenansatz konnte nicht gespeichert werden (Analyse je Semester nur einmal erlaubt).", "danger")
-        ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-        lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
-        return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
-                               lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+        return _render_form()
 
     @app.route("/admin/batches/<int:id>/assign-initial", methods=["POST"])
     def admin_batch_assign_initial(id):
@@ -825,9 +834,17 @@ def register_routes(app):
                 m_s = request.form.get(f"m_s_{s.id}")
                 m_ges = request.form.get(f"m_ges_{s.id}")
                 if m_s:
-                    s.m_s_actual_g = float(m_s.replace(",", "."))
+                    parsed = _float(m_s)
+                    if parsed is not None:
+                        s.m_s_actual_g = parsed
+                    else:
+                        flash(f"Ungültiger Wert für m_S bei Probe {s.running_number}.", "danger")
                 if m_ges:
-                    s.m_ges_actual_g = float(m_ges.replace(",", "."))
+                    parsed = _float(m_ges)
+                    if parsed is not None:
+                        s.m_ges_actual_g = parsed
+                    else:
+                        flash(f"Ungültiger Wert für m_ges bei Probe {s.running_number}.", "danger")
                 s.weighed_by = request.form.get("weighed_by") or s.weighed_by
                 s.weighed_date = date.today().isoformat()
             db.session.commit()
@@ -1022,7 +1039,10 @@ def register_routes(app):
             return redirect(url_for("results_overview", analysis_id=analysis.id))
 
         if request.method == "POST":
-            val = float(request.form["ansage_value"].replace(",", "."))
+            val = _float(request.form.get("ansage_value"))
+            if val is None:
+                flash("Ungültiger Ansagewert. Bitte eine Zahl eingeben.", "danger")
+                return redirect(url_for("results_submit", assignment_id=assignment_id))
             r = Result(
                 assignment=assignment,
                 ansage_value=val,
@@ -1061,22 +1081,35 @@ def register_routes(app):
             return render_template("reports/progress.html", semester=None, students=[], analyses=[])
         students = Student.query.filter_by(semester_id=sem.id).order_by(Student.running_number).all()
         analyses = Analysis.query.order_by(Analysis.ordinal).all()
-        # Build progress matrix
+
+        # Prefetch all batches and assignments for the semester in bulk
+        batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
+        batch_by_analysis = {b.analysis_id: b for b in batches}
+        batch_ids = [b.id for b in batches]
+
+        all_assignments = (
+            SampleAssignment.query
+            .join(Sample).filter(Sample.batch_id.in_(batch_ids))
+            .order_by(SampleAssignment.attempt_number.desc())
+            .all()
+        ) if batch_ids else []
+
+        # Index assignments by (student_id, batch_id)
+        assgn_index = {}
+        for sa in all_assignments:
+            key = (sa.student_id, sa.sample.batch_id)
+            assgn_index.setdefault(key, []).append(sa)
+
+        # Build progress matrix from prefetched data
         progress = {}
         for st in students:
             progress[st.id] = {}
             for a in analyses:
-                batch = SampleBatch.query.filter_by(semester_id=sem.id, analysis_id=a.id).first()
+                batch = batch_by_analysis.get(a.id)
                 if not batch:
                     progress[st.id][a.code] = None
                     continue
-                assgns = (
-                    SampleAssignment.query
-                    .join(Sample).filter(Sample.batch_id == batch.id)
-                    .filter(SampleAssignment.student_id == st.id)
-                    .order_by(SampleAssignment.attempt_number.desc())
-                    .all()
-                )
+                assgns = assgn_index.get((st.id, batch.id), [])
                 if not assgns:
                     progress[st.id][a.code] = {"status": "not_assigned"}
                 else:
@@ -1129,7 +1162,7 @@ def register_routes(app):
     def api_sample_calc(sample_id):
         s = Sample.query.get_or_404(sample_id)
         return jsonify({
-            "g_wahr": round(s.g_wahr, 4) if s.g_wahr else None,
+            "g_wahr": round(s.g_wahr, 4) if s.g_wahr is not None else None,
             "a_min": s.a_min,
             "a_max": s.a_max,
             "v_expected": s.v_expected,
@@ -1144,13 +1177,19 @@ def register_routes(app):
 def _float(val):
     if val is None or val == "":
         return None
-    return float(str(val).replace(",", "."))
+    try:
+        return float(str(val).replace(",", "."))
+    except (ValueError, TypeError):
+        return None
 
 
 def _int(val):
     if val is None or val == "":
         return None
-    return int(val)
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
 
 
 # ── Entry point ──────────────────────────────────────────────────────

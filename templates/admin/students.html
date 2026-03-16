@@ -17,6 +17,7 @@
 <div class="card-header"><i class="bi bi-upload"></i> CSV-Import</div>
 <div class="card-body">
   <form method="POST" action="{{ url_for('admin_students_import') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="row g-2 align-items-end">
       <div class="col-md-6">
         <label class="form-label">CSV-Datei (Spalten: Matrikel;Nachname;Vorname;Email)</label>
@@ -45,9 +46,11 @@
   <td class="text-end">
     <a href="{{ url_for('admin_student_form', id=s.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
     <form method="POST" action="{{ url_for('admin_student_delete', id=s.id) }}" class="d-inline" onsubmit="return confirm('Studierende/n löschen? Ohne Freigabe wird bei bestehenden Zuweisungen blockiert.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline-danger btn-sm" title="Standard-Löschversuch"><i class="bi bi-trash"></i></button>
     </form>
     <form method="POST" action="{{ url_for('admin_student_delete', id=s.id) }}" class="d-inline" onsubmit="return confirm('Endgültig löschen? Dadurch werden auch alle Zuweisungen und Ergebnisse unwiderruflich entfernt.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="force" value="1">
       <button type="submit" class="btn btn-danger btn-sm" title="Erzwingt kaskadierendes Löschen inkl. Historie"><i class="bi bi-exclamation-triangle"></i></button>
     </form>

@@ -5,6 +5,7 @@
 <h4 class="mb-4">Studierende/r {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 <div class="card"><div class="card-body">
 <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
     <div class="col-md-2">{{ field("running_number", "Laufnummer", item.running_number or next_num, type="number", required=true) }}</div>
     <div class="col-md-3">{{ field("matrikel", "Matrikelnummer", item.matrikel, required=true) }}</div>

@@ -20,6 +20,7 @@
   <td class="text-body-secondary small">{{ mr.step_description or '–' }}</td>
   <td>
     <form method="POST" action="{{ url_for('admin_method_reagent_delete', id=mr.id) }}" class="d-inline" onsubmit="return confirm('Entfernen?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
     </form>
   </td>
@@ -34,6 +35,7 @@
 <div class="card-header">Reagenz zuordnen</div>
 <div class="card-body">
 <form method="POST" action="{{ url_for('admin_method_reagent_add', method_id=method.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row g-2 align-items-end">
     <div class="col-md-3">{{ select("reagent_id", "Reagenz", reag_opts, required=true) }}</div>
     <div class="col-md-2">{{ field("volume_per_determination_ml", "V/Best. (mL)", type="number", step="0.1", required=true) }}</div>

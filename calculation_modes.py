@@ -39,7 +39,7 @@ class ModeEvaluator(Protocol):
 
 class MassBasedEvaluator:
     def _g_wahr(self, sample) -> float | None:
-        if sample.m_s_actual_g and sample.m_ges_actual_g and sample.m_ges_actual_g > 0:
+        if sample.m_s_actual_g is not None and sample.m_ges_actual_g is not None and sample.m_ges_actual_g > 0:
             return (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
         return None
 
@@ -111,7 +111,7 @@ class TitrantStandardizationEvaluator:
             sample.m_s_actual_g is not None
             and method is not None
             and method.m_eq_mg is not None
-            and result.ansage_value
+            and result.ansage_value is not None
             and result.ansage_value > 0
         ):
             titer_result = round((sample.m_s_actual_g * 1000.0) / (method.m_eq_mg * result.ansage_value), 4)
