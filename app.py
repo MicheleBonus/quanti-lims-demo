@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import date
+from sqlalchemy.exc import IntegrityError
 
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, jsonify,
@@ -388,6 +389,36 @@ def register_routes(app):
             count += 1
         db.session.commit()
         flash(f"{count} Studierende importiert.", "success")
+        return redirect(url_for("admin_students"))
+
+    @app.route("/admin/students/<int:id>/delete", methods=["POST"])
+    def admin_student_delete(id):
+        item = Student.query.get_or_404(id)
+
+        has_assignments = (
+            db.session.query(SampleAssignment.id)
+            .filter_by(student_id=item.id)
+            .first()
+            is not None
+        )
+        if has_assignments:
+            flash(
+                "Studierende/r kann nicht gelöscht werden, da bereits Probenzuteilungen verknüpft sind.",
+                "danger",
+            )
+            return redirect(url_for("admin_students"))
+
+        try:
+            db.session.delete(item)
+            db.session.commit()
+            flash("Studierende/r gelöscht.", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash(
+                "Studierende/r konnte wegen bestehender Verknüpfungen nicht gelöscht werden.",
+                "danger",
+            )
+
         return redirect(url_for("admin_students"))
 
     # ═══════════════════════════════════════════════════════════════
