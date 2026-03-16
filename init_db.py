@@ -6,6 +6,7 @@ from models import (
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment,
 )
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION
 
 
 def seed_database():
@@ -49,7 +50,7 @@ def seed_database():
     # ── Analysen ───────────────────────────────────────────────────
     analyses = {}
     ana_data = [
-        ("I",   "I.1",   1,  "Einstellung Salzsäure 0,1 mol/L",  "Salzsäure 0,1 mol/L",              3, "Faktor", "Titer",            None, None),
+        ("I",   "I.1",   1,  "Einstellung Salzsäure 0,1 mol/L",  "Salzsäure 0,1 mol/L",              3, "Faktor", "Titer",            99.0, 101.0, MODE_TITRANT_STANDARDIZATION),
         ("I",   "I.2",   2,  "Acetylsalicylsäure",                "Acetylsalicylsäure",                3, "%",      "Gehalt",           98.0, 102.0),
         ("I",   "I.3",   3,  "Natriumtetraborat",                 "Natriumtetraborat",                 3, "%",      "Gehalt",           98.0, 102.0),
         ("I",   "I.4",   4,  "Lithiumcitrat",                     "Lithiumcitrat",                     3, "%",      "Gehalt",           98.0, 102.0),
@@ -62,11 +63,16 @@ def seed_database():
         ("III", "III.3", 11, "Theophyllin",                       "Theophyllin",                       3, "%",      "Gehalt",           98.0, 102.0),
         ("III", "III.4", 12, "Trocknungsverlust (Glucose-MH)",    "Glucose-Monohydrat",                3, "%",      "Trocknungsverlust", 98.0, 102.0),
     ]
-    for blk, code, ordinal, name, sub_name, k, unit, label, tmin, tmax in ana_data:
+    for row in ana_data:
+        if len(row) == 10:
+            blk, code, ordinal, name, sub_name, k, unit, label, tmin, tmax = row
+            mode = MODE_ASSAY_MASS_BASED
+        else:
+            blk, code, ordinal, name, sub_name, k, unit, label, tmin, tmax, mode = row
         a = Analysis(
             block=blocks[blk], code=code, ordinal=ordinal, name=name,
             substance=substances[sub_name], k_determinations=k,
-            result_unit=unit, result_label=label,
+            result_unit=unit, result_label=label, calculation_mode=mode,
             tolerance_override_min_pct=tmin, tolerance_override_max_pct=tmax,
         )
         db.session.add(a)

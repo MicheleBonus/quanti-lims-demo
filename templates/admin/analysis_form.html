@@ -13,6 +13,7 @@
     <div class="col-md-3">{{ select("substance_id", "Substanz", sub_opts, item.substance_id, required=true) }}</div>
   </div>
   <div class="row">
+    <div class="col-md-3">{{ select("calculation_mode", "Calculation Mode", mode_opts, item.calculation_mode or 'assay_mass_based', required=true) }}</div>
     <div class="col-md-2">{{ field("k_determinations", "k (Bestimmungen)", item.k_determinations or 3, type="number") }}</div>
     <div class="col-md-2">{{ field("result_unit", "Ergebnis-Einheit", item.result_unit or '%') }}</div>
     <div class="col-md-3">{{ field("result_label", "Ergebnis-Bezeichnung", item.result_label or 'Gehalt') }}</div>

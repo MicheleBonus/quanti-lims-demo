@@ -24,7 +24,13 @@
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light">
-<tr><th>#</th><th>Student/in</th><th>Versuch</th><th>Probe</th><th>G_wahr</th><th>A_min</th><th>A_max</th><th>Ansage</th><th>Status</th><th>Aktion</th></tr>
+<tr><th>#</th><th>Student/in</th><th>Versuch</th><th>Probe</th>
+{% if selected_analysis and selected_analysis.calculation_mode == 'titrant_standardization' %}
+<th>Titer Soll</th><th>Titer min</th><th>Titer max</th>
+{% else %}
+<th>G_wahr</th><th>A_min</th><th>A_max</th>
+{% endif %}
+<th>Ansage</th><th>Status</th><th>Aktion</th></tr>
 </thead>
 <tbody>
 {% for sa in assignments %}
@@ -35,9 +41,15 @@
   <td>{{ sa.student.full_name }}</td>
   <td>{{ sa.attempt_type }}</td>
   <td>#{{ s.running_number }}</td>
+  {% if selected_analysis and selected_analysis.calculation_mode == 'titrant_standardization' %}
+  <td>{{ s.titer_expected|fmt(4) }}</td>
+  <td>{{ s.a_min|fmt(4) }}</td>
+  <td>{{ s.a_max|fmt(4) }}</td>
+{% else %}
   <td>{{ s.g_wahr|fmt(4) }}</td>
   <td>{{ s.a_min|fmt(4) }}</td>
   <td>{{ s.a_max|fmt(4) }}</td>
+{% endif %}
   <td>
     {% if r %}
       <strong>{{ r.ansage_value|fmt(4) }}</strong> {{ r.ansage_unit }}

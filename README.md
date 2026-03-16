@@ -61,13 +61,12 @@ quanti-lims/
 
 ## Business Logic
 
-Die Berechnungen erfolgen im ORM (model properties):
+Die Berechnungen erfolgen modus-spezifisch über `calculation_modes.py` und werden über `Analysis.calculation_mode` ausgewählt:
 
 - **Reinheits-Hierarchie**: `SubstanceLot.p_effective` → analytisch > CoA > 100 %
-- **Wahrer Gehalt**: `Sample.g_wahr` = (m_S,ist / m_ges,ist) × p
-- **Toleranzgrenzen**: `Sample.a_min/a_max` = G_wahr × (tol_min|max / 100)
-- **Titration**: `Sample.v_expected` → Direkt- oder Rücktitration
-- **Bewertung**: `Result.evaluate()` → passed = (A_min ≤ Ansage ≤ A_max)
+- **assay_mass_based**: `Sample.g_wahr`, `a_min/a_max`, `v_expected` aus Einwaage- und Methodenparametern.
+- **titrant_standardization**: `Sample.v_expected` und `titer_expected`; Bewertung über berechneten `titer_result` gegen Titer-Grenzen.
+- **Bewertung**: `Result.evaluate()` delegiert an den jeweiligen Mode-Evaluator und persistiert mode-spezifische Referenzwerte.
 
 ## Lizenz
 
