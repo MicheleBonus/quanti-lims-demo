@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+from functools import wraps
 from datetime import date
 from sqlalchemy.exc import IntegrityError
 
@@ -54,6 +55,23 @@ def register_routes(app):
     # ─── Helper ──────────────────────────────────────────────────
     def active_semester():
         return Semester.query.filter_by(is_active=True).first()
+
+    def require_active_semester(redirect_endpoint="dashboard"):
+        """Guard semester-dependent routes when no active semester is configured."""
+        def decorator(view):
+            @wraps(view)
+            def wrapped(*args, **kwargs):
+                if active_semester():
+                    return view(*args, **kwargs)
+                flash(
+                    "Kein aktives Semester gefunden. Bitte zuerst ein Semester aktivieren.",
+                    "danger",
+                )
+                return redirect(url_for(redirect_endpoint))
+
+            return wrapped
+
+        return decorator
 
     # ═══════════════════════════════════════════════════════════════
     # DASHBOARD
@@ -336,6 +354,7 @@ def register_routes(app):
 
     @app.route("/admin/students/new", methods=["GET", "POST"])
     @app.route("/admin/students/<int:id>/edit", methods=["GET", "POST"])
+    @require_active_semester("admin_students")
     def admin_student_form(id=None):
         item = Student.query.get(id) if id else Student()
         sem = active_semester()
@@ -499,6 +518,7 @@ def register_routes(app):
 
     @app.route("/admin/batches/new", methods=["GET", "POST"])
     @app.route("/admin/batches/<int:id>/edit", methods=["GET", "POST"])
+    @require_active_semester("admin_batches")
     def admin_batch_form(id=None):
         item = SampleBatch.query.get(id) if id else SampleBatch()
         sem = active_semester()
@@ -630,6 +650,7 @@ def register_routes(app):
         return render_template("assignments/overview.html", semester=sem, analyses=analyses, data=data)
 
     @app.route("/assignments/assign-buffer", methods=["POST"])
+    @require_active_semester("assignments_overview")
     def assign_buffer():
         student_id = int(request.form["student_id"])
         analysis_id = int(request.form["analysis_id"])
