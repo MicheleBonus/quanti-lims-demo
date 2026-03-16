@@ -582,24 +582,71 @@ def register_routes(app):
     @app.route("/admin/students/<int:id>/delete", methods=["POST"])
     def admin_student_delete(id):
         item = Student.query.get_or_404(id)
+        force_cleanup = request.form.get("force_cleanup") == "1"
 
-        has_assignments = (
-            db.session.query(SampleAssignment.id)
-            .filter_by(student_id=item.id)
-            .first()
-            is not None
-        )
-        if has_assignments:
+        assignments = SampleAssignment.query.filter_by(student_id=item.id).all()
+        assignment_ids = [a.id for a in assignments]
+
+        assignments_with_results = set()
+        if assignment_ids:
+            assignments_with_results = {
+                assignment_id
+                for (assignment_id,) in db.session.query(Result.assignment_id)
+                .filter(Result.assignment_id.in_(assignment_ids))
+                .distinct()
+                .all()
+            }
+
+        assignments_without_results = [
+            a for a in assignments if a.id not in assignments_with_results
+        ]
+        assignments_with_results_list = [
+            a for a in assignments if a.id in assignments_with_results
+        ]
+
+        if assignments_with_results_list and not force_cleanup:
             flash(
-                "Studierende/r kann nicht gelöscht werden, da bereits Probenzuteilungen verknüpft sind.",
+                (
+                    "Studierende/r kann nicht gelöscht werden: "
+                    f"{len(assignments_with_results_list)} Zuteilung(en) mit Ergebnissen vorhanden. "
+                    f"{len(assignments_without_results)} Zuteilung(en) ohne Ergebnisse können bereinigt werden."
+                ),
                 "danger",
             )
             return redirect(url_for("admin_students"))
 
         try:
+            removed_results = 0
+            removed_assignments = 0
+
+            if assignments_with_results_list and force_cleanup:
+                removed_results = (
+                    Result.query.filter(
+                        Result.assignment_id.in_([a.id for a in assignments_with_results_list])
+                    ).delete(synchronize_session=False)
+                )
+                removed_assignments += (
+                    SampleAssignment.query.filter(
+                        SampleAssignment.id.in_([a.id for a in assignments_with_results_list])
+                    ).delete(synchronize_session=False)
+                )
+
+            if assignments_without_results:
+                removed_assignments += (
+                    SampleAssignment.query.filter(
+                        SampleAssignment.id.in_([a.id for a in assignments_without_results])
+                    ).delete(synchronize_session=False)
+                )
+
             db.session.delete(item)
             db.session.commit()
-            flash("Studierende/r gelöscht.", "success")
+            flash(
+                (
+                    "Studierende/r gelöscht. "
+                    f"Entfernt: {removed_assignments} Zuteilung(en), {removed_results} Ergebnis(se)."
+                ),
+                "success",
+            )
         except IntegrityError:
             db.session.rollback()
             flash(
