@@ -38,6 +38,12 @@ class ModeEvaluator(Protocol):
 
 
 class MassBasedEvaluator:
+    def _scale_factor(self, sample) -> float:
+        method = sample.batch.analysis.method
+        if method and method.weighing_basis == "per_determination":
+            return float(method.n_aliquots or sample.batch.analysis.k_determinations or 1)
+        return 1.0
+
     def _g_wahr(self, sample) -> float | None:
         if sample.m_s_actual_g is not None and sample.m_ges_actual_g is not None and sample.m_ges_actual_g > 0:
             return (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
@@ -48,8 +54,12 @@ class MassBasedEvaluator:
         tol_min = sample.batch.analysis.tol_min
         tol_max = sample.batch.analysis.tol_max
 
-        a_min = round(g_wahr * tol_min / 100.0, 4) if g_wahr is not None and tol_min is not None else None
-        a_max = round(g_wahr * tol_max / 100.0, 4) if g_wahr is not None and tol_max is not None else None
+        scale_factor = self._scale_factor(sample)
+
+        a_min_base = round(g_wahr * tol_min / 100.0, 4) if g_wahr is not None and tol_min is not None else None
+        a_max_base = round(g_wahr * tol_max / 100.0, 4) if g_wahr is not None and tol_max is not None else None
+        a_min = round(a_min_base * scale_factor, 4) if a_min_base is not None else None
+        a_max = round(a_max_base * scale_factor, 4) if a_max_base is not None else None
 
         method = sample.batch.analysis.method
         v_expected_ml = None
@@ -57,10 +67,10 @@ class MassBasedEvaluator:
             m_s_mg = sample.m_s_actual_g * 1000.0
             t = sample.batch.titer
             if method.method_type == "direct":
-                v_expected_ml = round(m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t), 3)
+                v_expected_ml = round((m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor, 3)
             elif method.method_type == "back" and method.v_vorlage_ml is not None:
                 v_expected_ml = round(
-                    method.v_vorlage_ml - m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t), 3
+                    method.v_vorlage_ml - (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor, 3
                 )
 
         return SampleCalculation(g_wahr=g_wahr, a_min=a_min, a_max=a_max, v_expected_ml=v_expected_ml)

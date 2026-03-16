@@ -7,7 +7,9 @@
     <small class="text-body-secondary">
       Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges = {{ batch.target_m_ges_g }} g |
       p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) |
-      {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }})
+      {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }}) |
+      Einwaage-Logik: {{ batch.analysis.method.weighing_basis_label if batch.analysis.method else 'Einwaage gilt für Gesamtansatz' }}
+      {% if batch.analysis.method and batch.analysis.method.weighing_basis == 'per_determination' %}(n_aliquots = {{ batch.analysis.method.n_aliquots }}){% endif %}
     </small>
   </div>
   <a href="{{ url_for('ta_sample_overview', batch_id=batch.id) }}" class="btn btn-outline-info btn-sm">
@@ -91,6 +93,9 @@ const METHOD = '{{ batch.analysis.method.method_type if batch.analysis.method el
 const V_VORLAGE = {{ batch.analysis.method.v_vorlage_ml if batch.analysis.method and batch.analysis.method.v_vorlage_ml else 'null' }};
 const TOL_MIN = {{ batch.analysis.tol_min or 'null' }};
 const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
+const WEIGHING_BASIS = '{{ batch.analysis.method.weighing_basis if batch.analysis.method else "per_preparation" }}';
+const N_ALIQUOTS = {{ batch.analysis.method.n_aliquots if batch.analysis.method and batch.analysis.method.n_aliquots else (batch.analysis.k_determinations or 1) }};
+const SCALE = WEIGHING_BASIS === 'per_determination' ? N_ALIQUOTS : 1;
 
 document.querySelectorAll('.weighing-input').forEach(input => {
   input.addEventListener('input', () => {
@@ -106,8 +111,8 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       document.getElementById('gw-' + sid).textContent = gw.toFixed(4);
 
       if (TOL_MIN !== null && TOL_MAX !== null) {
-        const amin = gw * TOL_MIN / 100;
-        const amax = gw * TOL_MAX / 100;
+        const amin = (gw * TOL_MIN / 100) * SCALE;
+        const amax = (gw * TOL_MAX / 100) * SCALE;
         document.getElementById('amin-' + sid).textContent = amin.toFixed(4);
         document.getElementById('amax-' + sid).textContent = amax.toFixed(4);
       }
@@ -116,9 +121,9 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         const msMg = ms * 1000;
         let vExp = null;
         if (METHOD === 'direct') {
-          vExp = (msMg * gw / 100) / (M_EQ * TITER);
+          vExp = ((msMg * gw / 100) / (M_EQ * TITER)) * SCALE;
         } else if (METHOD === 'back' && V_VORLAGE !== null) {
-          vExp = V_VORLAGE - (msMg * gw / 100) / (M_EQ * TITER);
+          vExp = V_VORLAGE - ((msMg * gw / 100) / (M_EQ * TITER)) * SCALE;
         }
         if (vExp !== null) {
           document.getElementById('vexp-' + sid).textContent = vExp.toFixed(3);
