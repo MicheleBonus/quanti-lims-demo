@@ -15,7 +15,7 @@
 <tr>
   <td>{{ c.child.name }}</td>
   <td>{{ c.quantity }}</td>
-  <td>{{ c.quantity_unit }}</td>
+  <td>{{ c.quantity_unit|unit }}</td>
   <td>{{ c.per_parent_volume_ml or '–' }}</td>
   <td>
     <form method="POST" action="{{ url_for('admin_reagent_component_delete', id=c.id) }}" class="d-inline" onsubmit="return confirm('Entfernen?')">
@@ -40,7 +40,7 @@
       {{ select("child_reagent_id", "Reagenz", reag_opts, required=true, blank="– Reagenz wählen –") }}
     </div>
     <div class="col-md-2">{{ field("quantity", "Menge", type="number", step="0.01", required=true) }}</div>
-    <div class="col-md-2">{{ field("quantity_unit", "Einheit", "mL") }}</div>
+    <div class="col-md-2">{{ select("quantity_unit", "Einheit", unit_options, selected="mL", required=true, blank=None) }}</div>
     <div class="col-md-2">{{ field("per_parent_volume_ml", "pro mL Eltern", type="number", step="0.1") }}</div>
     <div class="col-md-2 mb-3">
       <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Hinzufügen</button>

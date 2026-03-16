@@ -17,7 +17,8 @@ from models import (
     db, Block, Substance, SubstanceLot, Analysis, Method,
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
-    AMOUNT_UNIT_VOLUME, get_amount_unit_type, migrate_schema,
+    AMOUNT_UNIT_VOLUME,
+    canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit, migrate_schema,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
 
@@ -76,6 +77,10 @@ def register_filters(app):
         if value is None:
             return "–"
         return f"{value:.{decimals}f}"
+
+    @app.template_filter("unit")
+    def fmt_unit(value):
+        return canonical_unit_label(value)
 
     @app.template_filter("zip")
     def zip_filter(a, b):
@@ -335,7 +340,11 @@ def register_routes(app):
             item.name = request.form["name"]
             item.abbreviation = request.form.get("abbreviation") or None
             item.is_composite = "is_composite" in request.form
-            item.base_unit = request.form.get("base_unit", "mL")
+            base_unit = normalize_unit(request.form.get("base_unit") or "mL")
+            if not is_known_unit(base_unit):
+                flash("Ungültige Einheit für Reagenz.", "danger")
+                return render_template("admin/reagent_form.html", item=item, unit_options=get_unit_options())
+            item.base_unit = base_unit
             item.cas_number = request.form.get("cas_number") or None
             item.density_g_ml = _float(request.form.get("density_g_ml"))
             item.hazard_symbols = request.form.get("hazard_symbols") or None
@@ -347,7 +356,7 @@ def register_routes(app):
             ).first()
             if duplicate:
                 flash("Eine Reagenz mit diesem Namen existiert bereits.", "danger")
-                return render_template("admin/reagent_form.html", item=item)
+                return render_template("admin/reagent_form.html", item=item, unit_options=get_unit_options())
             if not id:
                 db.session.add(item)
             try:
@@ -357,7 +366,7 @@ def register_routes(app):
             except IntegrityError:
                 db.session.rollback()
                 flash("Reagenz konnte nicht gespeichert werden (Name ist bereits vergeben).", "danger")
-        return render_template("admin/reagent_form.html", item=item)
+        return render_template("admin/reagent_form.html", item=item, unit_options=get_unit_options())
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Reagent Components (BOM)
@@ -367,7 +376,7 @@ def register_routes(app):
         parent = Reagent.query.get_or_404(reagent_id)
         reagents = Reagent.query.filter(Reagent.id != reagent_id).order_by(Reagent.name).all()
         reag_opts = [(r.id, r.name) for r in reagents]
-        return render_template("admin/reagent_components.html", parent=parent, reag_opts=reag_opts)
+        return render_template("admin/reagent_components.html", parent=parent, reag_opts=reag_opts, unit_options=get_unit_options())
 
     @app.route("/admin/reagents/<int:reagent_id>/components/add", methods=["POST"])
     def admin_reagent_component_add(reagent_id):
@@ -375,9 +384,12 @@ def register_routes(app):
             parent_reagent_id=reagent_id,
             child_reagent_id=int(request.form["child_reagent_id"]),
             quantity=float(request.form["quantity"]),
-            quantity_unit=request.form["quantity_unit"],
+            quantity_unit=normalize_unit(request.form.get("quantity_unit")),
             per_parent_volume_ml=_float(request.form.get("per_parent_volume_ml")),
         )
+        if not is_known_unit(rc.quantity_unit):
+            flash("Ungültige Einheit für Komponente.", "danger")
+            return redirect(url_for("admin_reagent_components", reagent_id=reagent_id))
         db.session.add(rc)
         try:
             db.session.commit()
@@ -405,7 +417,7 @@ def register_routes(app):
         method = Method.query.get_or_404(method_id)
         reagents = Reagent.query.order_by(Reagent.name).all()
         reag_opts = [(r.id, r.name) for r in reagents]
-        amount_units = [("mL", "mL"), ("L", "L"), ("g", "g"), ("mg", "mg"), ("pcs", "Stk")]
+        amount_units = get_unit_options()
         return render_template("admin/method_reagents.html", method=method, reag_opts=reag_opts, amount_units=amount_units)
 
     @app.route("/admin/methods/<int:method_id>/reagents/add", methods=["POST"])
@@ -415,10 +427,13 @@ def register_routes(app):
             reagent_id=int(request.form["reagent_id"]),
             amount_per_determination=float(request.form["amount_per_determination"]),
             amount_per_blind=float(request.form.get("amount_per_blind", 0)),
-            amount_unit=request.form.get("amount_unit") or "mL",
+            amount_unit=normalize_unit(request.form.get("amount_unit") or "mL"),
             is_titrant="is_titrant" in request.form,
             step_description=request.form.get("step_description") or None,
         )
+        if not is_known_unit(mr.amount_unit):
+            flash("Ungültige Einheit für Methoden-Reagenz.", "danger")
+            return redirect(url_for("admin_method_reagents", method_id=method_id))
         db.session.add(mr)
         if mr.amount_unit_type != AMOUNT_UNIT_VOLUME and mr.is_titrant:
             db.session.rollback()
@@ -1153,7 +1168,7 @@ def register_routes(app):
                     "analysis": analysis.code,
                     "analysis_name": analysis.name,
                     "reagent": mr.reagent.name,
-                    "unit": mr.amount_unit,
+                    "unit": canonical_unit_label(mr.amount_unit),
                     "per_det": mr.amount_per_determination,
                     "per_blind": mr.amount_per_blind,
                     "formula_kind": formula_kind,

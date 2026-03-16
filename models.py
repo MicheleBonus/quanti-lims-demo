@@ -13,20 +13,66 @@ from calculation_modes import (
 
 db = SQLAlchemy()
 
-AMOUNT_UNIT_VOLUME = "volume"
 AMOUNT_UNIT_MASS = "mass"
-AMOUNT_UNIT_OTHER = "other"
-AMOUNT_UNIT_TYPES = {
-    "mL": AMOUNT_UNIT_VOLUME,
-    "L": AMOUNT_UNIT_VOLUME,
-    "g": AMOUNT_UNIT_MASS,
-    "mg": AMOUNT_UNIT_MASS,
-    "pcs": AMOUNT_UNIT_OTHER,
+AMOUNT_UNIT_VOLUME = "volume"
+AMOUNT_UNIT_COUNT = "count"
+
+UNIT_DEFINITIONS = (
+    ("mg", "mg", AMOUNT_UNIT_MASS),
+    ("g", "g", AMOUNT_UNIT_MASS),
+    ("kg", "kg", AMOUNT_UNIT_MASS),
+    ("µL", "µL", AMOUNT_UNIT_VOLUME),
+    ("mL", "mL", AMOUNT_UNIT_VOLUME),
+    ("L", "L", AMOUNT_UNIT_VOLUME),
+    ("pcs", "pcs", AMOUNT_UNIT_COUNT),
+)
+UNIT_CODES = tuple(code for code, _, _ in UNIT_DEFINITIONS)
+AMOUNT_UNIT_TYPES = {code: category for code, _, category in UNIT_DEFINITIONS}
+UNIT_LABELS = {code: label for code, label, _ in UNIT_DEFINITIONS}
+UNIT_CANONICAL_MAP = {
+    "ul": "µL",
+    "μl": "µL",
+    "µl": "µL",
+    "ml": "mL",
+    "l": "L",
+    "mg": "mg",
+    "g": "g",
+    "kg": "kg",
+    "pcs": "pcs",
+    "stk": "pcs",
+    "piece": "pcs",
+    "pieces": "pcs",
 }
+UNIT_ENUM = db.Enum(*UNIT_CODES, name="unit_code", native_enum=False, create_constraint=True, validate_strings=True)
+
+
+def normalize_unit(unit: str | None) -> str | None:
+    if unit is None:
+        return None
+    compact = unit.strip()
+    if not compact:
+        return None
+    return UNIT_CANONICAL_MAP.get(compact.lower(), compact if compact in UNIT_CODES else None)
+
+
+def is_known_unit(unit: str | None) -> bool:
+    return normalize_unit(unit) in UNIT_CODES
+
+
+def get_unit_options() -> list[tuple[str, str]]:
+    return [(code, label) for code, label, _ in UNIT_DEFINITIONS]
+
+
+def canonical_unit_label(unit: str | None) -> str:
+    normalized = normalize_unit(unit)
+    if normalized is None:
+        return unit or ""
+    return UNIT_LABELS.get(normalized, normalized)
 
 
 def get_amount_unit_type(unit: str | None) -> str:
-    return AMOUNT_UNIT_TYPES.get(unit or "", AMOUNT_UNIT_OTHER)
+    normalized = normalize_unit(unit)
+    return AMOUNT_UNIT_TYPES.get(normalized or "", AMOUNT_UNIT_COUNT)
 
 # ── Stammdaten ────────────────────────────────────────────────────────────
 
@@ -161,7 +207,7 @@ class Reagent(db.Model):
     name = db.Column(db.String(200), unique=True, nullable=False)
     abbreviation = db.Column(db.String(50))
     is_composite = db.Column(db.Boolean, nullable=False, default=False)
-    base_unit = db.Column(db.String(20), nullable=False, default="mL")
+    base_unit = db.Column(UNIT_ENUM, nullable=False, default="mL")
     cas_number = db.Column(db.String(30))
     density_g_ml = db.Column(db.Float)
     hazard_symbols = db.Column(db.String(100))
@@ -182,7 +228,7 @@ class ReagentComponent(db.Model):
     parent_reagent_id = db.Column(db.Integer, db.ForeignKey("reagent.id"), nullable=False)
     child_reagent_id = db.Column(db.Integer, db.ForeignKey("reagent.id"), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
-    quantity_unit = db.Column(db.String(20), nullable=False)
+    quantity_unit = db.Column(UNIT_ENUM, nullable=False)
     per_parent_volume_ml = db.Column(db.Float)
     notes = db.Column(db.Text)
 
@@ -197,7 +243,7 @@ class MethodReagent(db.Model):
     reagent_id = db.Column(db.Integer, db.ForeignKey("reagent.id"), nullable=False)
     amount_per_determination = db.Column(db.Float, nullable=False)
     amount_per_blind = db.Column(db.Float, nullable=False, default=0)
-    amount_unit = db.Column(db.String(20), nullable=False, default="mL")
+    amount_unit = db.Column(UNIT_ENUM, nullable=False, default="mL")
     is_titrant = db.Column(db.Boolean, nullable=False, default=False)
     step_description = db.Column(db.Text)
     notes = db.Column(db.Text)
@@ -235,6 +281,26 @@ def migrate_schema() -> None:
         conn.exec_driver_sql("UPDATE method_reagent SET amount_per_determination = COALESCE(amount_per_determination, 0)")
         conn.exec_driver_sql("UPDATE method_reagent SET amount_per_blind = COALESCE(amount_per_blind, 0)")
         conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = COALESCE(amount_unit, 'mL')")
+
+        conn.exec_driver_sql("UPDATE reagent SET base_unit = 'µL' WHERE lower(base_unit) IN ('ul', 'μl', 'µl')")
+        conn.exec_driver_sql("UPDATE reagent SET base_unit = 'mL' WHERE lower(base_unit) = 'ml'")
+        conn.exec_driver_sql("UPDATE reagent SET base_unit = 'L' WHERE lower(base_unit) = 'l'")
+        conn.exec_driver_sql("UPDATE reagent SET base_unit = 'pcs' WHERE lower(base_unit) IN ('stk', 'piece', 'pieces')")
+
+        conn.exec_driver_sql("UPDATE reagent_component SET quantity_unit = 'µL' WHERE lower(quantity_unit) IN ('ul', 'μl', 'µl')")
+        conn.exec_driver_sql("UPDATE reagent_component SET quantity_unit = 'mL' WHERE lower(quantity_unit) = 'ml'")
+        conn.exec_driver_sql("UPDATE reagent_component SET quantity_unit = 'L' WHERE lower(quantity_unit) = 'l'")
+        conn.exec_driver_sql("UPDATE reagent_component SET quantity_unit = 'pcs' WHERE lower(quantity_unit) IN ('stk', 'piece', 'pieces')")
+
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'µL' WHERE lower(amount_unit) IN ('ul', 'μl', 'µl')")
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'mL' WHERE lower(amount_unit) = 'ml'")
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'L' WHERE lower(amount_unit) = 'l'")
+        conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'pcs' WHERE lower(amount_unit) IN ('stk', 'piece', 'pieces')")
+
+        valid_units_sql = "('mg','g','kg','µL','mL','L','pcs')"
+        conn.exec_driver_sql(f"UPDATE reagent SET base_unit = 'mL' WHERE base_unit NOT IN {valid_units_sql}")
+        conn.exec_driver_sql(f"UPDATE reagent_component SET quantity_unit = 'mL' WHERE quantity_unit NOT IN {valid_units_sql}")
+        conn.exec_driver_sql(f"UPDATE method_reagent SET amount_unit = 'mL' WHERE amount_unit NOT IN {valid_units_sql}")
         conn.commit()
     finally:
         conn.close()
