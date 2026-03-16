@@ -860,6 +860,30 @@ def register_routes(app):
         flash(f"Pufferprobe #{buffer_sample.running_number} ({attempt_type}-Analyse) zugewiesen.", "success")
         return redirect(url_for("assignments_overview"))
 
+    @app.route("/assignments/<int:id>/cancel", methods=["POST"])
+    @require_active_semester("assignments_overview")
+    def assignment_cancel(id):
+        assignment = SampleAssignment.query.get_or_404(id)
+        has_results = Result.query.filter_by(assignment_id=assignment.id).first() is not None
+        if has_results:
+            flash(
+                "Zuweisung kann nicht storniert werden: Es existieren bereits Ansagen zu dieser Zuweisung.",
+                "danger",
+            )
+            return redirect(url_for("assignments_overview"))
+
+        if assignment.status == "cancelled":
+            flash("Zuweisung ist bereits storniert.", "info")
+            return redirect(url_for("assignments_overview"))
+
+        assignment.status = "cancelled"
+        db.session.commit()
+        flash(
+            f"Zuweisung für {assignment.student.full_name} (Probe #{assignment.sample.running_number}) wurde storniert.",
+            "warning",
+        )
+        return redirect(url_for("assignments_overview"))
+
     # ═══════════════════════════════════════════════════════════════
     # RESULTS (Ansagen)
     # ═══════════════════════════════════════════════════════════════
