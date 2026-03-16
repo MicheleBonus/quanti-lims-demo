@@ -7,7 +7,7 @@
     <small class="text-body-secondary">
       Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges = {{ batch.target_m_ges_g }} g |
       p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) |
-      Titer = {{ batch.titer|fmt(3) }}
+      {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }})
     </small>
   </div>
   <a href="{{ url_for('ta_sample_overview', batch_id=batch.id) }}" class="btn btn-outline-info btn-sm">

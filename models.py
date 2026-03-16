@@ -8,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from calculation_modes import (
     MODE_ASSAY_MASS_BASED,
     get_evaluator,
+    resolve_mode,
 )
 
 db = SQLAlchemy()
@@ -247,6 +248,9 @@ class SampleBatch(db.Model):
     dilution_solvent = db.Column(db.String(120))
     dilution_notes = db.Column(db.Text)
     titer = db.Column(db.Float, nullable=False, default=1.000)
+    titer_source = db.Column(db.String(40), nullable=False, default="manual")
+    titer_source_date = db.Column(db.String(20))
+    titer_source_operator = db.Column(db.String(100))
     total_samples_prepared = db.Column(db.Integer, nullable=False)
     preparation_date = db.Column(db.String(20))
     prepared_by = db.Column(db.String(100))
@@ -271,6 +275,23 @@ class SampleBatch(db.Model):
             return self.substance_lot.p_source
         return "Standard (100 %)"
 
+
+    @property
+    def titer_label(self) -> str:
+        mode = resolve_mode(self.analysis.calculation_mode if self.analysis else None)
+        if mode == MODE_ASSAY_MASS_BASED:
+            return "Faktor"
+        return "Titer"
+
+    @property
+    def titer_source_label(self) -> str:
+        mapping = {
+            "standardization_result": "aus Einstellung übernommen",
+            "manual_override": "manuell überschrieben",
+            "fixed_for_standardization": "fix für Einstellanalyse",
+            "manual": "manuell gesetzt",
+        }
+        return mapping.get(self.titer_source or "manual", "manuell gesetzt")
 
 class Sample(db.Model):
     __tablename__ = "sample"

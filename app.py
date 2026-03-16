@@ -21,6 +21,35 @@ from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATIO
 
 
 
+def mode_titer_label(mode: str | None) -> str:
+    resolved = resolve_mode(mode)
+    if resolved == MODE_ASSAY_MASS_BASED:
+        return "Faktor (aus Einstellung)"
+    return "Titer"
+
+
+def resolve_standardization_titer(semester_id: int) -> dict | None:
+    latest = (
+        Result.query
+        .join(SampleAssignment, Result.assignment_id == SampleAssignment.id)
+        .join(Sample, SampleAssignment.sample_id == Sample.id)
+        .join(SampleBatch, Sample.batch_id == SampleBatch.id)
+        .join(Analysis, SampleBatch.analysis_id == Analysis.id)
+        .filter(SampleBatch.semester_id == semester_id)
+        .filter(Analysis.calculation_mode == MODE_TITRANT_STANDARDIZATION)
+        .filter(Result.titer_result.isnot(None))
+        .order_by(Result.submitted_date.desc(), Result.id.desc())
+        .first()
+    )
+    if not latest:
+        return None
+    return {
+        "value": latest.titer_result,
+        "date": latest.submitted_date or date.today().isoformat(),
+        "operator": latest.evaluated_by or latest.assignment.assigned_by or "Unbekannt",
+    }
+
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -656,6 +685,7 @@ def register_routes(app):
             item.analysis_id = int(request.form["analysis_id"])
             analysis = Analysis.query.get(item.analysis_id)
             mode = resolve_mode(analysis.calculation_mode if analysis else None)
+            prepared_by = request.form.get("prepared_by") or None
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
             item.target_m_s_min_g = _float(request.form.get("target_m_s_min_g"))
@@ -665,10 +695,36 @@ def register_routes(app):
             item.dilution_factor = _float(request.form.get("dilution_factor"))
             item.dilution_solvent = request.form.get("dilution_solvent") or None
             item.dilution_notes = request.form.get("dilution_notes") or None
-            item.titer = float(request.form.get("titer", 1.0))
+
+            requested_titer = _float(request.form.get("titer"))
+            manual_override = request.form.get("titer_override") == "1"
+            auto_titer = resolve_standardization_titer(sem.id)
+
+            if mode == MODE_TITRANT_STANDARDIZATION:
+                item.titer = requested_titer if requested_titer is not None else 1.0
+                item.titer_source = "fixed_for_standardization"
+                item.titer_source_date = date.today().isoformat()
+                item.titer_source_operator = prepared_by or "Praktikumsleitung"
+            elif auto_titer and not manual_override:
+                item.titer = auto_titer["value"]
+                item.titer_source = "standardization_result"
+                item.titer_source_date = auto_titer["date"]
+                item.titer_source_operator = auto_titer["operator"]
+            else:
+                if requested_titer is None:
+                    flash("Kein auto-abgeleiteter Faktor verfügbar. Bitte manuellen Faktor angeben und als Override markieren.", "danger")
+                    ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
+                    lot_opts = [(l.id, f"{l.substance.name} / {l.lot_number} (p={l.p_effective:.1f}%)") for l in lots]
+                    return render_template("admin/batch_form.html", item=item, ana_opts=ana_opts,
+                                           lot_opts=lot_opts, semester=sem, n_students=n_students, analysis_modes=analysis_modes)
+                item.titer = requested_titer
+                item.titer_source = "manual_override" if manual_override else "manual"
+                item.titer_source_date = date.today().isoformat()
+                item.titer_source_operator = prepared_by or "Unbekannt"
+
+            item.prepared_by = prepared_by
             item.total_samples_prepared = int(request.form["total_samples_prepared"])
             item.preparation_date = request.form.get("preparation_date") or None
-            item.prepared_by = request.form.get("prepared_by") or None
             item.notes = request.form.get("notes") or None
 
             if mode == MODE_ASSAY_MASS_BASED:
@@ -777,13 +833,13 @@ def register_routes(app):
             db.session.commit()
             flash("Einwaagen gespeichert.", "success")
             return redirect(url_for("ta_weighing_batch", batch_id=batch_id))
-        return render_template("ta/weighing.html", batch=batch, samples=samples)
+        return render_template("ta/weighing.html", batch=batch, samples=samples, titer_label=mode_titer_label(batch.analysis.calculation_mode))
 
     @app.route("/ta/samples/<int:batch_id>")
     def ta_sample_overview(batch_id):
         batch = SampleBatch.query.get_or_404(batch_id)
         samples = Sample.query.filter_by(batch_id=batch_id).order_by(Sample.running_number).all()
-        return render_template("ta/sample_overview.html", batch=batch, samples=samples)
+        return render_template("ta/sample_overview.html", batch=batch, samples=samples, titer_label=mode_titer_label(batch.analysis.calculation_mode))
 
     # ═══════════════════════════════════════════════════════════════
     # ASSIGNMENTS (Wiederholungsanalysen)
@@ -993,7 +1049,7 @@ def register_routes(app):
             else:
                 flash("⚠️ Bewertung nicht möglich – Einwaage/Toleranzdaten fehlen.", "warning")
             return redirect(url_for("results_overview", analysis_id=analysis.id))
-        return render_template("results/submit.html", assignment=assignment, analysis=analysis)
+        return render_template("results/submit.html", assignment=assignment, analysis=analysis, titer_label=mode_titer_label(analysis.calculation_mode))
 
     # ═══════════════════════════════════════════════════════════════
     # REPORTS

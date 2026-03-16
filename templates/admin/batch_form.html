@@ -23,8 +23,21 @@
   <div class="row">
     <div class="col-md-3">{{ field("dilution_factor", "Verdünnungsfaktor (optional)", item.dilution_factor, type="number", step="0.001", help="z. B. 10 für 1:10") }}</div>
     <div class="col-md-3">{{ field("dilution_solvent", "Verdünnungsmedium (optional)", item.dilution_solvent, help="z. B. Wasser, HCl 0.1 M") }}</div>
-    <div class="col-md-3">{{ field("titer", "Titer (Faktor)", item.titer or 1.000, type="number", step="0.001") }}</div>
+    <div class="col-md-3">{{ field("titer", "Titer/Faktor (nur Korrekturfaktor der Maßlösung)", item.titer or 1.000, type="number", step="0.001", help="Nicht aus p_effektiv abgeleitet. Für assay_mass_based wird standardmäßig der letzte Einstell-Faktor übernommen; manuelle Eingabe nur als expliziter Override.") }}</div>
   </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" value="1" id="titer_override" name="titer_override">
+    <label class="form-check-label" for="titer_override">
+      Manuellen Titer/Faktor-Override erzwingen (mit Herkunftsprotokoll)
+    </label>
+  </div>
+  {% if item.id %}
+  <div class="alert alert-secondary py-2 small">
+    Aktuelle Herkunft: <strong>{{ item.titer_source_label }}</strong>
+    {% if item.titer_source_date %} | Datum: {{ item.titer_source_date }}{% endif %}
+    {% if item.titer_source_operator %} | Operator: {{ item.titer_source_operator }}{% endif %}
+  </div>
+  {% endif %}
 
   <div class="row">
     <div class="col-md-6">{{ textarea("dilution_notes", "Verdünnungsnotizen (optional)", item.dilution_notes, rows=2) }}</div>

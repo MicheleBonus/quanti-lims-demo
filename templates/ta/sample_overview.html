@@ -3,7 +3,7 @@
 {% block content %}
 <h4 class="mb-1">Probenübersicht: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
 <p class="text-body-secondary mb-4">
-  p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) | Titer = {{ batch.titer|fmt(3) }} |
+  p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) | {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }}) |
   Toleranz: {{ batch.analysis.tol_min|fmt(1) }}% – {{ batch.analysis.tol_max|fmt(1) }}%
 </p>
 

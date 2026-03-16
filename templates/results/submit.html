@@ -48,7 +48,7 @@
           <tr><th>A_max</th><td>{{ assignment.sample.a_max|fmt(4) if assignment.sample.a_max else '–' }}</td></tr>
           <tr><th>V_erwartet</th><td>{{ assignment.sample.v_expected|fmt(3) if assignment.sample.v_expected else '–' }} mL</td></tr>
           <tr><th>Reinheit (p)</th><td>{{ assignment.sample.batch.p_effective|fmt(2) }}% ({{ assignment.sample.batch.p_source }})</td></tr>
-          <tr><th>Titer</th><td>{{ assignment.sample.batch.titer|fmt(3) }}</td></tr>
+          <tr><th>{{ titer_label }}</th><td>{{ assignment.sample.batch.titer|fmt(3) }} <span class="text-body-secondary">({{ assignment.sample.batch.titer_source_label }})</span></td></tr>
         </table>
       </div>
     </div>
