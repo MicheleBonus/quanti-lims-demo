@@ -19,8 +19,7 @@ from models import (
     db, Block, Substance, SubstanceLot, Analysis, Method,
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
-    AMOUNT_UNIT_VOLUME, WEIGHING_BASIS_OPTIONS,
-    WEIGHING_BASIS_PER_PREPARATION, WEIGHING_BASIS_PER_DETERMINATION,
+    AMOUNT_UNIT_VOLUME,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit, migrate_schema,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
@@ -48,14 +47,16 @@ def _sync_method_titrant_name(method: Method) -> None:
     method.titrant_name = usage.reagent.name if usage else None
 
 
-def _validate_weighing_basis(method: Method) -> str | None:
-    basis = method.weighing_basis or WEIGHING_BASIS_PER_PREPARATION
-    if basis not in {WEIGHING_BASIS_PER_PREPARATION, WEIGHING_BASIS_PER_DETERMINATION}:
-        return "Ungültige Einwaage-Basis gewählt."
-    if basis == WEIGHING_BASIS_PER_DETERMINATION and (method.n_aliquots is None or method.n_aliquots < 1):
-        return "Bei Einwaage je Bestimmung muss n_aliquots >= 1 gesetzt sein."
-    if basis == WEIGHING_BASIS_PER_PREPARATION and method.n_aliquots is not None:
-        return "n_aliquots darf nur bei Einwaage je Bestimmung gesetzt werden."
+def _validate_aliquot(method: Method) -> str | None:
+    has_sol = method.v_solution_ml is not None
+    has_aliq = method.v_aliquot_ml is not None
+    if has_sol != has_aliq:
+        return "V Lösung und V Aliquot müssen beide gesetzt oder beide leer sein."
+    if has_sol and has_aliq:
+        if method.v_solution_ml <= 0 or method.v_aliquot_ml <= 0:
+            return "V Lösung und V Aliquot müssen größer als 0 sein."
+        if method.v_aliquot_ml > method.v_solution_ml:
+            return "V Aliquot darf nicht größer als V Lösung sein."
     return None
 
 
@@ -480,23 +481,17 @@ def register_routes(app):
             item.blind_required = "blind_required" in request.form
             item.b_blind_determinations = int(request.form.get("b_blind_determinations", 1))
             item.v_vorlage_ml = _float(request.form.get("v_vorlage_ml"))
-            item.weighing_basis = request.form.get("weighing_basis", WEIGHING_BASIS_PER_PREPARATION)
-            raw_n_aliquots = request.form.get("n_aliquots", "").strip()
-            item.n_aliquots = _int(raw_n_aliquots) if raw_n_aliquots else None
-            if raw_n_aliquots and item.n_aliquots is None:
-                flash("n_aliquots muss eine ganze Zahl sein.", "danger")
-                ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
-                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+            item.v_solution_ml = _float(request.form.get("v_solution_ml"))
+            item.v_aliquot_ml = _float(request.form.get("v_aliquot_ml"))
             item.primary_standard_id = _int(request.form.get("primary_standard_id"))
             item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
             item.description = request.form.get("description") or None
-            validation_error = _validate_weighing_basis(item)
+            validation_error = _validate_aliquot(item)
             if validation_error:
                 flash(validation_error, "danger")
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
                 sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
-                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts)
             if not id:
                 db.session.add(item)
             try:
@@ -508,7 +503,7 @@ def register_routes(app):
                 flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
         sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
-        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts)
 
     @app.route("/admin/methods/<int:id>/delete", methods=["POST"])
     def admin_method_delete(id):
@@ -1182,7 +1177,7 @@ def register_routes(app):
         batch = SampleBatch.query.get_or_404(batch_id)
         method = batch.analysis.method if batch.analysis else None
         if method:
-            validation_error = _validate_weighing_basis(method)
+            validation_error = _validate_aliquot(method)
             if validation_error:
                 flash(f"Inkonsistente Methoden-Konfiguration: {validation_error}", "danger")
                 return redirect(url_for("admin_method_form", id=method.id))
@@ -1410,7 +1405,7 @@ def register_routes(app):
         sample = assignment.sample
         method = analysis.method
         missing_requirements = []
-        method_config_error = _validate_weighing_basis(method) if method else None
+        method_config_error = _validate_aliquot(method) if method else None
         if method_config_error:
             missing_requirements.append(f"Methoden-Konfiguration (Einwaage-Basis): {method_config_error}")
         mode = analysis.calculation_mode or MODE_ASSAY_MASS_BASED
