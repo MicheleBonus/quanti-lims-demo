@@ -1381,10 +1381,9 @@ def register_routes(app):
             if analysis.tol_min is None or analysis.tol_max is None:
                 missing_requirements.append("Toleranzgrenzen")
         elif mode == MODE_TITRANT_STANDARDIZATION:
-            if sample.m_s_actual_g is None:
-                missing_requirements.append("Referenzeinwaage (m_S)")
-            if method is None or method.m_eq_mg is None:
-                missing_requirements.append("Methodenäquivalent (m_eq)")
+            # Student reports the calculated titer directly – no weighing data
+            # or method equivalent needed from the system side, only tolerance
+            # bounds to validate the reported titer against.
             if analysis.tol_min is None or analysis.tol_max is None:
                 missing_requirements.append("Titer-Grenzen")
 

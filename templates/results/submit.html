@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set is_standardization = analysis.calculation_mode == 'titrant_standardization' %}
 {% block title %}Ansage eingeben{% endblock %}
 {% block content %}
 <h4 class="mb-4">Ansage eingeben</h4>
@@ -44,12 +45,19 @@
       <div class="card-header bg-info text-white"><i class="bi bi-info-circle"></i> Referenzwerte (nur Praktikumsleitung)</div>
       <div class="card-body">
         <table class="table table-sm mb-0">
+          {% if is_standardization %}
+          <tr><th>Titer Soll</th><td>{{ assignment.sample.titer_expected|fmt(4) if assignment.sample.titer_expected else '–' }}</td></tr>
+          <tr><th>Titer min</th><td>{{ assignment.sample.a_min|fmt(4) if assignment.sample.a_min else '–' }}</td></tr>
+          <tr><th>Titer max</th><td>{{ assignment.sample.a_max|fmt(4) if assignment.sample.a_max else '–' }}</td></tr>
+          {% else %}
           <tr><th>G_wahr</th><td>{{ assignment.sample.g_wahr|fmt(4) if assignment.sample.g_wahr else '–' }}</td></tr>
           <tr><th>A_min</th><td>{{ assignment.sample.a_min|fmt(4) if assignment.sample.a_min else '–' }}</td></tr>
           <tr><th>A_max</th><td>{{ assignment.sample.a_max|fmt(4) if assignment.sample.a_max else '–' }}</td></tr>
           <tr><th>V_erwartet</th><td>{{ assignment.sample.v_expected|fmt(3) if assignment.sample.v_expected else '–' }} mL</td></tr>
+          {% endif %}
           <tr><th>Reinheit (p)</th><td>{{ assignment.sample.batch.p_effective|fmt(2) }}% ({{ assignment.sample.batch.p_source }})</td></tr>
           <tr><th>{{ titer_label }}</th><td>{{ assignment.sample.batch.titer|fmt(3) }} <span class="text-body-secondary">({{ assignment.sample.batch.titer_source_label }})</span></td></tr>
+          {% if not is_standardization %}
           <tr><th>Einwaage-Logik</th><td>
             {% if analysis.method %}
               {{ analysis.method.weighing_basis_label }}
@@ -58,6 +66,7 @@
               –
             {% endif %}
           </td></tr>
+          {% endif %}
         </table>
       </div>
     </div>
