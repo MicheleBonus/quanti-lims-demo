@@ -3,18 +3,49 @@
 {% block title %}Arzneistoffe – Admin{% endblock %}
 {% block content %}
 {{ page_header("Arzneistoffe / Analyten", "Arzneistoff-Referenzdatenbank – Stoffe mit Arzneibuch-Monographie für die Gehaltsbestimmung", url_for('admin_substance_form')) }}
+<div class="mb-3">
+  <button class="btn btn-outline-secondary btn-sm" id="reset-order-btn" title="Sortierung zurücksetzen (alphabetisch)"><i class="bi bi-arrow-counterclockwise"></i> Standard-Sortierung</button>
+</div>
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Name</th><th>Formel</th><th>M (g/mol)</th><th></th></tr></thead>
-<tbody>
+<thead class="table-light"><tr><th style="width:30px"></th><th>Name</th><th>Formel</th><th>M (g/mol)</th><th></th></tr></thead>
+<tbody id="substance-sortable">
 {% for s in items %}
-<tr>
+<tr data-id="{{ s.id }}">
+  <td class="drag-handle" style="cursor:grab"><i class="bi bi-grip-vertical text-body-secondary"></i></td>
   <td><a href="{{ url_for('admin_substance_form', id=s.id) }}">{{ s.name }}</a></td>
   <td class="text-body-secondary">{{ s.formula or '–' }}</td>
-  <td>{{ s.molar_mass_gmol|fmt(2) }}</td>
+  <td>{{ s.molar_mass_gmol|fmt(3) }}</td>
   <td>{{ delete_btn(url_for('admin_substance_delete', id=s.id)) }}</td>
 </tr>
 {% endfor %}
 </tbody></table></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.getElementById('substance-sortable');
+  if (!tbody) return;
+  new Sortable(tbody, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'table-active',
+    onEnd: () => {
+      const order = [...tbody.querySelectorAll('tr[data-id]')].map(r => parseInt(r.dataset.id));
+      fetch('{{ url_for("api_reorder_substances") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({order})
+      }).then(r => { if (!r.ok) location.reload(); });
+    }
+  });
+  document.getElementById('reset-order-btn').addEventListener('click', () => {
+    fetch('{{ url_for("api_reorder_reset", entity="substances") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(() => location.reload());
+  });
+});
+</script>
 {% endblock %}
