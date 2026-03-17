@@ -9,7 +9,7 @@
       {% if is_standardization %}
       Ziel: V_disp im Bereich {{ batch.target_v_min_ml }}–{{ batch.target_v_max_ml }} mL |
       {% else %}
-      Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges = {{ batch.target_m_ges_g }} g ± {{ target_m_ges_tolerance_g|fmt(3) }} g |
+      Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges ≥ {{ batch.target_m_ges_g }} g |
       {% endif %}
       p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) |
       {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }})
@@ -66,14 +66,14 @@
                  name="m_s_{{ s.id }}" value="{{ s.m_s_actual_g if s.m_s_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_s"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="invalid-feedback d-block field-hint" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none !important;"{% endif %}>unter m_S,min</div>
+          <div class="invalid-feedback d-block field-hint" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none !important;"{% endif %}>unter Mindest-Substanzmasse</div>
         </td>
         <td>
           <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_target_violation %}is-invalid{% endif %}"
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_ges"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none !important;"{% endif %}>außerhalb Sollband</div>
+          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none !important;"{% endif %}>unter Mindesteinwaage</div>
         </td>
         <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
@@ -137,7 +137,6 @@ const SCALE = WEIGHING_BASIS === 'per_determination' ? N_ALIQUOTS : 1;
 
 const TARGET_M_S_MIN_G = {{ batch.target_m_s_min_g if batch.target_m_s_min_g is not none else 'null' }};
 const TARGET_M_GES_G = {{ batch.target_m_ges_g if batch.target_m_ges_g is not none else 'null' }};
-const TARGET_M_GES_TOLERANCE_G = {{ target_m_ges_tolerance_g }};
 const TARGET_V_MIN_ML = {{ batch.target_v_min_ml if batch.target_v_min_ml is not none else 'null' }};
 const TARGET_V_MAX_ML = {{ batch.target_v_max_ml if batch.target_v_max_ml is not none else 'null' }};
 
@@ -152,9 +151,7 @@ function evaluateLimits(ms, mges) {
       flags.mSMin = ms < TARGET_M_S_MIN_G;
     }
     if (!Number.isNaN(mges) && TARGET_M_GES_G !== null) {
-      const lower = TARGET_M_GES_G - TARGET_M_GES_TOLERANCE_G;
-      const upper = TARGET_M_GES_G + TARGET_M_GES_TOLERANCE_G;
-      flags.mGesBand = !(mges >= lower && mges <= upper);
+      flags.mGesBand = mges < TARGET_M_GES_G;
     }
   }
   flags.out = flags.mSMin || flags.mGesBand || flags.volumeRange;

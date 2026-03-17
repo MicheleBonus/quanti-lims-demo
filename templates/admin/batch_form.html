@@ -6,15 +6,16 @@
 
 <div class="alert alert-light border small" id="hint-mass">
   <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong>
-  Wählen Sie zuerst die Prüfung – daraus werden automatisch Vorschlagswerte für m_S,min und m_ges berechnet
-  (basierend auf der Arzneibuch-Einwaage E_AB und dem Verschnitt).
+  Wählen Sie zuerst die Prüfung und geben Sie den Mindest-Zielgehalt an.
+  Daraus berechnet das System automatisch die Mindesteinwaagen für Substanz und Gesamtgemisch
+  (E_AB × Anzahl Bestimmungen × Mindestgehalt).
   Verdünnungsfaktor nur angeben, wenn der Arzneistoff in Lösung ausgegeben wird (z.B. HCl-Lösung, Glycerol-Lösung).
   Für Festsubstanzgemische (der Normalfall) bleibt das Feld leer.
 </div>
 <div class="alert alert-light border small" id="hint-standardization" style="display:none">
   <i class="bi bi-info-circle"></i> <strong>Hinweis (Titereinstellung):</strong>
   Die TA dispensiert nur das Volumen der Titrant-Lösung (z.B. HCl).
-  V_min und V_max definieren das Zielband für das dispensierte Volumen.
+  V_min und V_max werden automatisch aus der Stöchiometrie des Primärstandards berechnet.
   Die Studierenden wiegen den Urtitersubstanz selbst ein, titrieren und melden den berechneten Faktor als Ansage.
 </div>
 
@@ -30,14 +31,24 @@
     <div class="col-md-8">{{ field("blend_description", "Verschnitt-Beschreibung", item.blend_description, placeholder="z.B. 50% Acetylsalicylsäure + 50% Lactose – Beschreibt die Zusammensetzung des Probengemisches", help="Welcher Verschnitt wird für diese Prüfung verwendet? Zusammensetzung und Verhältnis angeben.") }}</div>
   </div>
 
-  <div id="mass-fields" class="row">
-    <div class="col-md-3">{{ field("target_m_s_min_g", "Ziel m_S,min (g)", item.target_m_s_min_g, type="number", step="0.001", help="Mindest-Substanzmasse (= E_AB aus Arzneibuch). Wird beim Wechsel der Prüfung automatisch vorgeschlagen.") }}</div>
-    <div class="col-md-3">{{ field("target_m_ges_g", "Ziel m_ges (g)", item.target_m_ges_g, type="number", step="0.001", help="Soll-Gesamtmasse des Gemisches. Berechnet sich als m_S,min / (Gehalt_wahr / 100). Bei einem 50%-Verschnitt z.B. das Doppelte von m_S,min.") }}</div>
+  <div id="mass-fields">
+    <div class="row">
+      <div class="col-md-3">{{ field("gehalt_min_pct", "Mindest-Zielgehalt (%)", item.gehalt_min_pct, type="number", step="0.1", help="Mindestgehalt der Probe in %. Definiert den minimalen Substanzanteil im Probengemisch. Daraus werden die Mindesteinwaagen berechnet.") }}</div>
+    </div>
+    <div class="row">
+      <div class="col-md-3">{{ field("target_m_ges_g", "Mindest-Gesamteinwaage (g)", item.target_m_ges_g, type="number", step="0.001", help="Mindest-Gesamtmasse des Probengemisches. Berechnet: E_AB × Anzahl Bestimmungen. Kann manuell überschrieben werden.") }}</div>
+      <div class="col-md-3">{{ field("target_m_s_min_g", "Mindest-Substanzmasse (g)", item.target_m_s_min_g, type="number", step="0.001", help="Mindestmasse der reinen Substanz im Probengemisch. Berechnet: Mindest-Gesamteinwaage × Mindestgehalt / 100. Kann manuell überschrieben werden.") }}</div>
+    </div>
+    <div class="row" id="mass-calc-info" style="display:none">
+      <div class="col-md-6">
+        <small class="text-body-secondary" id="mass-calc-detail"></small>
+      </div>
+    </div>
   </div>
 
   <div id="volume-fields" class="row">
-    <div class="col-md-3">{{ field("target_v_min_ml", "Ziel V_disp,min (mL)", item.target_v_min_ml, type="number", step="0.001", help="Mindestvolumen der dispendierten Titrant-Lösung pro Probe.") }}</div>
-    <div class="col-md-3">{{ field("target_v_max_ml", "Ziel V_disp,max (mL)", item.target_v_max_ml, type="number", step="0.001", help="Maximalvolumen der dispendierten Titrant-Lösung pro Probe.") }}</div>
+    <div class="col-md-3">{{ field("target_v_min_ml", "Ziel V_disp,min (mL)", item.target_v_min_ml, type="number", step="0.001", help="Mindestvolumen der dispendierten Titrant-Lösung pro Probe. Wird automatisch aus Primärstandard-Stöchiometrie vorgeschlagen.") }}</div>
+    <div class="col-md-3">{{ field("target_v_max_ml", "Ziel V_disp,max (mL)", item.target_v_max_ml, type="number", step="0.001", help="Maximalvolumen der dispendierten Titrant-Lösung pro Probe. Wird automatisch vorgeschlagen (V_min × 1,5).") }}</div>
   </div>
 
   <div class="row" id="dilution-row">
@@ -100,8 +111,16 @@
   const blendRow = document.getElementById("blend-row");
   const dilutionRow = document.getElementById("dilution-row");
   const dilutionNotesRow = document.getElementById("dilution-notes-row");
-  const massInputs = ["target_m_s_min_g", "target_m_ges_g"].map((id) => document.getElementById(id));
-  const volumeInputs = ["target_v_min_ml", "target_v_max_ml"].map((id) => document.getElementById(id));
+  const gehaltMinInput = document.getElementById("gehalt_min_pct");
+  const targetMGesInput = document.getElementById("target_m_ges_g");
+  const targetMSMinInput = document.getElementById("target_m_s_min_g");
+  const targetVMinInput = document.getElementById("target_v_min_ml");
+  const targetVMaxInput = document.getElementById("target_v_max_ml");
+  const massCalcInfo = document.getElementById("mass-calc-info");
+  const massCalcDetail = document.getElementById("mass-calc-detail");
+
+  // Cache for analysis defaults from API
+  let currentDefaults = null;
 
   function currentMode() {
     const selectedId = analysisSelect.value;
@@ -114,30 +133,94 @@
     volumeFields.style.display = isMass ? "none" : "";
     hintMass.style.display = isMass ? "" : "none";
     hintStd.style.display = isMass ? "none" : "";
-    // Blend/dilution only relevant for mass-based (substance blends)
     blendRow.style.display = isMass ? "" : "none";
     dilutionRow.style.display = isMass ? "" : "none";
     dilutionNotesRow.style.display = isMass ? "" : "none";
-    massInputs.forEach((i) => i.required = isMass);
-    volumeInputs.forEach((i) => i.required = !isMass);
   }
+
+  function recalcMassFields() {
+    if (!currentDefaults) return;
+    const eAb = currentDefaults.e_ab_g;
+    const kDet = currentDefaults.k_determinations || 3;
+    const gehaltMin = parseFloat(gehaltMinInput.value);
+
+    if (eAb && !isNaN(gehaltMin) && gehaltMin > 0 && gehaltMin <= 100) {
+      const mGesMin = +(eAb * kDet).toFixed(3);
+      const mSMin = +(mGesMin * gehaltMin / 100).toFixed(3);
+
+      // Only auto-fill if field is empty or was auto-filled before
+      if (!targetMGesInput.dataset.userEdited) {
+        targetMGesInput.value = mGesMin;
+      }
+      if (!targetMSMinInput.dataset.userEdited) {
+        targetMSMinInput.value = mSMin;
+      }
+
+      massCalcInfo.style.display = "";
+      massCalcDetail.textContent =
+        `Berechnung: E_AB (${eAb} g) × ${kDet} Bestimmungen = ${mGesMin} g Mindest-Gesamt; ` +
+        `davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`;
+    } else {
+      massCalcInfo.style.display = "none";
+    }
+  }
+
+  function recalcVolumeFields() {
+    if (!currentDefaults || !currentDefaults.v_theoretical_ml) return;
+    const kDet = currentDefaults.k_determinations || 3;
+    const vTheo = currentDefaults.v_theoretical_ml;
+    const vMin = +(vTheo * kDet).toFixed(3);
+    const vMax = +(vMin * 1.5).toFixed(3);
+
+    if (!targetVMinInput.value) {
+      targetVMinInput.value = vMin;
+    }
+    if (!targetVMaxInput.value) {
+      targetVMaxInput.value = vMax;
+    }
+  }
+
+  // Track manual edits to prevent auto-overwrite
+  targetMGesInput.addEventListener("input", () => { targetMGesInput.dataset.userEdited = "1"; });
+  targetMSMinInput.addEventListener("input", () => { targetMSMinInput.dataset.userEdited = "1"; });
+
+  gehaltMinInput.addEventListener("input", () => {
+    // Reset auto-fill flags so recalc updates values
+    delete targetMGesInput.dataset.userEdited;
+    delete targetMSMinInput.dataset.userEdited;
+    recalcMassFields();
+  });
 
   analysisSelect.addEventListener("change", () => {
     const mode = currentMode();
     setGroupVisibility(mode);
-    // Auto-fill m_S,min from analysis E_AB (only for mass-based mode)
+    // Reset auto-fill flags
+    delete targetMGesInput.dataset.userEdited;
+    delete targetMSMinInput.dataset.userEdited;
+
     const aid = analysisSelect.value;
-    if (aid && mode === MODE_ASSAY) {
+    if (aid) {
       fetch(`/api/analysis/${aid}/defaults`)
         .then(r => r.json())
         .then(data => {
-          if (data.e_ab_g && !document.getElementById('target_m_s_min_g').value) {
-            document.getElementById('target_m_s_min_g').value = data.e_ab_g;
+          currentDefaults = data;
+          if (mode === MODE_ASSAY) {
+            recalcMassFields();
+          } else {
+            recalcVolumeFields();
           }
         });
     }
   });
   setGroupVisibility(currentMode());
+
+  // Load defaults for initially selected analysis (edit mode)
+  const initialAid = analysisSelect.value;
+  if (initialAid) {
+    fetch(`/api/analysis/${initialAid}/defaults`)
+      .then(r => r.json())
+      .then(data => { currentDefaults = data; });
+  }
 
   // Titer override toggle
   const overrideCb = document.getElementById('titer_override');

@@ -26,6 +26,7 @@ from models import (
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
 
 
+# Legacy constant kept for reference; validation now uses minimum-only check.
 TARGET_M_GES_TOLERANCE_G = 0.005
 
 
@@ -75,16 +76,17 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
             and m_s_actual_g < batch.target_m_s_min_g
         ):
             details["m_s_min_violation"] = True
-            checks.append(f"m_S {m_s_actual_g:.3f} g < {batch.target_m_s_min_g:.3f} g")
+            checks.append(f"m_S {m_s_actual_g:.3f} g < Mindest {batch.target_m_s_min_g:.3f} g")
 
-        if m_ges_actual_g is not None and batch.target_m_ges_g is not None:
-            lower = batch.target_m_ges_g - TARGET_M_GES_TOLERANCE_G
-            upper = batch.target_m_ges_g + TARGET_M_GES_TOLERANCE_G
-            if not (lower <= m_ges_actual_g <= upper):
-                details["m_ges_target_violation"] = True
-                checks.append(
-                    f"m_ges {m_ges_actual_g:.3f} g außerhalb Sollband {lower:.3f}–{upper:.3f} g"
-                )
+        if (
+            m_ges_actual_g is not None
+            and batch.target_m_ges_g is not None
+            and m_ges_actual_g < batch.target_m_ges_g
+        ):
+            details["m_ges_target_violation"] = True
+            checks.append(
+                f"m_ges {m_ges_actual_g:.3f} g < Mindest {batch.target_m_ges_g:.3f} g"
+            )
     else:
         if (
             m_ges_actual_g is not None
@@ -480,13 +482,17 @@ def register_routes(app):
             if raw_n_aliquots and item.n_aliquots is None:
                 flash("n_aliquots muss eine ganze Zahl sein.", "danger")
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+                sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
+                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+            item.primary_standard_id = _int(request.form.get("primary_standard_id"))
+            item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
             item.description = request.form.get("description") or None
             validation_error = _validate_weighing_basis(item)
             if validation_error:
                 flash(validation_error, "danger")
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+                sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
+                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
             if not id:
                 db.session.add(item)
             try:
@@ -497,7 +503,8 @@ def register_routes(app):
                 db.session.rollback()
                 flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+        sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
+        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
 
     @app.route("/admin/methods/<int:id>/delete", methods=["POST"])
     def admin_method_delete(id):
@@ -963,10 +970,24 @@ def register_routes(app):
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
             item.blend_description = request.form.get("blend_description") or None
+            item.gehalt_min_pct = _float(request.form.get("gehalt_min_pct"))
             item.target_m_s_min_g = _float(request.form.get("target_m_s_min_g"))
             item.target_m_ges_g = _float(request.form.get("target_m_ges_g"))
             item.target_v_min_ml = _float(request.form.get("target_v_min_ml"))
             item.target_v_max_ml = _float(request.form.get("target_v_max_ml"))
+
+            # Server-side auto-calculation as fallback (if JS didn't fill values)
+            if mode == MODE_ASSAY_MASS_BASED and analysis:
+                e_ab = analysis.e_ab_g
+                k_det = analysis.k_determinations or 3
+                gehalt_min = item.gehalt_min_pct
+                if e_ab is not None and gehalt_min is not None:
+                    computed_m_ges = round(e_ab * k_det, 3)
+                    computed_m_s = round(computed_m_ges * gehalt_min / 100.0, 3)
+                    if item.target_m_ges_g is None:
+                        item.target_m_ges_g = computed_m_ges
+                    if item.target_m_s_min_g is None:
+                        item.target_m_s_min_g = computed_m_s
             item.dilution_factor = _float(request.form.get("dilution_factor"))
             item.dilution_solvent = request.form.get("dilution_solvent") or None
             item.dilution_notes = request.form.get("dilution_notes") or None
@@ -1790,6 +1811,9 @@ def register_routes(app):
         method = analysis.method
         result = {
             "e_ab_g": analysis.e_ab_g,
+            "k_determinations": analysis.k_determinations,
+            "g_ab_min_pct": analysis.g_ab_min_pct,
+            "g_ab_max_pct": analysis.g_ab_max_pct,
             "calculation_mode": resolve_mode(analysis.calculation_mode),
         }
         if method:
@@ -1797,6 +1821,15 @@ def register_routes(app):
             result["titrant_concentration"] = method.titrant_concentration
             result["method_type"] = method.method_type
             result["v_vorlage_ml"] = method.v_vorlage_ml
+            # For titrant standardization: compute theoretical volume from primary standard
+            if (
+                method.primary_standard
+                and method.primary_standard.e_ab_g is not None
+                and method.m_eq_primary_mg is not None
+                and method.m_eq_primary_mg > 0
+            ):
+                v_theoretical = (method.primary_standard.e_ab_g * 1000.0) / method.m_eq_primary_mg
+                result["v_theoretical_ml"] = round(v_theoretical, 3)
         return jsonify(result)
 
     @app.route("/api/sample/<int:sample_id>/calc")
