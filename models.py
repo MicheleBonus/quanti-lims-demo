@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from calculation_modes import (
     MODE_ASSAY_MASS_BASED,
+    MODE_TITRANT_STANDARDIZATION,
     get_evaluator,
     resolve_mode,
 )
@@ -580,6 +581,10 @@ class Sample(db.Model):
 
     @property
     def is_weighed(self) -> bool:
+        mode = resolve_mode(self.batch.analysis.calculation_mode if self.batch and self.batch.analysis else None)
+        if mode == MODE_TITRANT_STANDARDIZATION:
+            # TA only dispenses volume (stored in m_ges_actual_g)
+            return self.m_ges_actual_g is not None
         return self.m_s_actual_g is not None and self.m_ges_actual_g is not None
 
     @property

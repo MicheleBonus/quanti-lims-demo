@@ -1,19 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Einwaage: {{ batch.analysis.code }}{% endblock %}
+{% set is_standardization = batch.analysis.calculation_mode == 'titrant_standardization' %}
+{% block title %}{{ 'Volumendispensierung' if is_standardization else 'Einwaage' }}: {{ batch.analysis.code }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h4 class="mb-0">Einwaage: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
+    <h4 class="mb-0">{{ 'Volumendispensierung' if is_standardization else 'Einwaage' }}: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
     <small class="text-body-secondary">
-      {% if batch.analysis.calculation_mode == 'titrant_standardization' %}
-      Ziel: V im Bereich {{ batch.target_v_min_ml }}–{{ batch.target_v_max_ml }} mL |
+      {% if is_standardization %}
+      Ziel: V_disp im Bereich {{ batch.target_v_min_ml }}–{{ batch.target_v_max_ml }} mL |
       {% else %}
       Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges = {{ batch.target_m_ges_g }} g ± {{ target_m_ges_tolerance_g|fmt(3) }} g |
       {% endif %}
       p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) |
-      {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }}) |
+      {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }})
+      {% if not is_standardization %} |
       Einwaage-Logik: {{ batch.analysis.method.weighing_basis_label if batch.analysis.method else 'Einwaage gilt für Gesamtansatz' }}
       {% if batch.analysis.method and batch.analysis.method.weighing_basis == 'per_determination' %}(n_aliquots = {{ batch.analysis.method.n_aliquots }}){% endif %}
+      {% endif %}
     </small>
   </div>
   <a href="{{ url_for('ta_sample_overview', batch_id=batch.id) }}" class="btn btn-outline-info btn-sm">
@@ -25,7 +28,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="mb-3 row">
     <div class="col-md-3">
-      <label class="form-label">Eingewogen von</label>
+      <label class="form-label">{{ 'Dispensiert von' if is_standardization else 'Eingewogen von' }}</label>
       <input type="text" class="form-control" name="weighed_by" value="{{ samples[0].weighed_by or '' }}" placeholder="TA Name">
     </div>
   </div>
@@ -37,12 +40,16 @@
       <tr>
         <th style="width:60px">#</th>
         <th style="width:70px">Typ</th>
+        {% if not is_standardization %}
         <th style="width:160px">m_S,ist (g)</th>
         <th style="width:160px">m_ges,ist (g)</th>
         <th style="width:120px">G_wahr (%)</th>
         <th style="width:120px">A_min</th>
         <th style="width:120px">A_max</th>
         <th style="width:120px">V_erw. (mL)</th>
+        {% else %}
+        <th style="width:180px">V_disp (mL)</th>
+        {% endif %}
         <th>Status</th>
         <th>Aktion</th>
       </tr>
@@ -53,6 +60,7 @@
       <tr class="{% if flags.out_of_range %}table-danger{% elif s.is_buffer %}table-light{% endif %}" data-row-sample-id="{{ s.id }}">
         <td><strong>{{ s.running_number }}</strong></td>
         <td>{% if s.is_buffer %}<span class="badge bg-secondary">Puffer</span>{% else %}<span class="badge bg-primary">Erst</span>{% endif %}</td>
+        {% if not is_standardization %}
         <td>
           <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_s_min_violation %}is-invalid{% endif %}"
                  name="m_s_{{ s.id }}" value="{{ s.m_s_actual_g if s.m_s_actual_g else '' }}"
@@ -61,18 +69,25 @@
           <div class="invalid-feedback d-block field-hint" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none !important;"{% endif %}>unter m_S,min</div>
         </td>
         <td>
-          <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_target_violation or flags.volume_range_violation %}is-invalid{% endif %}"
+          <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_target_violation %}is-invalid{% endif %}"
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_ges"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not (flags.m_ges_target_violation or flags.volume_range_violation) %}style="display:none !important;"{% endif %}>
-            {% if batch.analysis.calculation_mode == 'titrant_standardization' %}außerhalb Zielbereich{% else %}außerhalb Sollband{% endif %}
-          </div>
+          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none !important;"{% endif %}>außerhalb Sollband</div>
         </td>
         <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
         <td class="text-end" id="amax-{{ s.id }}">{{ s.a_max|fmt(4) if s.a_max else '' }}</td>
         <td class="text-end" id="vexp-{{ s.id }}">{{ s.v_expected|fmt(3) if s.v_expected else '' }}</td>
+        {% else %}
+        <td>
+          <input type="text" class="form-control form-control-sm weighing-input {% if flags.volume_range_violation %}is-invalid{% endif %}"
+                 name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
+                 data-sample-id="{{ s.id }}" data-field="m_ges"
+                 placeholder="0.000" inputmode="decimal">
+          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not flags.volume_range_violation %}style="display:none !important;"{% endif %}>außerhalb Zielbereich</div>
+        </td>
+        {% endif %}
         <td>
           {% if flags.out_of_range %}
             <i class="bi bi-exclamation-triangle-fill text-danger"></i>
@@ -83,10 +98,10 @@
           {% endif %}
         </td>
         <td>
-          <form method="POST" action="{{ url_for('ta_clear_sample_weighing', sample_id=s.id) }}" class="d-inline" onsubmit="return confirm('Einwaage für Probe #{{ s.running_number }} wirklich löschen?')">
+          <form method="POST" action="{{ url_for('ta_clear_sample_weighing', sample_id=s.id) }}" class="d-inline" onsubmit="return confirm('{{ 'Dispensierung' if is_standardization else 'Einwaage' }} für Probe #{{ s.running_number }} wirklich löschen?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger btn-sm">
-              <i class="bi bi-eraser"></i> Einwaage löschen
+              <i class="bi bi-eraser"></i> {{ 'Dispensierung' if is_standardization else 'Einwaage' }} löschen
             </button>
           </form>
         </td>
@@ -97,7 +112,7 @@
   </div></div>
 
   <div class="mt-3">
-    <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-save"></i> Einwaagen speichern</button>
+    <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-save"></i> {{ 'Volumina' if is_standardization else 'Einwaagen' }} speichern</button>
     <a href="{{ url_for('ta_weighing') }}" class="btn btn-outline-secondary">Zurück</a>
   </div>
 </form>
@@ -105,7 +120,9 @@
 
 {% block scripts %}
 <script>
-// Live G_wahr calculation on input
+const MODE = '{{ batch.analysis.calculation_mode }}';
+{% if not is_standardization %}
+// Live G_wahr calculation on input (mass-based mode only)
 const P_EFF = {{ batch.p_effective }};
 const TITER = {{ batch.titer }};
 const M_EQ = {{ batch.analysis.method.m_eq_mg if batch.analysis.method and batch.analysis.method.m_eq_mg else 'null' }};
@@ -116,13 +133,13 @@ const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const WEIGHING_BASIS = '{{ batch.analysis.method.weighing_basis if batch.analysis.method else "per_preparation" }}';
 const N_ALIQUOTS = {{ batch.analysis.method.n_aliquots if batch.analysis.method and batch.analysis.method.n_aliquots else (batch.analysis.k_determinations or 1) }};
 const SCALE = WEIGHING_BASIS === 'per_determination' ? N_ALIQUOTS : 1;
+{% endif %}
 
 const TARGET_M_S_MIN_G = {{ batch.target_m_s_min_g if batch.target_m_s_min_g is not none else 'null' }};
 const TARGET_M_GES_G = {{ batch.target_m_ges_g if batch.target_m_ges_g is not none else 'null' }};
 const TARGET_M_GES_TOLERANCE_G = {{ target_m_ges_tolerance_g }};
 const TARGET_V_MIN_ML = {{ batch.target_v_min_ml if batch.target_v_min_ml is not none else 'null' }};
 const TARGET_V_MAX_ML = {{ batch.target_v_max_ml if batch.target_v_max_ml is not none else 'null' }};
-const MODE = '{{ batch.analysis.calculation_mode }}';
 
 function evaluateLimits(ms, mges) {
   const flags = { mSMin: false, mGesBand: false, volumeRange: false, out: false };
@@ -148,12 +165,16 @@ function applyLimitUi(row, flags) {
   row.classList.toggle('table-danger', flags.out);
   const msInput = row.querySelector('[data-field="m_s"]');
   const mgesInput = row.querySelector('[data-field="m_ges"]');
-  msInput.classList.toggle('is-invalid', flags.mSMin);
-  mgesInput.classList.toggle('is-invalid', flags.mGesBand || flags.volumeRange);
-  const msHint = row.querySelector('[data-hint-field="m_s"]');
-  const mgesHint = row.querySelector('[data-hint-field="m_ges"]');
-  msHint.style.display = flags.mSMin ? 'block' : 'none';
-  mgesHint.style.display = (flags.mGesBand || flags.volumeRange) ? 'block' : 'none';
+  if (msInput) {
+    msInput.classList.toggle('is-invalid', flags.mSMin);
+    const msHint = row.querySelector('[data-hint-field="m_s"]');
+    if (msHint) msHint.style.display = flags.mSMin ? 'block' : 'none';
+  }
+  if (mgesInput) {
+    mgesInput.classList.toggle('is-invalid', flags.mGesBand || flags.volumeRange);
+    const mgesHint = row.querySelector('[data-hint-field="m_ges"]');
+    if (mgesHint) mgesHint.style.display = (flags.mGesBand || flags.volumeRange) ? 'block' : 'none';
+  }
 }
 
 document.querySelectorAll('.weighing-input').forEach(input => {
@@ -162,9 +183,10 @@ document.querySelectorAll('.weighing-input').forEach(input => {
     const row = input.closest('tr');
     const msInput = row.querySelector('[data-field="m_s"]');
     const mgesInput = row.querySelector('[data-field="m_ges"]');
-    const ms = parseFloat(msInput.value.replace(',', '.'));
-    const mges = parseFloat(mgesInput.value.replace(',', '.'));
+    const ms = msInput ? parseFloat(msInput.value.replace(',', '.')) : NaN;
+    const mges = mgesInput ? parseFloat(mgesInput.value.replace(',', '.')) : NaN;
 
+    {% if not is_standardization %}
     if (!isNaN(ms) && !isNaN(mges) && mges > 0) {
       const gw = (ms / mges) * P_EFF;
       document.getElementById('gw-' + sid).textContent = gw.toFixed(4);
@@ -189,6 +211,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         }
       }
     }
+    {% endif %}
     applyLimitUi(row, evaluateLimits(ms, mges));
   });
   input.dispatchEvent(new Event('input'));

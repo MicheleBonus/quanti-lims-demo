@@ -4,12 +4,18 @@
 {% block content %}
 <h4 class="mb-4">Probenansatz {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 
-<div class="alert alert-light border small">
+<div class="alert alert-light border small" id="hint-mass">
   <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong>
   Wählen Sie zuerst die Prüfung – daraus werden automatisch Vorschlagswerte für m_S,min und m_ges berechnet
   (basierend auf der Arzneibuch-Einwaage E_AB und dem Verschnitt).
   Verdünnungsfaktor nur angeben, wenn der Arzneistoff in Lösung ausgegeben wird (z.B. HCl-Lösung, Glycerol-Lösung).
   Für Festsubstanzgemische (der Normalfall) bleibt das Feld leer.
+</div>
+<div class="alert alert-light border small" id="hint-standardization" style="display:none">
+  <i class="bi bi-info-circle"></i> <strong>Hinweis (Titereinstellung):</strong>
+  Die TA dispensiert nur das Volumen der Titrant-Lösung (z.B. HCl).
+  V_min und V_max definieren das Zielband für das dispensierte Volumen.
+  Die Studierenden wiegen den Urtitersubstanz selbst ein, titrieren und melden den berechneten Faktor als Ansage.
 </div>
 
 <div class="card"><div class="card-body">
@@ -20,7 +26,7 @@
     <div class="col-md-4">{{ select("substance_lot_id", "Charge (optional)", lot_opts, item.substance_lot_id, blank="– Keine Charge (p=100%) –") }}</div>
   </div>
 
-  <div class="row">
+  <div class="row" id="blend-row">
     <div class="col-md-8">{{ field("blend_description", "Verschnitt-Beschreibung", item.blend_description, placeholder="z.B. 50% Acetylsalicylsäure + 50% Lactose – Beschreibt die Zusammensetzung des Probengemisches", help="Welcher Verschnitt wird für diese Prüfung verwendet? Zusammensetzung und Verhältnis angeben.") }}</div>
   </div>
 
@@ -30,11 +36,11 @@
   </div>
 
   <div id="volume-fields" class="row">
-    <div class="col-md-3">{{ field("target_v_min_ml", "Ziel V_min (mL)", item.target_v_min_ml, type="number", step="0.001", help="Mindestvolumen (nur für Einstellanalysen/Titrant-Standardisierung)") }}</div>
-    <div class="col-md-3">{{ field("target_v_max_ml", "Ziel V_max (mL)", item.target_v_max_ml, type="number", step="0.001", help="Maximalvolumen (nur für Einstellanalysen/Titrant-Standardisierung)") }}</div>
+    <div class="col-md-3">{{ field("target_v_min_ml", "Ziel V_disp,min (mL)", item.target_v_min_ml, type="number", step="0.001", help="Mindestvolumen der dispendierten Titrant-Lösung pro Probe.") }}</div>
+    <div class="col-md-3">{{ field("target_v_max_ml", "Ziel V_disp,max (mL)", item.target_v_max_ml, type="number", step="0.001", help="Maximalvolumen der dispendierten Titrant-Lösung pro Probe.") }}</div>
   </div>
 
-  <div class="row">
+  <div class="row" id="dilution-row">
     <div class="col-md-3" id="dilution-group">
       {{ field("dilution_factor", "Verdünnungsfaktor (optional)", item.dilution_factor, type="number", step="0.001", help="Nur relevant, wenn der Arzneistoff in Lösung ausgegeben wird (z.B. HCl-Lösung, Glycerol). Für Festsubstanzgemische (Normalfall) leer lassen.") }}
     </div>
@@ -42,7 +48,7 @@
       {{ field("dilution_solvent", "Verdünnungsmedium", item.dilution_solvent, help="z.B. Wasser, HCl 0,1 M – nur bei Lösungen") }}
     </div>
   </div>
-  <div class="row" id="dilution-notes-group">
+  <div class="row" id="dilution-notes-row">
     <div class="col-md-6">{{ textarea("dilution_notes", "Verdünnungsnotizen", item.dilution_notes, rows=2) }}</div>
   </div>
 
@@ -84,31 +90,44 @@
 <script>
 (() => {
   const MODE_ASSAY = "assay_mass_based";
+  const MODE_STD = "titrant_standardization";
   const analysisModes = {{ analysis_modes|tojson }};
   const analysisSelect = document.getElementById("analysis_id");
   const massFields = document.getElementById("mass-fields");
   const volumeFields = document.getElementById("volume-fields");
+  const hintMass = document.getElementById("hint-mass");
+  const hintStd = document.getElementById("hint-standardization");
+  const blendRow = document.getElementById("blend-row");
+  const dilutionRow = document.getElementById("dilution-row");
+  const dilutionNotesRow = document.getElementById("dilution-notes-row");
   const massInputs = ["target_m_s_min_g", "target_m_ges_g"].map((id) => document.getElementById(id));
   const volumeInputs = ["target_v_min_ml", "target_v_max_ml"].map((id) => document.getElementById(id));
 
-  function setGroupVisibility(showMass) {
-    massFields.style.display = showMass ? "" : "none";
-    volumeFields.style.display = showMass ? "none" : "";
-    massInputs.forEach((i) => i.required = showMass);
-    volumeInputs.forEach((i) => i.required = !showMass);
+  function currentMode() {
+    const selectedId = analysisSelect.value;
+    return analysisModes[selectedId] || MODE_ASSAY;
   }
 
-  function syncByMode() {
-    const selectedId = analysisSelect.value;
-    const mode = analysisModes[selectedId] || MODE_ASSAY;
-    setGroupVisibility(mode === MODE_ASSAY);
+  function setGroupVisibility(mode) {
+    const isMass = mode === MODE_ASSAY;
+    massFields.style.display = isMass ? "" : "none";
+    volumeFields.style.display = isMass ? "none" : "";
+    hintMass.style.display = isMass ? "" : "none";
+    hintStd.style.display = isMass ? "none" : "";
+    // Blend/dilution only relevant for mass-based (substance blends)
+    blendRow.style.display = isMass ? "" : "none";
+    dilutionRow.style.display = isMass ? "" : "none";
+    dilutionNotesRow.style.display = isMass ? "" : "none";
+    massInputs.forEach((i) => i.required = isMass);
+    volumeInputs.forEach((i) => i.required = !isMass);
   }
 
   analysisSelect.addEventListener("change", () => {
-    syncByMode();
-    // Auto-fill m_S,min from analysis E_AB
+    const mode = currentMode();
+    setGroupVisibility(mode);
+    // Auto-fill m_S,min from analysis E_AB (only for mass-based mode)
     const aid = analysisSelect.value;
-    if (aid) {
+    if (aid && mode === MODE_ASSAY) {
       fetch(`/api/analysis/${aid}/defaults`)
         .then(r => r.json())
         .then(data => {
@@ -118,7 +137,7 @@
         });
     }
   });
-  syncByMode();
+  setGroupVisibility(currentMode());
 
   // Titer override toggle
   const overrideCb = document.getElementById('titer_override');

@@ -90,42 +90,30 @@ class MassBasedEvaluator:
 
 
 class TitrantStandardizationEvaluator:
-    def _expected_volume(self, sample) -> float | None:
-        method = sample.batch.analysis.method
-        if sample.m_s_actual_g is None or method is None or method.m_eq_mg is None:
-            return None
-        # Use nominal concentration (1.0) for theoretical volume calculation
-        denom = method.m_eq_mg * 1.0
-        if denom <= 0:
-            return None
-        return round((sample.m_s_actual_g * 1000.0) / denom, 3)
+    """Evaluator for titrant standardization (Titereinstellung).
+
+    The student weighs the primary standard (Urtitersubstanz), titrates,
+    calculates the titer/factor, and reports it directly as ``ansage_value``.
+    The system only validates whether the reported titer falls within the
+    configured tolerance bounds.  No weighing data (m_s) from the TA is
+    needed – the TA merely dispenses a volume of titrant solution.
+    """
 
     def calculate_sample(self, sample) -> SampleCalculation:
         analysis = sample.batch.analysis
         titer_min = round(analysis.tol_min / 100.0, 4) if analysis.tol_min is not None else None
         titer_max = round(analysis.tol_max / 100.0, 4) if analysis.tol_max is not None else None
         return SampleCalculation(
-            v_expected_ml=self._expected_volume(sample),
             titer_expected=sample.batch.titer,
             a_min=titer_min,
             a_max=titer_max,
         )
 
     def evaluate_result(self, result) -> EvaluationResult:
-        sample = result.assignment.sample
-        analysis = sample.batch.analysis
-        method = analysis.method
-        sample_calc = self.calculate_sample(sample)
+        sample_calc = self.calculate_sample(result.assignment.sample)
 
-        titer_result = None
-        if (
-            sample.m_s_actual_g is not None
-            and method is not None
-            and method.m_eq_mg is not None
-            and result.ansage_value is not None
-            and result.ansage_value > 0
-        ):
-            titer_result = round((sample.m_s_actual_g * 1000.0) / (method.m_eq_mg * result.ansage_value), 4)
+        # The student reports the calculated titer directly as ansage_value.
+        titer_result = result.ansage_value
 
         titer_min = sample_calc.a_min
         titer_max = sample_calc.a_max
@@ -135,7 +123,6 @@ class TitrantStandardizationEvaluator:
             passed = titer_min <= titer_result <= titer_max
 
         return EvaluationResult(
-            v_expected_ml=sample_calc.v_expected_ml,
             a_min=titer_min,
             a_max=titer_max,
             titer_expected=sample_calc.titer_expected,
