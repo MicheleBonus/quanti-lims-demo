@@ -213,10 +213,13 @@ class Method(db.Model):
     v_vorlage_ml = db.Column(db.Float)
     weighing_basis = db.Column(db.String(30), nullable=False, default=WEIGHING_BASIS_PER_PREPARATION)
     n_aliquots = db.Column(db.Integer)
+    primary_standard_id = db.Column(db.Integer, db.ForeignKey("substance.id"))
+    m_eq_primary_mg = db.Column(db.Float)
     description = db.Column(db.Text)
     position = db.Column(db.Integer, nullable=False, default=0)
 
     analysis = db.relationship("Analysis", back_populates="method")
+    primary_standard = db.relationship("Substance", foreign_keys=[primary_standard_id])
     reagent_usages = db.relationship("MethodReagent", back_populates="method")
 
     @property
@@ -310,11 +313,19 @@ def migrate_schema() -> None:
         if "blend_description" not in batch_cols:
             conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN blend_description VARCHAR(500)")
 
+        batch_cols2 = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sample_batch)").fetchall()}
+        if "gehalt_min_pct" not in batch_cols2:
+            conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN gehalt_min_pct FLOAT")
+
         method_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method)").fetchall()}
         if "weighing_basis" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN weighing_basis VARCHAR(30) DEFAULT 'per_preparation'")
         if "n_aliquots" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN n_aliquots INTEGER")
+        if "primary_standard_id" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN primary_standard_id INTEGER REFERENCES substance(id)")
+        if "m_eq_primary_mg" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN m_eq_primary_mg FLOAT")
 
         cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method_reagent)").fetchall()}
         if "volume_per_determination_ml" in cols:
@@ -482,6 +493,7 @@ class SampleBatch(db.Model):
     analysis_id = db.Column(db.Integer, db.ForeignKey("analysis.id"), nullable=False)
     substance_lot_id = db.Column(db.Integer, db.ForeignKey("substance_lot.id"))
     blend_description = db.Column(db.String(500))
+    gehalt_min_pct = db.Column(db.Float)
     target_m_s_min_g = db.Column(db.Float)
     target_m_ges_g = db.Column(db.Float)
     target_v_min_ml = db.Column(db.Float)
