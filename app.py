@@ -160,6 +160,19 @@ def register_filters(app):
     def zip_filter(a, b):
         return list(zip(a, b))
 
+    @app.template_filter("de_date")
+    def de_date_filter(value):
+        """Format ISO date string (YYYY-MM-DD) as German dd.mm.yyyy."""
+        if not value:
+            return "–"
+        try:
+            parts = str(value).split("-")
+            if len(parts) == 3:
+                return f"{parts[2]}.{parts[1]}.{parts[0]}"
+        except (ValueError, IndexError):
+            pass
+        return str(value)
+
     @app.template_global("options_for")
     def options_for(items, value_attr="id", label_attr="name"):
         """Build select options from a list of ORM objects."""
@@ -201,13 +214,23 @@ def register_routes(app):
     def _iso_now() -> str:
         return date.today().isoformat()
 
+    def _de_date(iso: str) -> str:
+        """Convert ISO date to German dd.mm.yyyy format."""
+        try:
+            parts = iso.split("-")
+            if len(parts) == 3:
+                return f"{parts[2]}.{parts[1]}.{parts[0]}"
+        except (ValueError, IndexError):
+            pass
+        return iso
+
     def flash_saved(entity_label: str, details: str | None = None) -> None:
-        timestamp = _iso_now()
+        timestamp = _de_date(_iso_now())
         save_times = session.get("save_timestamps", {})
         save_times[entity_label] = timestamp
         session["save_timestamps"] = save_times
         suffix = f" ({details})" if details else ""
-        flash(f"{entity_label} gespeichert – zuletzt gespeichert: {timestamp}{suffix}", "success")
+        flash(f"{entity_label} gespeichert – {timestamp}{suffix}", "success")
 
     def _dict_rows(rows: list[dict], filename: str, fmt: str):
         if fmt == "json":
