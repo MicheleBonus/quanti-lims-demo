@@ -105,6 +105,7 @@ class Substance(db.Model):
     g_ab_min_pct = db.Column(db.Float)
     g_ab_max_pct = db.Column(db.Float)
     notes = db.Column(db.Text)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
     lots = db.relationship("SubstanceLot", back_populates="substance")
     analyses = db.relationship("Analysis", back_populates="substance")
@@ -127,6 +128,7 @@ class SubstanceLot(db.Model):
     g_analytical_date = db.Column(db.String(20))
     g_analytical_method = db.Column(db.String(100))
     notes = db.Column(db.Text)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
     substance = db.relationship("Substance", back_populates="lots")
     batches = db.relationship("SampleBatch", back_populates="substance_lot")
@@ -246,6 +248,7 @@ class Reagent(db.Model):
     hazard_symbols = db.Column(db.String(100))
     storage_info = db.Column(db.String(200))
     notes = db.Column(db.Text)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
     components = db.relationship(
         "ReagentComponent",
@@ -401,6 +404,18 @@ def migrate_schema() -> None:
             ")"
         )
 
+        # ── Position columns for drag-and-drop reordering ──
+        for table in ("semester", "substance", "substance_lot", "reagent", "sample_batch"):
+            tcols = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()}
+            if "position" not in tcols:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN position INTEGER DEFAULT 0")
+                # Initialize position from existing ordering (by id)
+                conn.exec_driver_sql(
+                    f"UPDATE {table} SET position = ("
+                    f"  SELECT COUNT(*) FROM {table} t2 WHERE t2.id <= {table}.id"
+                    f")"
+                )
+
         indexes = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(method_reagent)").fetchall()}
         if "uq_method_reagent_single_titrant" not in indexes:
             conn.exec_driver_sql(
@@ -423,6 +438,7 @@ class Semester(db.Model):
     start_date = db.Column(db.String(20))
     end_date = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
     students = db.relationship("Student", back_populates="semester", order_by="Student.running_number")
     batches = db.relationship("SampleBatch", back_populates="semester")
@@ -479,6 +495,8 @@ class SampleBatch(db.Model):
     preparation_date = db.Column(db.String(20))
     prepared_by = db.Column(db.String(100))
     notes = db.Column(db.Text)
+
+    position = db.Column(db.Integer, nullable=False, default=0)
 
     semester = db.relationship("Semester", back_populates="batches")
     analysis = db.relationship("Analysis", back_populates="batches")

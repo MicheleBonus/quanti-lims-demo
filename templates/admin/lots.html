@@ -3,12 +3,16 @@
 {% block title %}Chargen / CoA – Admin{% endblock %}
 {% block content %}
 {{ page_header("Chargen / CoA", "Reinheitsgrade und Analysezertifikate", url_for('admin_lot_form')) }}
+<div class="mb-3">
+  <button class="btn btn-outline-secondary btn-sm" id="reset-order-btn" title="Sortierung zurücksetzen (chronologisch)"><i class="bi bi-arrow-counterclockwise"></i> Standard-Sortierung</button>
+</div>
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Arzneistoff</th><th>Charge</th><th>Lieferant</th><th>G_CoA (%)</th><th>G_analytisch (%)</th><th>p_eff (%)</th><th>Quelle</th><th></th></tr></thead>
-<tbody>
+<thead class="table-light"><tr><th style="width:30px"></th><th>Arzneistoff</th><th>Charge</th><th>Lieferant</th><th>G_CoA (%)</th><th>G_analytisch (%)</th><th>p_eff (%)</th><th>Quelle</th><th></th></tr></thead>
+<tbody id="lot-sortable">
 {% for l in items %}
-<tr>
+<tr data-id="{{ l.id }}">
+  <td class="drag-handle" style="cursor:grab"><i class="bi bi-grip-vertical text-body-secondary"></i></td>
   <td>{{ l.substance.name }}</td>
   <td><a href="{{ url_for('admin_lot_form', id=l.id) }}">{{ l.lot_number }}</a></td>
   <td>{{ l.supplier or '–' }}</td>
@@ -23,4 +27,31 @@
 </tr>
 {% endfor %}
 </tbody></table></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.getElementById('lot-sortable');
+  if (!tbody) return;
+  new Sortable(tbody, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'table-active',
+    onEnd: () => {
+      const order = [...tbody.querySelectorAll('tr[data-id]')].map(r => parseInt(r.dataset.id));
+      fetch('{{ url_for("api_reorder_lots") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({order})
+      }).then(r => { if (!r.ok) location.reload(); });
+    }
+  });
+  document.getElementById('reset-order-btn').addEventListener('click', () => {
+    fetch('{{ url_for("api_reorder_reset", entity="lots") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(() => location.reload());
+  });
+});
+</script>
 {% endblock %}

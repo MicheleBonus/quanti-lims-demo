@@ -294,7 +294,7 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     @app.route("/admin/substances")
     def admin_substances():
-        items = Substance.query.order_by(Substance.name).all()
+        items = Substance.query.order_by(Substance.position, Substance.name).all()
         return render_template("admin/substances.html", items=items)
 
     @app.route("/admin/substances/new", methods=["GET", "POST"])
@@ -340,7 +340,7 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     @app.route("/admin/lots")
     def admin_lots():
-        items = SubstanceLot.query.order_by(SubstanceLot.id.desc()).all()
+        items = SubstanceLot.query.order_by(SubstanceLot.position, SubstanceLot.id.desc()).all()
         return render_template("admin/lots.html", items=items)
 
     @app.route("/admin/lots/new", methods=["GET", "POST"])
@@ -504,7 +504,7 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     @app.route("/admin/reagents")
     def admin_reagents():
-        items = Reagent.query.order_by(Reagent.name).all()
+        items = Reagent.query.order_by(Reagent.position, Reagent.name).all()
         return render_template("admin/reagents.html", items=items)
 
     @app.route("/admin/reagents/new", methods=["GET", "POST"])
@@ -678,7 +678,7 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     @app.route("/admin/semesters")
     def admin_semesters():
-        items = Semester.query.order_by(Semester.id.desc()).all()
+        items = Semester.query.order_by(Semester.position, Semester.id.desc()).all()
         return render_template("admin/semesters.html", items=items)
 
     @app.route("/admin/semesters/new", methods=["GET", "POST"])
@@ -841,7 +841,7 @@ def register_routes(app):
 
             missing = []
             if not mat:
-                missing.append("Matrikel")
+                missing.append("Matrikel-Nr.")
             if not ln:
                 missing.append("Nachname")
             if missing:
@@ -922,7 +922,7 @@ def register_routes(app):
     @app.route("/admin/batches")
     def admin_batches():
         sem = active_semester()
-        batches = SampleBatch.query.filter_by(semester_id=sem.id).all() if sem else []
+        batches = SampleBatch.query.filter_by(semester_id=sem.id).order_by(SampleBatch.position, SampleBatch.id).all() if sem else []
         analyses = Analysis.query.order_by(Analysis.ordinal).all()
         return render_template("admin/batches.html", batches=batches, analyses=analyses, semester=sem)
 
@@ -1027,19 +1027,21 @@ def register_routes(app):
     def admin_batch_delete(id):
         batch = SampleBatch.query.get_or_404(id)
         force = request.form.get("force") == "1"
+        analysis_code = batch.analysis.code
         samples = list(batch.samples)
         total_assignments = sum(len(s.assignments) for s in samples)
         total_results = sum(len(a.results) for s in samples for a in s.assignments)
 
         if total_assignments and not force:
             flash(
-                f"Probenansatz {batch.analysis.code} kann nicht gelöscht werden: "
+                f"Probenansatz {analysis_code} kann nicht gelöscht werden: "
                 f"{total_assignments} Zuweisung(en) und {total_results} Ergebnis(se) vorhanden. "
                 "Bitte mit 'Endgueltig loeschen' bestätigen.",
                 "danger",
             )
             return redirect(url_for("admin_batches"))
 
+        n_samples = len(samples)
         for sample in samples:
             for assignment in list(sample.assignments):
                 db.session.delete(assignment)
@@ -1047,8 +1049,8 @@ def register_routes(app):
         db.session.delete(batch)
         db.session.commit()
         flash(
-            f"Probenansatz {batch.analysis.code} gelöscht "
-            f"({len(samples)} Proben, {total_assignments} Zuweisungen, {total_results} Ergebnisse entfernt).",
+            f"Probenansatz {analysis_code} gelöscht "
+            f"({n_samples} Proben, {total_assignments} Zuweisungen, {total_results} Ergebnisse entfernt).",
             "warning",
         )
         return redirect(url_for("admin_batches"))
@@ -1630,11 +1632,17 @@ def register_routes(app):
         data = request.get_json()
         if not data or "order" not in data:
             return jsonify({"error": "Missing order"}), 400
+        # Two-pass approach to avoid unique constraint violations
+        students = []
         for idx, student_id in enumerate(data["order"], 1):
             st = Student.query.get(student_id)
             if st:
-                st.running_number = idx
+                st.running_number = -(idx)
+                students.append((st, idx))
         try:
+            db.session.flush()
+            for st, idx in students:
+                st.running_number = idx
             db.session.commit()
             return jsonify({"ok": True})
         except IntegrityError:
@@ -1647,16 +1655,108 @@ def register_routes(app):
         data = request.get_json()
         if not data or "order" not in data:
             return jsonify({"error": "Missing order"}), 400
+        # Two-pass approach to avoid unique constraint violations
+        items = []
         for idx, analysis_id in enumerate(data["order"], 1):
             a = Analysis.query.get(analysis_id)
             if a:
-                a.ordinal = idx
+                a.ordinal = -(idx)
+                items.append((a, idx))
         try:
+            db.session.flush()
+            for a, idx in items:
+                a.ordinal = idx
             db.session.commit()
             return jsonify({"ok": True})
         except IntegrityError:
             db.session.rollback()
             return jsonify({"error": "Conflict"}), 409
+
+    @app.route("/api/reorder/semesters", methods=["POST"])
+    def api_reorder_semesters():
+        """Update position for semesters based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, item_id in enumerate(data["order"], 1):
+            item = Semester.query.get(item_id)
+            if item:
+                item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/reorder/substances", methods=["POST"])
+    def api_reorder_substances():
+        """Update position for substances based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, item_id in enumerate(data["order"], 1):
+            item = Substance.query.get(item_id)
+            if item:
+                item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/reorder/lots", methods=["POST"])
+    def api_reorder_lots():
+        """Update position for substance lots based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, item_id in enumerate(data["order"], 1):
+            item = SubstanceLot.query.get(item_id)
+            if item:
+                item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/reorder/reagents", methods=["POST"])
+    def api_reorder_reagents():
+        """Update position for reagents based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, item_id in enumerate(data["order"], 1):
+            item = Reagent.query.get(item_id)
+            if item:
+                item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/reorder/batches", methods=["POST"])
+    def api_reorder_batches():
+        """Update position for sample batches based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, item_id in enumerate(data["order"], 1):
+            item = SampleBatch.query.get(item_id)
+            if item:
+                item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/reorder/reset/<entity>", methods=["POST"])
+    def api_reorder_reset(entity):
+        """Reset position to natural order (alphabetic/chronological)."""
+        if entity == "semesters":
+            items = Semester.query.order_by(Semester.id.desc()).all()
+        elif entity == "substances":
+            items = Substance.query.order_by(Substance.name).all()
+        elif entity == "lots":
+            items = SubstanceLot.query.order_by(SubstanceLot.id.desc()).all()
+        elif entity == "reagents":
+            items = Reagent.query.order_by(Reagent.name).all()
+        elif entity == "batches":
+            sem = active_semester()
+            items = SampleBatch.query.filter_by(semester_id=sem.id).join(Analysis).order_by(Analysis.ordinal).all() if sem else []
+        else:
+            return jsonify({"error": "Unknown entity"}), 400
+        for idx, item in enumerate(items, 1):
+            item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
 
     @app.route("/api/analysis/<int:analysis_id>/defaults")
     def api_analysis_defaults(analysis_id):

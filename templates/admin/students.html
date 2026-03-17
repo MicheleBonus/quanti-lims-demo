@@ -23,7 +23,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="row g-2 align-items-end">
       <div class="col-md-6">
-        <label class="form-label">CSV-Datei (Spalten: Matrikel;Nachname;Vorname;Email)</label>
+        <label class="form-label">CSV-Datei (Spalten: Matrikel-Nr.;Nachname;Vorname;Email)</label>
         <input type="file" class="form-control" name="csv_file" accept=".csv,.txt" required>
       </div>
       <div class="col-md-3 mb-0">
@@ -37,7 +37,7 @@
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th style="width:30px"></th><th>#</th><th>Matrikel</th><th>Nachname</th><th>Vorname</th><th>Email</th><th class="text-end"></th></tr></thead>
+<thead class="table-light"><tr><th style="width:30px"></th><th>#</th><th>Matrikel-Nr.</th><th>Nachname</th><th>Vorname</th><th>Email</th><th class="text-end"></th></tr></thead>
 <tbody id="student-sortable">
 {% for s in students %}
 <tr data-id="{{ s.id }}">
@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
         body: JSON.stringify({order})
-      });
+      }).then(r => { if (!r.ok) location.reload(); });
     }
   });
 });

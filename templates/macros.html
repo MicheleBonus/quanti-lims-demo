@@ -1,11 +1,19 @@
 {% macro field(name, label, value="", type="text", required=false, step="", placeholder="", help="") %}
 <div class="mb-3">
   <label for="{{ name }}" class="form-label">{{ label }}{% if required %} <span class="text-danger">*</span>{% endif %}</label>
+  {% if type == "number" and step %}
+  {# Decimal fields: use text+inputmode to enforce dot display and allow arbitrary precision #}
+  <input type="text" inputmode="decimal" class="form-control" id="{{ name }}" name="{{ name }}"
+         value="{{ value if value is not none else '' }}"
+         {% if required %}required{% endif %}
+         {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>
+  {% else %}
   <input type="{{ type }}" class="form-control" id="{{ name }}" name="{{ name }}"
          value="{{ value if value is not none else '' }}"
          {% if required %}required{% endif %}
          {% if step %}step="{{ step }}"{% endif %}
          {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>
+  {% endif %}
   {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
 </div>
 {% endmacro %}
