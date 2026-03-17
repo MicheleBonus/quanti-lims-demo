@@ -458,7 +458,7 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     @app.route("/admin/methods")
     def admin_methods():
-        items = Method.query.join(Analysis).order_by(Analysis.ordinal).all()
+        items = Method.query.join(Analysis).order_by(Method.position, Analysis.ordinal).all()
         return render_template("admin/methods.html", items=items)
 
     @app.route("/admin/methods/new", methods=["GET", "POST"])
@@ -498,6 +498,17 @@ def register_routes(app):
                 flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
         return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, weighing_basis_opts=WEIGHING_BASIS_OPTIONS)
+
+    @app.route("/admin/methods/<int:id>/delete", methods=["POST"])
+    def admin_method_delete(id):
+        item = Method.query.get_or_404(id)
+        if item.reagent_usages:
+            flash("Methode kann nicht gelöscht werden – es existieren verknüpfte Reagenzien-Zuweisungen. Bitte zuerst die Zuweisungen entfernen.", "danger")
+            return redirect(url_for("admin_methods"))
+        db.session.delete(item)
+        db.session.commit()
+        flash("Methode gelöscht.", "warning")
+        return redirect(url_for("admin_methods"))
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Reagents
@@ -1736,6 +1747,19 @@ def register_routes(app):
         db.session.commit()
         return jsonify({"ok": True})
 
+    @app.route("/api/reorder/methods", methods=["POST"])
+    def api_reorder_methods():
+        """Update position for methods based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, item_id in enumerate(data["order"], 1):
+            item = Method.query.get(item_id)
+            if item:
+                item.position = idx
+        db.session.commit()
+        return jsonify({"ok": True})
+
     @app.route("/api/reorder/reset/<entity>", methods=["POST"])
     def api_reorder_reset(entity):
         """Reset position to natural order (alphabetic/chronological)."""
@@ -1750,6 +1774,8 @@ def register_routes(app):
         elif entity == "batches":
             sem = active_semester()
             items = SampleBatch.query.filter_by(semester_id=sem.id).join(Analysis).order_by(Analysis.ordinal).all() if sem else []
+        elif entity == "methods":
+            items = Method.query.join(Analysis).order_by(Analysis.ordinal).all()
         else:
             return jsonify({"error": "Unknown entity"}), 400
         for idx, item in enumerate(items, 1):
