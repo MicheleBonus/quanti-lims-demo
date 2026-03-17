@@ -2,7 +2,7 @@
 {% from "macros.html" import page_header %}
 {% block title %}Methoden – Admin{% endblock %}
 {% block content %}
-{{ page_header("Methoden-Datenbank", "Titrationsparameter und Äquivalente", url_for('admin_method_form')) }}
+{{ page_header("Methoden", "Titrationsparameter und Äquivalente – Beschreibt WIE eine Prüfung durchgeführt wird (Titrationsmodus, Äquivalentmasse, Reagenzien)", url_for('admin_method_form')) }}
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light"><tr><th>Analyse</th><th>Typ</th><th>m_eq (mg/mL)</th><th>Titrant</th><th>Konz.</th><th>Blind?</th><th>b</th><th>V_Vorlage</th><th>Reagenzien</th><th></th></tr></thead>

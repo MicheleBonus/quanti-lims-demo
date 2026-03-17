@@ -1,14 +1,21 @@
 {% extends "base.html" %}
 {% from "macros.html" import page_header %}
-{% block title %}Analysen – Admin{% endblock %}
+{% block title %}Prüfungen – Admin{% endblock %}
 {% block content %}
-{{ page_header("Analysen-Definitionen", "I.1 bis III.4", url_for('admin_analysis_form')) }}
+{{ page_header("Prüfungen", "Arzneibuch-Gehaltsbestimmungen (I.1 bis III.4) – Jede Prüfung definiert, welcher Arzneistoff nach welcher Methode bestimmt wird", url_for('admin_analysis_form')) }}
+<div class="alert alert-light border small">
+  <i class="bi bi-info-circle"></i> <strong>Prüfung vs. Methode:</strong>
+  Eine <em>Prüfung</em> definiert WAS bestimmt wird (Arzneistoff, Toleranzgrenzen, Arzneibuch-Monographie).
+  Die <em>Methode</em> definiert WIE es bestimmt wird (Titrationsmodus, Äquivalentmasse, Reagenzien).
+  Reihenfolge per Drag &amp; Drop änderbar.
+</div>
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Code</th><th>Name</th><th>Block</th><th>Substanz</th><th>Mode</th><th>k</th><th>Einheit</th><th>Tol. min</th><th>Tol. max</th><th>Methode</th><th></th></tr></thead>
-<tbody>
+<thead class="table-light"><tr><th style="width:30px"></th><th>Code</th><th>Name</th><th>Block</th><th>Arzneistoff</th><th>Modus</th><th>k</th><th>Einheit</th><th>Tol. min</th><th>Tol. max</th><th>Methode</th><th></th></tr></thead>
+<tbody id="analysis-sortable">
 {% for a in items %}
-<tr>
+<tr data-id="{{ a.id }}">
+  <td class="drag-handle" style="cursor:grab"><i class="bi bi-grip-vertical text-body-secondary"></i></td>
   <td><strong><a href="{{ url_for('admin_analysis_form', id=a.id) }}">{{ a.code }}</a></strong></td>
   <td>{{ a.name }}</td>
   <td>{{ a.block.code }}</td>
@@ -23,4 +30,25 @@
 </tr>
 {% endfor %}
 </tbody></table></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.getElementById('analysis-sortable');
+  if (!tbody) return;
+  new Sortable(tbody, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'table-active',
+    onEnd: () => {
+      const order = [...tbody.querySelectorAll('tr[data-id]')].map(r => parseInt(r.dataset.id));
+      fetch('{{ url_for("api_reorder_analyses") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({order})
+      });
+    }
+  });
+});
+</script>
 {% endblock %}

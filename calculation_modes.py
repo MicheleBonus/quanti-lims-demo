@@ -63,15 +63,15 @@ class MassBasedEvaluator:
 
         method = sample.batch.analysis.method
         v_expected_ml = None
-        if g_wahr is not None and method is not None and method.m_eq_mg is not None:
+        if g_wahr is not None and method is not None and method.m_eq_mg is not None and method.m_eq_mg > 0:
             m_s_mg = sample.m_s_actual_g * 1000.0
-            t = sample.batch.titer
-            if method.method_type == "direct":
-                v_expected_ml = round((m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor, 3)
+            # Use nominal concentration (Sollkonzentration = 1.000) for theoretical consumption
+            t = 1.0
+            equiv_vol = (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor
+            if method.method_type in ("direct", "complexometric", "argentometric", "other"):
+                v_expected_ml = round(equiv_vol, 3)
             elif method.method_type == "back" and method.v_vorlage_ml is not None:
-                v_expected_ml = round(
-                    method.v_vorlage_ml - (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor, 3
-                )
+                v_expected_ml = round(method.v_vorlage_ml - equiv_vol, 3)
 
         return SampleCalculation(g_wahr=g_wahr, a_min=a_min, a_max=a_max, v_expected_ml=v_expected_ml)
 
@@ -92,9 +92,10 @@ class MassBasedEvaluator:
 class TitrantStandardizationEvaluator:
     def _expected_volume(self, sample) -> float | None:
         method = sample.batch.analysis.method
-        if sample.m_s_actual_g is None or method is None or method.m_eq_mg is None or sample.batch.titer is None:
+        if sample.m_s_actual_g is None or method is None or method.m_eq_mg is None:
             return None
-        denom = method.m_eq_mg * sample.batch.titer
+        # Use nominal concentration (1.0) for theoretical volume calculation
+        denom = method.m_eq_mg * 1.0
         if denom <= 0:
             return None
         return round((sample.m_s_actual_g * 1000.0) / denom, 3)

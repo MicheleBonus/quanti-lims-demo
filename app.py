@@ -381,8 +381,19 @@ def register_routes(app):
         sub_opts = [(s.id, s.name) for s in substances]
         return render_template("admin/lot_form.html", item=item, sub_opts=sub_opts)
 
+    @app.route("/admin/lots/<int:id>/delete", methods=["POST"])
+    def admin_lot_delete(id):
+        item = SubstanceLot.query.get_or_404(id)
+        if item.batches:
+            flash("Charge kann nicht gelöscht werden – es existieren verknüpfte Probenansätze.", "danger")
+            return redirect(url_for("admin_lots"))
+        db.session.delete(item)
+        db.session.commit()
+        flash("Charge gelöscht.", "warning")
+        return redirect(url_for("admin_lots"))
+
     # ═══════════════════════════════════════════════════════════════
-    # ADMIN: Analyses
+    # ADMIN: Analyses (Prüfungen)
     # ═══════════════════════════════════════════════════════════════
     @app.route("/admin/analyses")
     def admin_analyses():
@@ -531,6 +542,24 @@ def register_routes(app):
                 db.session.rollback()
                 flash("Reagenz konnte nicht gespeichert werden (Name ist bereits vergeben).", "danger")
         return render_template("admin/reagent_form.html", item=item, unit_options=get_unit_options())
+
+    @app.route("/admin/reagents/<int:id>/delete", methods=["POST"])
+    def admin_reagent_delete(id):
+        item = Reagent.query.get_or_404(id)
+        if item.method_usages:
+            flash("Reagenz kann nicht gelöscht werden – es ist Methoden zugewiesen. Bitte zuerst die Methoden-Zuweisungen entfernen.", "danger")
+            return redirect(url_for("admin_reagents"))
+        if item.components:
+            for c in list(item.components):
+                db.session.delete(c)
+        # Also remove if used as child in other composites
+        child_refs = ReagentComponent.query.filter_by(child_reagent_id=id).all()
+        for cr in child_refs:
+            db.session.delete(cr)
+        db.session.delete(item)
+        db.session.commit()
+        flash("Reagenz gelöscht.", "warning")
+        return redirect(url_for("admin_reagents"))
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Reagent Components (BOM)
@@ -922,6 +951,7 @@ def register_routes(app):
             prepared_by = request.form.get("prepared_by") or None
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
+            item.blend_description = request.form.get("blend_description") or None
             item.target_m_s_min_g = _float(request.form.get("target_m_s_min_g"))
             item.target_m_ges_g = _float(request.form.get("target_m_ges_g"))
             item.target_v_min_ml = _float(request.form.get("target_v_min_ml"))
@@ -992,6 +1022,36 @@ def register_routes(app):
                 db.session.rollback()
                 flash("Probenansatz konnte nicht gespeichert werden (Analyse je Semester nur einmal erlaubt).", "danger")
         return _render_form()
+
+    @app.route("/admin/batches/<int:id>/delete", methods=["POST"])
+    def admin_batch_delete(id):
+        batch = SampleBatch.query.get_or_404(id)
+        force = request.form.get("force") == "1"
+        samples = list(batch.samples)
+        total_assignments = sum(len(s.assignments) for s in samples)
+        total_results = sum(len(a.results) for s in samples for a in s.assignments)
+
+        if total_assignments and not force:
+            flash(
+                f"Probenansatz {batch.analysis.code} kann nicht gelöscht werden: "
+                f"{total_assignments} Zuweisung(en) und {total_results} Ergebnis(se) vorhanden. "
+                "Bitte mit 'Endgueltig loeschen' bestätigen.",
+                "danger",
+            )
+            return redirect(url_for("admin_batches"))
+
+        for sample in samples:
+            for assignment in list(sample.assignments):
+                db.session.delete(assignment)
+            db.session.delete(sample)
+        db.session.delete(batch)
+        db.session.commit()
+        flash(
+            f"Probenansatz {batch.analysis.code} gelöscht "
+            f"({len(samples)} Proben, {total_assignments} Zuweisungen, {total_results} Ergebnisse entfernt).",
+            "warning",
+        )
+        return redirect(url_for("admin_batches"))
 
     @app.route("/admin/batches/<int:id>/assign-initial", methods=["POST"])
     def admin_batch_assign_initial(id):
@@ -1564,6 +1624,56 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     # API endpoints (for HTMX / JS)
     # ═══════════════════════════════════════════════════════════════
+    @app.route("/api/reorder/students", methods=["POST"])
+    def api_reorder_students():
+        """Update running_number for students based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, student_id in enumerate(data["order"], 1):
+            st = Student.query.get(student_id)
+            if st:
+                st.running_number = idx
+        try:
+            db.session.commit()
+            return jsonify({"ok": True})
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({"error": "Unique constraint conflict"}), 409
+
+    @app.route("/api/reorder/analyses", methods=["POST"])
+    def api_reorder_analyses():
+        """Update ordinal for analyses based on drag & drop order."""
+        data = request.get_json()
+        if not data or "order" not in data:
+            return jsonify({"error": "Missing order"}), 400
+        for idx, analysis_id in enumerate(data["order"], 1):
+            a = Analysis.query.get(analysis_id)
+            if a:
+                a.ordinal = idx
+        try:
+            db.session.commit()
+            return jsonify({"ok": True})
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({"error": "Conflict"}), 409
+
+    @app.route("/api/analysis/<int:analysis_id>/defaults")
+    def api_analysis_defaults(analysis_id):
+        """Return method defaults for a given analysis (for batch form auto-fill)."""
+        analysis = Analysis.query.get_or_404(analysis_id)
+        method = analysis.method
+        result = {
+            "e_ab_g": analysis.e_ab_g,
+            "calculation_mode": resolve_mode(analysis.calculation_mode),
+        }
+        if method:
+            result["m_eq_mg"] = method.m_eq_mg
+            result["titrant_concentration"] = method.titrant_concentration
+            result["method_type"] = method.method_type
+            result["v_vorlage_ml"] = method.v_vorlage_ml
+        return jsonify(result)
+
     @app.route("/api/sample/<int:sample_id>/calc")
     def api_sample_calc(sample_id):
         s = Sample.query.get_or_404(sample_id)

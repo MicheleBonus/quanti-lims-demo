@@ -301,6 +301,10 @@ def migrate_schema() -> None:
         if "amount_unit" not in cols:
             conn.exec_driver_sql("ALTER TABLE method_reagent ADD COLUMN amount_unit VARCHAR(20) DEFAULT 'mL'")
 
+        batch_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sample_batch)").fetchall()}
+        if "blend_description" not in batch_cols:
+            conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN blend_description VARCHAR(500)")
+
         method_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method)").fetchall()}
         if "weighing_basis" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN weighing_basis VARCHAR(30) DEFAULT 'per_preparation'")
@@ -459,6 +463,7 @@ class SampleBatch(db.Model):
     semester_id = db.Column(db.Integer, db.ForeignKey("semester.id"), nullable=False)
     analysis_id = db.Column(db.Integer, db.ForeignKey("analysis.id"), nullable=False)
     substance_lot_id = db.Column(db.Integer, db.ForeignKey("substance_lot.id"))
+    blend_description = db.Column(db.String(500))
     target_m_s_min_g = db.Column(db.Float)
     target_m_ges_g = db.Column(db.Float)
     target_v_min_ml = db.Column(db.Float)

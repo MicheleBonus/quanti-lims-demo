@@ -10,9 +10,8 @@
 
 {% if semester %}
 <div class="alert alert-info">
-  <strong>Datenlebenszyklus:</strong> Standardmäßig werden Zuweisungen nur storniert, damit Ergebnisse historisch erhalten bleiben.
-  Das Löschen von Studierenden mit verknüpften Zuweisungen ist deshalb blockiert. Für bereinigende Eingriffe gibt es
-  die explizite Aktion <em>Endgültig löschen</em>.
+  <strong>Tipp:</strong> Laufnummern per Drag &amp; Drop (Griff-Symbol links) umsortieren.
+  Standardmäßig werden beim Löschen Zuweisungen nur storniert. Für endgültiges Löschen inkl. aller Daten das <i class="bi bi-exclamation-triangle"></i>-Symbol verwenden.
 </div>
 {% endif %}
 
@@ -38,11 +37,12 @@
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>#</th><th>Matrikel</th><th>Nachname</th><th>Vorname</th><th>Email</th><th class="text-end"></th></tr></thead>
-<tbody>
+<thead class="table-light"><tr><th style="width:30px"></th><th>#</th><th>Matrikel</th><th>Nachname</th><th>Vorname</th><th>Email</th><th class="text-end"></th></tr></thead>
+<tbody id="student-sortable">
 {% for s in students %}
-<tr>
-  <td><strong>{{ s.running_number }}</strong></td>
+<tr data-id="{{ s.id }}">
+  <td class="drag-handle" style="cursor:grab"><i class="bi bi-grip-vertical text-body-secondary"></i></td>
+  <td class="running-num"><strong>{{ s.running_number }}</strong></td>
   <td>{{ s.matrikel }}</td>
   <td><a href="{{ url_for('admin_student_form', id=s.id) }}">{{ s.last_name }}</a></td>
   <td>{{ s.first_name }}</td>
@@ -62,4 +62,29 @@
 </tr>
 {% endfor %}
 </tbody></table></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.getElementById('student-sortable');
+  if (!tbody) return;
+  new Sortable(tbody, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'table-active',
+    onEnd: () => {
+      const order = [...tbody.querySelectorAll('tr[data-id]')].map(r => parseInt(r.dataset.id));
+      // Update displayed running numbers
+      tbody.querySelectorAll('tr[data-id]').forEach((row, i) => {
+        row.querySelector('.running-num strong').textContent = i + 1;
+      });
+      fetch('{{ url_for("api_reorder_students") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({order})
+      });
+    }
+  });
+});
+</script>
 {% endblock %}

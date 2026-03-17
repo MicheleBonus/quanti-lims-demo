@@ -7,7 +7,7 @@
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Analyse</th><th>Charge</th><th>Titer</th><th>Proben</th><th>Eingewogen</th><th>Zugewiesen</th><th>Aktionen</th></tr></thead>
+<thead class="table-light"><tr><th>Prüfung</th><th>Charge</th><th>Proben</th><th>Eingewogen</th><th>Zugewiesen</th><th>Aktionen</th></tr></thead>
 <tbody>
 {% for b in batches %}
 {% set weighed = b.samples | selectattr('is_weighed') | list | length %}
@@ -16,23 +16,31 @@
 <tr>
   <td><strong>{{ b.analysis.code }}</strong> {{ b.analysis.name }}</td>
   <td>{% if b.substance_lot %}{{ b.substance_lot.lot_number }} (p={{ b.p_effective|fmt(1) }}%){% else %}<span class="text-body-secondary">–</span>{% endif %}</td>
-  <td>{{ b.titer|fmt(3) }}</td>
   <td>{{ b.total_samples_prepared }} <span class="text-body-secondary small">({{ b.samples|selectattr('is_buffer')|list|length }} Puffer)</span></td>
   <td>{{ weighed }}/{{ b.samples|length }}</td>
   <td>{{ ns.assigned }}</td>
   <td>
-    <a href="{{ url_for('admin_batch_form', id=b.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
-    <a href="{{ url_for('ta_weighing_batch', batch_id=b.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-ui-checks-grid"></i> Einwaage</a>
-    <a href="{{ url_for('admin_batch_samples', batch_id=b.id) }}" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i> Proben</a>
+    <a href="{{ url_for('admin_batch_form', id=b.id) }}" class="btn btn-outline-primary btn-sm" title="Bearbeiten"><i class="bi bi-pencil"></i></a>
+    <a href="{{ url_for('ta_weighing_batch', batch_id=b.id) }}" class="btn btn-outline-secondary btn-sm" title="Einwaage"><i class="bi bi-ui-checks-grid"></i></a>
+    <a href="{{ url_for('admin_batch_samples', batch_id=b.id) }}" class="btn btn-outline-info btn-sm" title="Proben verwalten"><i class="bi bi-list-ul"></i></a>
     <form method="POST" action="{{ url_for('admin_batch_assign_initial', id=b.id) }}" class="d-inline" onsubmit="return confirm('Erstanalysen zuweisen (Student k → Probe k)?')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-left-right"></i> Erstanalysen</button>
+      <button type="submit" class="btn btn-outline-success btn-sm" title="Erstanalysen zuweisen"><i class="bi bi-arrow-left-right"></i></button>
+    </form>
+    <form method="POST" action="{{ url_for('admin_batch_delete', id=b.id) }}" class="d-inline" onsubmit="return confirm('Probenansatz {{ b.analysis.code }} löschen? Bei bestehenden Zuweisungen wird blockiert.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="bi bi-trash"></i></button>
+    </form>
+    <form method="POST" action="{{ url_for('admin_batch_delete', id=b.id) }}" class="d-inline" onsubmit="return confirm('ENDGÜLTIG löschen? Alle Proben, Zuweisungen und Ergebnisse werden unwiderruflich entfernt!')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="force" value="1">
+      <button type="submit" class="btn btn-danger btn-sm" title="Endgültig löschen inkl. aller Daten"><i class="bi bi-exclamation-triangle"></i></button>
     </form>
   </td>
 </tr>
 {% endfor %}
 {% if not batches %}
-<tr><td colspan="7" class="text-center text-body-secondary py-3">Noch keine Probenansätze angelegt.</td></tr>
+<tr><td colspan="6" class="text-center text-body-secondary py-3">Noch keine Probenansätze angelegt.</td></tr>
 {% endif %}
 </tbody></table></div></div>
 {% endblock %}
