@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% from "macros.html" import page_header %}
+{% from "macros.html" import page_header, delete_btn %}
 {% block title %}Chargen / CoA – Admin{% endblock %}
 {% block content %}
 {{ page_header("Chargen / CoA", "Reinheitsgrade und Analysezertifikate", url_for('admin_lot_form')) }}
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Substanz</th><th>Charge</th><th>Lieferant</th><th>G_CoA (%)</th><th>G_analytisch (%)</th><th>p_eff (%)</th><th>Quelle</th><th></th></tr></thead>
+<thead class="table-light"><tr><th>Arzneistoff</th><th>Charge</th><th>Lieferant</th><th>G_CoA (%)</th><th>G_analytisch (%)</th><th>p_eff (%)</th><th>Quelle</th><th></th></tr></thead>
 <tbody>
 {% for l in items %}
 <tr>
@@ -16,7 +16,10 @@
   <td>{{ l.g_analytical_pct|fmt(2) }}</td>
   <td><strong>{{ l.p_effective|fmt(2) }}</strong></td>
   <td><span class="badge {% if l.p_source == 'analytisch' %}bg-success{% elif l.p_source == 'CoA' %}bg-info{% else %}bg-secondary{% endif %}">{{ l.p_source }}</span></td>
-  <td><a href="{{ url_for('admin_lot_form', id=l.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a></td>
+  <td>
+    <a href="{{ url_for('admin_lot_form', id=l.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
+    {{ delete_btn(url_for('admin_lot_delete', id=l.id)) }}
+  </td>
 </tr>
 {% endfor %}
 </tbody></table></div></div>

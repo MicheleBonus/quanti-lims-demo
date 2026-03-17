@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "macros.html" import field, select, textarea %}
-{% block title %}Analyse {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
+{% block title %}Prüfung {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
 {% block content %}
-<h4 class="mb-4">Analyse {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
+<h4 class="mb-4">Prüfung {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
 <div class="card"><div class="card-body">
 <form method="POST">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -11,7 +11,7 @@
     <div class="col-md-2">{{ field("code", "Code", item.code, required=true, placeholder="z.B. I.2") }}</div>
     <div class="col-md-1">{{ field("ordinal", "Nr.", item.ordinal, type="number", required=true) }}</div>
     <div class="col-md-4">{{ field("name", "Name", item.name, required=true) }}</div>
-    <div class="col-md-3">{{ select("substance_id", "Substanz", sub_opts, item.substance_id, required=true) }}</div>
+    <div class="col-md-3">{{ select("substance_id", "Arzneistoff / Analyt", sub_opts, item.substance_id, required=true) }}</div>
   </div>
   <div class="row">
     <div class="col-md-3">{{ select("calculation_mode", "Calculation Mode", mode_opts, item.calculation_mode or 'assay_mass_based', required=true) }}</div>

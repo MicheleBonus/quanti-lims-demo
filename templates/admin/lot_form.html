@@ -7,7 +7,7 @@
 <form method="POST">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
-    <div class="col-md-4">{{ select("substance_id", "Substanz", sub_opts, item.substance_id, required=true) }}</div>
+    <div class="col-md-4">{{ select("substance_id", "Arzneistoff", sub_opts, item.substance_id, required=true) }}</div>
     <div class="col-md-4">{{ field("lot_number", "Chargennummer", item.lot_number, required=true) }}</div>
     <div class="col-md-4">{{ field("supplier", "Lieferant", item.supplier) }}</div>
   </div>

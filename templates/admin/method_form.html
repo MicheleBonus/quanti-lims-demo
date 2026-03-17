@@ -16,9 +16,8 @@
     <div class="col-md-3">{{ field("v_vorlage_ml", "V_Vorlage (mL)", item.v_vorlage_ml, type="number", step="0.1", help="Nur bei Rücktitration") }}</div>
     <div class="col-md-3">
       {{ select("weighing_basis", "Einwaage-Basis", weighing_basis_opts, item.weighing_basis or 'per_preparation', required=true) }}
-      <div class="form-text mt-n2 mb-3">per_preparation = Einwaage gilt für Gesamtansatz; per_determination = Einwaage je Bestimmung</div>
     </div>
-    <div class="col-md-3">{{ field("n_aliquots", "n_aliquots", item.n_aliquots, type="number", help="Nur bei per_determination: Anzahl Aliquote/Bestimmungen") }}</div>
+    <div class="col-md-3" id="n_aliquots_group">{{ field("n_aliquots", "Anzahl Einzelbestimmungen", item.n_aliquots, type="number", help="Nur relevant bei „Einwaage je Bestimmung": Wie viele separate Einwaagen werden pro Probe angefertigt?") }}</div>
   </div>
   <div class="row">
     <div class="col-md-3">{{ checkbox("blind_required", "Blindversuch zwingend", item.blind_required) }}</div>
@@ -29,4 +28,20 @@
   <a href="{{ url_for('admin_methods') }}" class="btn btn-outline-secondary">Abbrechen</a>
 </form>
 </div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const basisSelect = document.getElementById('weighing_basis');
+  const aliquotGroup = document.getElementById('n_aliquots_group');
+  const aliquotInput = document.getElementById('n_aliquots');
+  function syncAliquotVisibility() {
+    const show = basisSelect.value === 'per_determination';
+    aliquotGroup.style.display = show ? '' : 'none';
+    if (!show) aliquotInput.value = '';
+  }
+  basisSelect.addEventListener('change', syncAliquotVisibility);
+  syncAliquotVisibility();
+})();
+</script>
 {% endblock %}

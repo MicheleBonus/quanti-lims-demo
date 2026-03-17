@@ -94,8 +94,29 @@ table td[style*="sticky"] {
   vertical-align: middle;
 }
 
+/* Drag & Drop */
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.sortable-ghost {
+  opacity: 0.4;
+  background: #e3f2fd !important;
+}
+
 /* Dropdown refinements */
 .dropdown-item i {
   width: 20px;
   text-align: center;
+}
+
+/* Dropdown headers */
+.dropdown-header {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
 }

@@ -3,52 +3,78 @@
 {% block title %}Probenansatz {{ 'bearbeiten' if item.id else 'anlegen' }}{% endblock %}
 {% block content %}
 <h4 class="mb-4">Probenansatz {{ 'bearbeiten' if item.id else 'anlegen' }}</h4>
+
+<div class="alert alert-light border small">
+  <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong>
+  Wählen Sie zuerst die Prüfung – daraus werden automatisch Vorschlagswerte für m_S,min und m_ges berechnet
+  (basierend auf der Arzneibuch-Einwaage E_AB und dem Verschnitt).
+  Verdünnungsfaktor nur angeben, wenn der Arzneistoff in Lösung ausgegeben wird (z.B. HCl-Lösung, Glycerol-Lösung).
+  Für Festsubstanzgemische (der Normalfall) bleibt das Feld leer.
+</div>
+
 <div class="card"><div class="card-body">
 <form method="POST">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
-    <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
+    <div class="col-md-4">{{ select("analysis_id", "Prüfung", ana_opts, item.analysis_id, required=true) }}</div>
     <div class="col-md-4">{{ select("substance_lot_id", "Charge (optional)", lot_opts, item.substance_lot_id, blank="– Keine Charge (p=100%) –") }}</div>
   </div>
 
+  <div class="row">
+    <div class="col-md-8">{{ field("blend_description", "Verschnitt-Beschreibung", item.blend_description, placeholder="z.B. 50% Acetylsalicylsäure + 50% Lactose – Beschreibt die Zusammensetzung des Probengemisches", help="Welcher Verschnitt wird für diese Prüfung verwendet? Zusammensetzung und Verhältnis angeben.") }}</div>
+  </div>
+
   <div id="mass-fields" class="row">
-    <div class="col-md-3">{{ field("target_m_s_min_g", "Ziel m_S,min (g)", item.target_m_s_min_g, type="number", step="0.001", help="Mindest-Substanzmasse für massenbasierte Abläufe") }}</div>
-    <div class="col-md-3">{{ field("target_m_ges_g", "Ziel m_ges (g)", item.target_m_ges_g, type="number", step="0.001", help="Soll-Gesamtmasse für massenbasierte Abläufe") }}</div>
+    <div class="col-md-3">{{ field("target_m_s_min_g", "Ziel m_S,min (g)", item.target_m_s_min_g, type="number", step="0.001", help="Mindest-Substanzmasse (= E_AB aus Arzneibuch). Wird beim Wechsel der Prüfung automatisch vorgeschlagen.") }}</div>
+    <div class="col-md-3">{{ field("target_m_ges_g", "Ziel m_ges (g)", item.target_m_ges_g, type="number", step="0.001", help="Soll-Gesamtmasse des Gemisches. Berechnet sich als m_S,min / (Gehalt_wahr / 100). Bei einem 50%-Verschnitt z.B. das Doppelte von m_S,min.") }}</div>
   </div>
 
   <div id="volume-fields" class="row">
-    <div class="col-md-3">{{ field("target_v_min_ml", "Ziel V_min (mL)", item.target_v_min_ml, type="number", step="0.001", help="Mindestzielvolumen für volumenbasierte Abläufe") }}</div>
-    <div class="col-md-3">{{ field("target_v_max_ml", "Ziel V_max (mL)", item.target_v_max_ml, type="number", step="0.001", help="Maximalzielvolumen für volumenbasierte Abläufe") }}</div>
+    <div class="col-md-3">{{ field("target_v_min_ml", "Ziel V_min (mL)", item.target_v_min_ml, type="number", step="0.001", help="Mindestvolumen (nur für Einstellanalysen/Titrant-Standardisierung)") }}</div>
+    <div class="col-md-3">{{ field("target_v_max_ml", "Ziel V_max (mL)", item.target_v_max_ml, type="number", step="0.001", help="Maximalvolumen (nur für Einstellanalysen/Titrant-Standardisierung)") }}</div>
   </div>
 
   <div class="row">
-    <div class="col-md-3">{{ field("dilution_factor", "Verdünnungsfaktor (optional)", item.dilution_factor, type="number", step="0.001", help="z. B. 10 für 1:10") }}</div>
-    <div class="col-md-3">{{ field("dilution_solvent", "Verdünnungsmedium (optional)", item.dilution_solvent, help="z. B. Wasser, HCl 0.1 M") }}</div>
-    <div class="col-md-3">{{ field("titer", "Titer/Faktor (nur Korrekturfaktor der Maßlösung)", item.titer or 1.000, type="number", step="0.001", help="Nicht aus p_effektiv abgeleitet. Für assay_mass_based wird standardmäßig der letzte Einstell-Faktor übernommen; manuelle Eingabe nur als expliziter Override.") }}</div>
+    <div class="col-md-3" id="dilution-group">
+      {{ field("dilution_factor", "Verdünnungsfaktor (optional)", item.dilution_factor, type="number", step="0.001", help="Nur relevant, wenn der Arzneistoff in Lösung ausgegeben wird (z.B. HCl-Lösung, Glycerol). Für Festsubstanzgemische (Normalfall) leer lassen.") }}
+    </div>
+    <div class="col-md-3" id="dilution-solvent-group">
+      {{ field("dilution_solvent", "Verdünnungsmedium", item.dilution_solvent, help="z.B. Wasser, HCl 0,1 M – nur bei Lösungen") }}
+    </div>
   </div>
-  <div class="form-check mb-3">
-    <input class="form-check-input" type="checkbox" value="1" id="titer_override" name="titer_override">
-    <label class="form-check-label" for="titer_override">
-      Manuellen Titer/Faktor-Override erzwingen (mit Herkunftsprotokoll)
-    </label>
-  </div>
-  {% if item.id %}
-  <div class="alert alert-secondary py-2 small">
-    Aktuelle Herkunft: <strong>{{ item.titer_source_label }}</strong>
-    {% if item.titer_source_date %} | Datum: {{ item.titer_source_date }}{% endif %}
-    {% if item.titer_source_operator %} | Operator: {{ item.titer_source_operator }}{% endif %}
-  </div>
-  {% endif %}
-
-  <div class="row">
-    <div class="col-md-6">{{ textarea("dilution_notes", "Verdünnungsnotizen (optional)", item.dilution_notes, rows=2) }}</div>
+  <div class="row" id="dilution-notes-group">
+    <div class="col-md-6">{{ textarea("dilution_notes", "Verdünnungsnotizen", item.dilution_notes, rows=2) }}</div>
   </div>
 
+  <hr class="my-3">
+  <h6>Probenherstellung</h6>
   <div class="row">
-    <div class="col-md-3">{{ field("total_samples_prepared", "Anzahl Proben (gesamt)", item.total_samples_prepared or (n_students + (n_students * 0.3)|round(0, 'ceil')|int), type="number", required=true, help="Inkl. ~30 % Puffer. Aktuell " ~ n_students ~ " Studierende.") }}</div>
+    <div class="col-md-3">{{ field("total_samples_prepared", "Anzahl Proben (gesamt)", item.total_samples_prepared or (n_students + (n_students * 0.3)|round(0, 'ceil')|int), type="number", required=true, help="Inkl. ~30% Puffer. Aktuell " ~ n_students ~ " Studierende.") }}</div>
     <div class="col-md-3">{{ field("preparation_date", "Herstellungsdatum", item.preparation_date, type="date") }}</div>
     <div class="col-md-3">{{ field("prepared_by", "Hergestellt von", item.prepared_by) }}</div>
   </div>
+
+  {% if item.id %}
+  <div class="alert alert-secondary py-2 small mt-2">
+    <strong>Titer/Faktor-Info:</strong> {{ item.titer_label }} = {{ item.titer|fmt(4) }}
+    ({{ item.titer_source_label }}{% if item.titer_source_date %}, {{ item.titer_source_date|de_date }}{% endif %}{% if item.titer_source_operator %}, {{ item.titer_source_operator }}{% endif %})
+    <br><small class="text-body-secondary">Der Titer/Faktor wird für die Berechnung des theoretischen Verbrauchs verwendet.
+    Für massenbasierte Prüfungen wird der letzte Einstell-Faktor automatisch übernommen.
+    Nur in Ausnahmefällen manuell überschreiben.</small>
+  </div>
+  {% endif %}
+
+  <input type="hidden" name="titer" value="{{ item.titer or 1.000 }}">
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" value="1" id="titer_override" name="titer_override">
+    <label class="form-check-label" for="titer_override">
+      Titer/Faktor manuell überschreiben (nur in Ausnahmefällen)
+    </label>
+  </div>
+  <div id="titer-override-fields" class="row" style="display:none">
+    <div class="col-md-3">{{ field("titer_manual", "Manueller Titer/Faktor", item.titer or 1.000, type="number", step="0.0001", help="Sollkonzentration = 1.000. Für theoretische Verbräuche wird standardmäßig die Sollkonzentration angenommen.") }}</div>
+  </div>
+
   {{ textarea("notes", "Notizen", item.notes) }}
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern & Proben generieren</button>
   <a href="{{ url_for('admin_batches') }}" class="btn btn-outline-secondary">Abbrechen</a>
@@ -78,8 +104,35 @@
     setGroupVisibility(mode === MODE_ASSAY);
   }
 
-  analysisSelect.addEventListener("change", syncByMode);
+  analysisSelect.addEventListener("change", () => {
+    syncByMode();
+    // Auto-fill m_S,min from analysis E_AB
+    const aid = analysisSelect.value;
+    if (aid) {
+      fetch(`/api/analysis/${aid}/defaults`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.e_ab_g && !document.getElementById('target_m_s_min_g').value) {
+            document.getElementById('target_m_s_min_g').value = data.e_ab_g;
+          }
+        });
+    }
+  });
   syncByMode();
+
+  // Titer override toggle
+  const overrideCb = document.getElementById('titer_override');
+  const overrideFields = document.getElementById('titer-override-fields');
+  const titerHidden = document.querySelector('input[name="titer"]');
+  const titerManual = document.getElementById('titer_manual');
+  function syncTiterOverride() {
+    overrideFields.style.display = overrideCb.checked ? '' : 'none';
+    if (overrideCb.checked && titerManual) {
+      titerManual.addEventListener('input', () => { titerHidden.value = titerManual.value; });
+    }
+  }
+  overrideCb.addEventListener('change', syncTiterOverride);
+  syncTiterOverride();
 })();
 </script>
 {% endblock %}
