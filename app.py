@@ -473,6 +473,10 @@ def register_routes(app):
             item.method_type = request.form["method_type"]
             item.m_eq_mg = _float(request.form.get("m_eq_mg"))
             item.titrant_concentration = request.form.get("titrant_concentration") or None
+            item.c_titrant_mol_l = _float(request.form.get("c_titrant_mol_l"))
+            item.n_eq_titrant = _float(request.form.get("n_eq_titrant"))
+            item.c_vorlage_mol_l = _float(request.form.get("c_vorlage_mol_l"))
+            item.n_eq_vorlage = _float(request.form.get("n_eq_vorlage"))
             item.blind_required = "blind_required" in request.form
             item.b_blind_determinations = int(request.form.get("b_blind_determinations", 1))
             item.v_vorlage_ml = _float(request.form.get("v_vorlage_ml"))
@@ -970,6 +974,7 @@ def register_routes(app):
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
             item.blend_description = request.form.get("blend_description") or None
+            item.n_extra_determinations = _int(request.form.get("n_extra_determinations")) or 1
             item.gehalt_min_pct = _float(request.form.get("gehalt_min_pct"))
             item.target_m_s_min_g = _float(request.form.get("target_m_s_min_g"))
             item.target_m_ges_g = _float(request.form.get("target_m_ges_g"))
@@ -980,9 +985,11 @@ def register_routes(app):
             if mode == MODE_ASSAY_MASS_BASED and analysis:
                 e_ab = analysis.e_ab_g
                 k_det = analysis.k_determinations or 3
+                n_extra = item.n_extra_determinations or 1
+                k_total = k_det + n_extra
                 gehalt_min = item.gehalt_min_pct
                 if e_ab is not None and gehalt_min is not None:
-                    computed_m_ges = round(e_ab * k_det, 3)
+                    computed_m_ges = round(e_ab * k_total, 3)
                     computed_m_s = round(computed_m_ges * gehalt_min / 100.0, 3)
                     if item.target_m_ges_g is None:
                         item.target_m_ges_g = computed_m_ges
@@ -1815,12 +1822,17 @@ def register_routes(app):
             "g_ab_min_pct": analysis.g_ab_min_pct,
             "g_ab_max_pct": analysis.g_ab_max_pct,
             "calculation_mode": resolve_mode(analysis.calculation_mode),
+            "molar_mass_gmol": analysis.substance.molar_mass_gmol if analysis.substance else None,
         }
         if method:
             result["m_eq_mg"] = method.m_eq_mg
             result["titrant_concentration"] = method.titrant_concentration
             result["method_type"] = method.method_type
             result["v_vorlage_ml"] = method.v_vorlage_ml
+            result["c_titrant_mol_l"] = method.c_titrant_mol_l
+            result["n_eq_titrant"] = method.n_eq_titrant
+            result["c_vorlage_mol_l"] = method.c_vorlage_mol_l
+            result["n_eq_vorlage"] = method.n_eq_vorlage
             # For titrant standardization: compute theoretical volume from primary standard
             if (
                 method.primary_standard

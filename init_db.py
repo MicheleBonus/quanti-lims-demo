@@ -114,6 +114,29 @@ def seed_database():
     methods["I.1"].primary_standard = substances["Natriumtetraborat"]
     methods["I.1"].m_eq_primary_mg = 19.069
 
+    # ── Explicit titration parameters ───────────────────────────────
+    # I.1: HCl 0.1 mol/L – direct titration of Na2B4O7 (2 eq per mol)
+    methods["I.1"].c_titrant_mol_l = 0.1
+    methods["I.1"].n_eq_titrant = 2.0
+
+    # I.2: ASS back-titration – 50 mL NaOH 0.5M added, 2 eq NaOH per mol ASS, back-titrate with HCl 0.5M
+    methods["I.2"].c_titrant_mol_l = 0.5
+    methods["I.2"].n_eq_titrant = 1.0
+    methods["I.2"].c_vorlage_mol_l = 0.5
+    methods["I.2"].n_eq_vorlage = 2.0
+
+    # I.3: Natriumhydrogencarbonat – direct titration with HCl 0.1 mol/L (1 eq)
+    methods["I.3"].c_titrant_mol_l = 0.1
+    methods["I.3"].n_eq_titrant = 1.0
+
+    # I.4: Natriumcarbonat – direct titration with HCl 0.1 mol/L (2 eq per mol)
+    methods["I.4"].c_titrant_mol_l = 0.1
+    methods["I.4"].n_eq_titrant = 2.0
+
+    # II.1: Ascorbinsäure – direct titration with I2 0.05 mol/L (1 eq per mol)
+    methods["II.1"].c_titrant_mol_l = 0.05
+    methods["II.1"].n_eq_titrant = 1.0
+
     # ── Reagenzien (Beispiel-Katalog) ──────────────────────────────
     reagents = {}
     reag_data = [

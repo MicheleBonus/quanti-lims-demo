@@ -9,16 +9,42 @@
   <div class="row">
     <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
     <div class="col-md-3">{{ select("method_type", "Methodentyp", [('direct','Direkttitration'),('back','Rücktitration'),('gravimetric','Gravimetrie'),('complexometric','Komplexometrie'),('argentometric','Argentometrie'),('other','Sonstige')], item.method_type, required=true) }}</div>
-    <div class="col-md-2">{{ field("m_eq_mg", "m_eq (mg/mL)", item.m_eq_mg, type="number", step="0.01") }}</div>
+    <div class="col-md-2">{{ field("m_eq_mg", "m_eq (mg/mL) [Legacy]", item.m_eq_mg, type="number", step="0.01", help="Wird nur verwendet wenn die expliziten Titrationsparameter (unten) nicht gesetzt sind.") }}</div>
   </div>
   <div class="row">
-    <div class="col-md-3">{{ field("titrant_concentration", "Konzentration", item.titrant_concentration, placeholder="z.B. 0,1 mol/L") }}</div>
-    <div class="col-md-3">{{ field("v_vorlage_ml", "V_Vorlage (mL)", item.v_vorlage_ml, type="number", step="0.1", help="Nur bei Rücktitration") }}</div>
+    <div class="col-md-3">{{ field("titrant_concentration", "Konzentration (Text)", item.titrant_concentration, placeholder="z.B. 0,1 mol/L", help="Beschreibungsfeld. Für Berechnungen bitte c_Titrant (numerisch) unten verwenden.") }}</div>
+    <div class="col-md-3">{{ field("v_vorlage_ml", "V_Vorlage (mL)", item.v_vorlage_ml, type="number", step="0.1", help="Vorlage-Volumen für Rücktitration (z.B. 50.0 mL NaOH)") }}</div>
     <div class="col-md-3">
       {{ select("weighing_basis", "Einwaage-Basis", weighing_basis_opts, item.weighing_basis or 'per_preparation', required=true) }}
     </div>
     <div class="col-md-3" id="n_aliquots_group">{{ field("n_aliquots", "Anzahl Einzelbestimmungen", item.n_aliquots, type="number", help="Nur relevant bei ‚Einwaage je Bestimmung': Wie viele separate Einwaagen werden pro Probe angefertigt?") }}</div>
   </div>
+
+  <hr class="my-3">
+  <h6><i class="bi bi-calculator"></i> Explizite Titrationsparameter</h6>
+  <div class="alert alert-light border small">
+    <i class="bi bi-info-circle"></i> Diese Parameter werden für die transparente Berechnung von V_erw verwendet.
+    Wenn gesetzt, haben sie Vorrang vor dem Legacy-Wert m_eq (mg/mL).
+  </div>
+  <div class="row">
+    <div class="col-md-3">{{ field("c_titrant_mol_l", "c_Titrant (mol/L)", item.c_titrant_mol_l, type="number", step="0.001", help="Numerische Konzentration der Maßlösung (z.B. 0.5 für HCl 0,5 mol/L)") }}</div>
+    <div class="col-md-3">{{ field("n_eq_titrant", "n_eq Titrant", item.n_eq_titrant, type="number", step="0.1", help="Äquivalente Titrant pro Mol Analyt (Direkt) bzw. pro Mol Vorlage-Reagenz (Rück). Standard: 1") }}</div>
+  </div>
+  <div class="row" id="vorlage-params-row">
+    <div class="col-md-3">{{ field("c_vorlage_mol_l", "c_Vorlage (mol/L)", item.c_vorlage_mol_l, type="number", step="0.001", help="Konzentration der Vorlage-Lösung (z.B. 0.5 für NaOH 0,5 mol/L). Nur bei Rücktitration.") }}</div>
+    <div class="col-md-3">{{ field("n_eq_vorlage", "n_eq Vorlage pro Mol Analyt", item.n_eq_vorlage, type="number", step="0.1", help="Äquivalente der Vorlage die pro Mol Analyt verbraucht werden (z.B. 2 für ASS + 2 NaOH)") }}</div>
+  </div>
+
+  <div class="card bg-light mb-3" id="calc-preview">
+    <div class="card-body py-2">
+      <h6 class="card-title mb-1"><i class="bi bi-eye"></i> Berechnungsvorschau</h6>
+      <div id="calc-preview-content" class="small font-monospace">
+        <span class="text-body-secondary">Parameter eingeben um Vorschau zu sehen...</span>
+      </div>
+    </div>
+  </div>
+
+  <hr class="my-3">
   <div class="row">
     <div class="col-md-3">{{ checkbox("blind_required", "Blindversuch zwingend", item.blind_required) }}</div>
     <div class="col-md-3">{{ field("b_blind_determinations", "Anzahl Blindversuche (b)", item.b_blind_determinations or 1, type="number") }}</div>
@@ -39,13 +65,132 @@
   const basisSelect = document.getElementById('weighing_basis');
   const aliquotGroup = document.getElementById('n_aliquots_group');
   const aliquotInput = document.getElementById('n_aliquots');
+  const methodTypeSelect = document.getElementById('method_type');
+  const vorlageRow = document.getElementById('vorlage-params-row');
+  const previewContent = document.getElementById('calc-preview-content');
+
+  // Substance molar masses keyed by analysis_id (loaded via API)
+  const analysisMW = {};
+
   function syncAliquotVisibility() {
     const show = basisSelect.value === 'per_determination';
     aliquotGroup.style.display = show ? '' : 'none';
     if (!show) aliquotInput.value = '';
   }
+
+  function syncVorlageVisibility() {
+    const isBack = methodTypeSelect.value === 'back';
+    vorlageRow.style.display = isBack ? '' : 'none';
+  }
+
+  function getFloat(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const v = parseFloat(el.value.replace(',', '.'));
+    return isNaN(v) ? null : v;
+  }
+
+  function updateCalcPreview() {
+    const mtype = methodTypeSelect.value;
+    const cTitrant = getFloat('c_titrant_mol_l');
+    const nEqTitrant = getFloat('n_eq_titrant') ?? 1.0;
+    const cVorlage = getFloat('c_vorlage_mol_l');
+    const nEqVorlage = getFloat('n_eq_vorlage');
+    const vVorlage = getFloat('v_vorlage_ml');
+
+    // Try to get MW from loaded analysis defaults
+    const analysisId = document.getElementById('analysis_id').value;
+    const mw = analysisMW[analysisId];
+
+    if (!cTitrant || cTitrant <= 0) {
+      previewContent.innerHTML = '<span class="text-body-secondary">c_Titrant eingeben um Vorschau zu sehen...</span>';
+      return;
+    }
+
+    let html = '';
+    // Example values for preview
+    const exMs = 1.0;  // 1.0 g substance mass
+    const exGw = 100.0; // 100% purity for simplicity
+
+    if (mtype === 'back') {
+      if (!cVorlage || !nEqVorlage || !vVorlage) {
+        previewContent.innerHTML = '<span class="text-body-secondary">Für Rücktitration bitte auch c_Vorlage, n_eq_Vorlage und V_Vorlage eingeben.</span>';
+        return;
+      }
+      html += '<strong>Formel (Rücktitration):</strong><br>';
+      html += 'n_Analyt = (m_S × G_wahr/100) / MW<br>';
+      html += 'n_Vorlage_verbraucht = n_Analyt × n_eq_Vorlage<br>';
+      html += 'n_Vorlage_gesamt = V_Vorlage × c_Vorlage<br>';
+      html += 'n_Vorlage_Überschuss = n_Vorlage_gesamt − n_Vorlage_verbraucht<br>';
+      html += 'V_Titrant = n_Vorlage_Überschuss × n_eq_Titrant / c_Titrant<br>';
+      html += '<hr class="my-1">';
+
+      if (mw && mw > 0) {
+        const nAnalyte = (exMs * 1000 * exGw / 100) / mw;
+        const nVorConsumed = nAnalyte * nEqVorlage;
+        const nVorTotal = vVorlage * cVorlage;
+        const nVorExcess = nVorTotal - nVorConsumed;
+        const vTitrant = nVorExcess * nEqTitrant / cTitrant;
+        html += `<strong>Beispiel</strong> (m_S=${exMs} g, G_wahr=${exGw}%, MW=${mw.toFixed(2)}):<br>`;
+        html += `n_Analyt = (${exMs}×1000×${exGw}/100) / ${mw.toFixed(2)} = ${nAnalyte.toFixed(4)} mmol<br>`;
+        html += `n_Vorlage_verbr. = ${nAnalyte.toFixed(4)} × ${nEqVorlage} = ${nVorConsumed.toFixed(4)} mmol<br>`;
+        html += `n_Vorlage_ges. = ${vVorlage} × ${cVorlage} = ${nVorTotal.toFixed(4)} mmol<br>`;
+        html += `n_Vorlage_Übersch. = ${nVorTotal.toFixed(4)} − ${nVorConsumed.toFixed(4)} = ${nVorExcess.toFixed(4)} mmol<br>`;
+        html += `<strong>V_Titrant = ${nVorExcess.toFixed(4)} × ${nEqTitrant} / ${cTitrant} = ${vTitrant.toFixed(3)} mL</strong>`;
+      } else {
+        html += '<span class="text-body-secondary">Analyse wählen um Beispielrechnung mit MW zu sehen.</span>';
+      }
+    } else if (['direct', 'complexometric', 'argentometric', 'other'].includes(mtype)) {
+      html += '<strong>Formel (Direkttitration):</strong><br>';
+      html += 'n_Analyt = (m_S × G_wahr/100) / MW<br>';
+      html += 'V_Titrant = n_Analyt × n_eq_Titrant / c_Titrant<br>';
+      html += '<hr class="my-1">';
+
+      if (mw && mw > 0) {
+        const nAnalyte = (exMs * 1000 * exGw / 100) / mw;
+        const vTitrant = nAnalyte * nEqTitrant / cTitrant;
+        html += `<strong>Beispiel</strong> (m_S=${exMs} g, G_wahr=${exGw}%, MW=${mw.toFixed(2)}):<br>`;
+        html += `n_Analyt = (${exMs}×1000×${exGw}/100) / ${mw.toFixed(2)} = ${nAnalyte.toFixed(4)} mmol<br>`;
+        html += `<strong>V_Titrant = ${nAnalyte.toFixed(4)} × ${nEqTitrant} / ${cTitrant} = ${vTitrant.toFixed(3)} mL</strong>`;
+      } else {
+        html += '<span class="text-body-secondary">Analyse wählen um Beispielrechnung mit MW zu sehen.</span>';
+      }
+    } else {
+      html += '<span class="text-body-secondary">Für diesen Methodentyp ist keine Titrationsvorschau verfügbar.</span>';
+    }
+
+    previewContent.innerHTML = html;
+  }
+
+  function loadAnalysisDefaults() {
+    const aid = document.getElementById('analysis_id').value;
+    if (aid && !analysisMW[aid]) {
+      fetch(`/api/analysis/${aid}/defaults`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.molar_mass_gmol) {
+            analysisMW[aid] = data.molar_mass_gmol;
+          }
+          updateCalcPreview();
+        });
+    } else {
+      updateCalcPreview();
+    }
+  }
+
   basisSelect.addEventListener('change', syncAliquotVisibility);
+  methodTypeSelect.addEventListener('change', () => { syncVorlageVisibility(); updateCalcPreview(); });
+
+  // Update preview on any titration parameter change
+  ['c_titrant_mol_l', 'n_eq_titrant', 'c_vorlage_mol_l', 'n_eq_vorlage', 'v_vorlage_ml'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateCalcPreview);
+  });
+  document.getElementById('analysis_id').addEventListener('change', loadAnalysisDefaults);
+
   syncAliquotVisibility();
+  syncVorlageVisibility();
+  loadAnalysisDefaults();
 })();
 </script>
 {% endblock %}
