@@ -13,8 +13,14 @@
   </div>
   <div class="row">
     <div class="col-md-3">{{ checkbox("is_composite", "Zusammengesetztes Reagenz", item.is_composite) }}</div>
+    <div class="col-md-3">{{ checkbox("is_primary_standard", "Primärstandard / Urtitersubstanz", item.is_primary_standard) }}</div>
     <div class="col-md-3">{{ field("cas_number", "CAS-Nummer", item.cas_number) }}</div>
     <div class="col-md-3">{{ field("density_g_ml", "Dichte (g/mL)", item.density_g_ml, type="number", step="0.001") }}</div>
+  </div>
+  <div class="row" id="primary-standard-fields" {% if not item.is_primary_standard %}style="display:none"{% endif %}>
+    <div class="col-md-3">{{ field("formula", "Summenformel", item.formula) }}</div>
+    <div class="col-md-3">{{ field("molar_mass_gmol", "Molare Masse (g/mol)", item.molar_mass_gmol, type="number", step="0.01") }}</div>
+    <div class="col-md-3">{{ field("e_ab_g", "Einwaage (g)", item.e_ab_g, type="number", step="0.001", help="Arzneibuch-Einwaage für die Titereinstellung") }}</div>
   </div>
   <div class="row">
     <div class="col-md-4">{{ field("hazard_symbols", "GHS-Piktogramme", item.hazard_symbols, placeholder="z.B. GHS02,GHS07") }}</div>
@@ -25,4 +31,17 @@
   <a href="{{ url_for('admin_reagents') }}" class="btn btn-outline-secondary">Abbrechen</a>
 </form>
 </div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const cb = document.getElementById('is_primary_standard');
+  const fields = document.getElementById('primary-standard-fields');
+  if (cb && fields) {
+    cb.addEventListener('change', () => {
+      fields.style.display = cb.checked ? '' : 'none';
+    });
+  }
+});
+</script>
 {% endblock %}
