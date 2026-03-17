@@ -100,7 +100,6 @@ class Substance(db.Model):
     g_ab_min_pct = db.Column(db.Float)
     g_ab_max_pct = db.Column(db.Float)
     notes = db.Column(db.Text)
-    is_primary_standard = db.Column(db.Boolean, nullable=False, default=False)
     position = db.Column(db.Integer, nullable=False, default=0)
 
     lots = db.relationship("SubstanceLot", back_populates="substance")
@@ -213,13 +212,13 @@ class Method(db.Model):
     v_vorlage_ml = db.Column(db.Float)
     v_solution_ml = db.Column(db.Float)       # Total volume substance is dissolved to (e.g. 100.0 mL)
     v_aliquot_ml = db.Column(db.Float)        # Aliquot volume taken for each titration (e.g. 20.0 mL)
-    primary_standard_id = db.Column(db.Integer, db.ForeignKey("substance.id"))
+    primary_standard_id = db.Column(db.Integer, db.ForeignKey("reagent.id"))
     m_eq_primary_mg = db.Column(db.Float)
     description = db.Column(db.Text)
     position = db.Column(db.Integer, nullable=False, default=0)
 
     analysis = db.relationship("Analysis", back_populates="method")
-    primary_standard = db.relationship("Substance", foreign_keys=[primary_standard_id])
+    primary_standard = db.relationship("Reagent", foreign_keys=[primary_standard_id], back_populates="primary_standard_methods")
     reagent_usages = db.relationship("MethodReagent", back_populates="method")
 
     @property
@@ -252,6 +251,10 @@ class Reagent(db.Model):
     name = db.Column(db.String(200), unique=True, nullable=False)
     abbreviation = db.Column(db.String(50))
     is_composite = db.Column(db.Boolean, nullable=False, default=False)
+    is_primary_standard = db.Column(db.Boolean, nullable=False, default=False)
+    formula = db.Column(db.String(100))
+    molar_mass_gmol = db.Column(db.Float)
+    e_ab_g = db.Column(db.Float)
     base_unit = db.Column(UNIT_ENUM, nullable=False, default="mL")
     cas_number = db.Column(db.String(30))
     density_g_ml = db.Column(db.Float)
@@ -266,6 +269,7 @@ class Reagent(db.Model):
         back_populates="parent",
     )
     method_usages = db.relationship("MethodReagent", back_populates="reagent")
+    primary_standard_methods = db.relationship("Method", back_populates="primary_standard")
 
 
 class ReagentComponent(db.Model):
@@ -340,9 +344,20 @@ def migrate_schema() -> None:
         if "v_aliquot_ml" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN v_aliquot_ml REAL")
         if "primary_standard_id" not in method_cols:
-            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN primary_standard_id INTEGER REFERENCES substance(id)")
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN primary_standard_id INTEGER REFERENCES reagent(id)")
         if "m_eq_primary_mg" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN m_eq_primary_mg FLOAT")
+
+        # ── Reagent: primary standard fields ──
+        reag_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(reagent)").fetchall()}
+        if "is_primary_standard" not in reag_cols:
+            conn.exec_driver_sql("ALTER TABLE reagent ADD COLUMN is_primary_standard BOOLEAN DEFAULT 0")
+        if "formula" not in reag_cols:
+            conn.exec_driver_sql("ALTER TABLE reagent ADD COLUMN formula VARCHAR(100)")
+        if "molar_mass_gmol" not in reag_cols:
+            conn.exec_driver_sql("ALTER TABLE reagent ADD COLUMN molar_mass_gmol FLOAT")
+        if "e_ab_g" not in reag_cols:
+            conn.exec_driver_sql("ALTER TABLE reagent ADD COLUMN e_ab_g FLOAT")
 
         cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method_reagent)").fetchall()}
         if "volume_per_determination_ml" in cols:
@@ -441,14 +456,6 @@ def migrate_schema() -> None:
                     f"  SELECT COUNT(*) FROM {table} t2 WHERE t2.id <= {table}.id"
                     f")"
                 )
-
-        # ── Substance: is_primary_standard flag ──
-        sub_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(substance)").fetchall()}
-        if "is_primary_standard" not in sub_cols:
-            conn.exec_driver_sql("ALTER TABLE substance ADD COLUMN is_primary_standard BOOLEAN DEFAULT 0")
-            conn.exec_driver_sql(
-                "UPDATE substance SET is_primary_standard = 1 WHERE name = 'Natriumtetraborat'"
-            )
 
         indexes = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(method_reagent)").fetchall()}
         if "uq_method_reagent_single_titrant" not in indexes:
