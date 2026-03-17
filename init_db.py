@@ -115,11 +115,6 @@ def seed_database():
         methods[acode] = m
     db.session.flush()
 
-    # Primary standard for titrant standardization (I.1: HCl standardized with Na2B4O7)
-    # Na2B4O7·10H2O: MW=381.37, 2 equiv → m_eq_primary = 381.37/2 × 0.1 = 19.069 mg/mL
-    methods["I.1"].primary_standard = substances["Natriumtetraborat"]
-    methods["I.1"].m_eq_primary_mg = 19.069
-
     # ── Explicit titration parameters ───────────────────────────────
     # I.1: HCl 0.1 mol/L – direct titration of Na2B4O7 (2 eq per mol)
     methods["I.1"].c_titrant_mol_l = 0.1
@@ -179,6 +174,11 @@ def seed_database():
         db.session.add(r)
         reagents[name] = r
     db.session.flush()
+
+    # Primary standard for titrant standardization (I.1: HCl standardized with Na2B4O7)
+    # Na2B4O7·10H2O: MW=381.37, 2 equiv → m_eq_primary = 381.37/2 × 0.1 = 19.069 mg/mL
+    methods["I.1"].primary_standard = substances["Natriumtetraborat"]
+    methods["I.1"].m_eq_primary_mg = 19.069
 
     # ── BOM: Verdünnte Schwefelsäure R ─────────────────────────────
     db.session.add(ReagentComponent(
