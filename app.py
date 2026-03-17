@@ -308,6 +308,7 @@ def register_routes(app):
             item.name = request.form["name"]
             item.formula = request.form.get("formula") or None
             item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
+            item.is_primary_standard = bool(request.form.get("is_primary_standard"))
             item.notes = request.form.get("notes") or None
             duplicate = Substance.query.filter(
                 Substance.name == item.name,
@@ -490,8 +491,9 @@ def register_routes(app):
             if validation_error:
                 flash(validation_error, "danger")
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
-                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts)
+                all_subs = Substance.query.order_by(Substance.name).all()
+                ps_opts = [(s.id, f"{s.name} ({s.formula}, MW={s.molar_mass_gmol})") for s in all_subs if s.is_primary_standard]
+                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, primary_std_opts=ps_opts)
             if not id:
                 db.session.add(item)
             try:
@@ -502,8 +504,9 @@ def register_routes(app):
                 db.session.rollback()
                 flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-        sub_opts = [(s.id, s.name) for s in Substance.query.order_by(Substance.name).all()]
-        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, sub_opts=sub_opts)
+        all_subs = Substance.query.order_by(Substance.name).all()
+        ps_opts = [(s.id, f"{s.name} ({s.formula}, MW={s.molar_mass_gmol})") for s in all_subs if s.is_primary_standard]
+        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, primary_std_opts=ps_opts)
 
     @app.route("/admin/methods/<int:id>/delete", methods=["POST"])
     def admin_method_delete(id):
