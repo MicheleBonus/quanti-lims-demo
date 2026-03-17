@@ -17,7 +17,7 @@
     <div class="col-md-3">
       {{ select("weighing_basis", "Einwaage-Basis", weighing_basis_opts, item.weighing_basis or 'per_preparation', required=true) }}
     </div>
-    <div class="col-md-3" id="n_aliquots_group">{{ field("n_aliquots", "Anzahl Einzelbestimmungen", item.n_aliquots, type="number", help="Nur relevant bei „Einwaage je Bestimmung": Wie viele separate Einwaagen werden pro Probe angefertigt?") }}</div>
+    <div class="col-md-3" id="n_aliquots_group">{{ field("n_aliquots", "Anzahl Einzelbestimmungen", item.n_aliquots, type="number", help="Nur relevant bei ‚Einwaage je Bestimmung': Wie viele separate Einwaagen werden pro Probe angefertigt?") }}</div>
   </div>
   <div class="row">
     <div class="col-md-3">{{ checkbox("blind_required", "Blindversuch zwingend", item.blind_required) }}</div>

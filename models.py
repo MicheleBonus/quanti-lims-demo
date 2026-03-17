@@ -214,6 +214,7 @@ class Method(db.Model):
     weighing_basis = db.Column(db.String(30), nullable=False, default=WEIGHING_BASIS_PER_PREPARATION)
     n_aliquots = db.Column(db.Integer)
     description = db.Column(db.Text)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
     analysis = db.relationship("Analysis", back_populates="method")
     reagent_usages = db.relationship("MethodReagent", back_populates="method")
