@@ -317,6 +317,8 @@ def migrate_schema() -> None:
         batch_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sample_batch)").fetchall()}
         if "n_extra_determinations" not in batch_cols:
             conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN n_extra_determinations INTEGER DEFAULT 1")
+        if "mortar_loss_factor" not in batch_cols:
+            conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN mortar_loss_factor FLOAT DEFAULT 1.1")
         if "blend_description" not in batch_cols:
             conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN blend_description VARCHAR(500)")
 
@@ -510,6 +512,7 @@ class SampleBatch(db.Model):
     blend_description = db.Column(db.String(500))
     gehalt_min_pct = db.Column(db.Float)
     n_extra_determinations = db.Column(db.Integer, nullable=False, default=1)
+    mortar_loss_factor = db.Column(db.Float, nullable=False, default=1.1)
     target_m_s_min_g = db.Column(db.Float)
     target_m_ges_g = db.Column(db.Float)
     target_v_min_ml = db.Column(db.Float)

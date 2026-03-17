@@ -974,7 +974,8 @@ def register_routes(app):
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
             item.blend_description = request.form.get("blend_description") or None
-            item.n_extra_determinations = _int(request.form.get("n_extra_determinations")) or 1
+            item.n_extra_determinations = _int(request.form.get("n_extra_determinations")) if _int(request.form.get("n_extra_determinations")) is not None else 1
+            item.mortar_loss_factor = _float(request.form.get("mortar_loss_factor")) or 1.1
             item.gehalt_min_pct = _float(request.form.get("gehalt_min_pct"))
             item.target_m_s_min_g = _float(request.form.get("target_m_s_min_g"))
             item.target_m_ges_g = _float(request.form.get("target_m_ges_g"))
@@ -985,11 +986,12 @@ def register_routes(app):
             if mode == MODE_ASSAY_MASS_BASED and analysis:
                 e_ab = analysis.e_ab_g
                 k_det = analysis.k_determinations or 3
-                n_extra = item.n_extra_determinations or 1
+                n_extra = item.n_extra_determinations if item.n_extra_determinations is not None else 1
+                mortar_f = item.mortar_loss_factor or 1.1
                 k_total = k_det + n_extra
                 gehalt_min = item.gehalt_min_pct
                 if e_ab is not None and gehalt_min is not None:
-                    computed_m_ges = round(e_ab * k_total, 3)
+                    computed_m_ges = round(e_ab * k_total * mortar_f, 3)
                     computed_m_s = round(computed_m_ges * gehalt_min / 100.0, 3)
                     if item.target_m_ges_g is None:
                         item.target_m_ges_g = computed_m_ges
