@@ -138,6 +138,7 @@ const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.method and batch.analysis.method.v_solution_ml else 0 }};
 const V_ALIQUOT = {{ batch.analysis.method.v_aliquot_ml if batch.analysis.method and batch.analysis.method.v_aliquot_ml else 0 }};
 const ALIQUOT_FRAC = (V_SOLUTION > 0 && V_ALIQUOT > 0) ? V_ALIQUOT / V_SOLUTION : 1.0;
+const E_AB_G = {{ batch.analysis.e_ab_g if batch.analysis.e_ab_g is not none else 'null' }};
 {% endif %}
 
 const TARGET_M_S_MIN_G = {{ batch.target_m_s_min_g if batch.target_m_s_min_g is not none else 'null' }};
@@ -212,8 +213,8 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         document.getElementById('amax-' + sid).textContent = amax.toFixed(4);
       }
 
-      // V_erw calculation: prefer explicit parameters, fall back to legacy m_eq
-      const msMg = ms * 1000;
+      // V_erw calculation: use per-determination mass (e_ab_g), fall back to m_s
+      const msMg = (E_AB_G !== null ? E_AB_G : ms) * 1000;
       let vExp = null;
       if (C_TITRANT !== null && C_TITRANT > 0 && MW_ANALYTE !== null && MW_ANALYTE > 0) {
         const nAnalyte = (msMg * gw / 100) / MW_ANALYTE;

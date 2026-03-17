@@ -49,10 +49,10 @@ class MassBasedEvaluator:
             return (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
         return None
 
-    def _v_expected_explicit(self, sample, g_wahr: float, aliquot_fraction: float) -> float | None:
+    def _v_expected_explicit(self, sample, g_wahr: float, aliquot_fraction: float, e_ab_g: float | None) -> float | None:
         """Calculate V_expected using explicit titration parameters (preferred)."""
         method = sample.batch.analysis.method
-        if method is None or g_wahr is None or sample.m_s_actual_g is None:
+        if method is None or g_wahr is None or e_ab_g is None:
             return None
         substance = sample.batch.analysis.substance
         if substance is None or substance.molar_mass_gmol is None or substance.molar_mass_gmol <= 0:
@@ -61,8 +61,8 @@ class MassBasedEvaluator:
             return None
 
         mw = substance.molar_mass_gmol
-        m_s_mg = sample.m_s_actual_g * 1000.0
-        n_analyte_mmol = (m_s_mg * g_wahr / 100.0) / mw
+        e_ab_mg = e_ab_g * 1000.0
+        n_analyte_mmol = (e_ab_mg * g_wahr / 100.0) / mw
 
         if method.method_type in ("direct", "complexometric", "argentometric", "other"):
             n_eq = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
@@ -80,16 +80,16 @@ class MassBasedEvaluator:
             return round(v_titrant, 3)
         return None
 
-    def _v_expected_legacy(self, sample, g_wahr: float, aliquot_fraction: float) -> float | None:
+    def _v_expected_legacy(self, sample, g_wahr: float, aliquot_fraction: float, e_ab_g: float | None) -> float | None:
         """Fallback: calculate V_expected using legacy m_eq_mg parameter."""
         method = sample.batch.analysis.method
         if method is None or method.m_eq_mg is None or method.m_eq_mg <= 0:
             return None
-        if g_wahr is None or sample.m_s_actual_g is None:
+        if g_wahr is None or e_ab_g is None:
             return None
-        m_s_mg = sample.m_s_actual_g * 1000.0
+        e_ab_mg = e_ab_g * 1000.0
         t = 1.0  # Nominal concentration (Sollkonzentration = 1.000)
-        equiv_vol = (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * aliquot_fraction
+        equiv_vol = (e_ab_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * aliquot_fraction
         if method.method_type in ("direct", "complexometric", "argentometric", "other"):
             return round(equiv_vol, 3)
         elif method.method_type == "back" and method.v_vorlage_ml is not None:
@@ -106,10 +106,15 @@ class MassBasedEvaluator:
         a_min = round(g_wahr * tol_min / 100.0, 4) if g_wahr is not None and tol_min is not None else None
         a_max = round(g_wahr * tol_max / 100.0, 4) if g_wahr is not None and tol_max is not None else None
 
+        # Resolve per-determination mass: prefer analysis.e_ab_g, fall back to m_s_actual_g
+        e_ab_g = sample.batch.analysis.e_ab_g if sample.batch and sample.batch.analysis else None
+        if e_ab_g is None:
+            e_ab_g = sample.m_s_actual_g
+
         # Prefer explicit titration parameters, fall back to legacy m_eq_mg
-        v_expected_ml = self._v_expected_explicit(sample, g_wahr, aliquot_fraction)
+        v_expected_ml = self._v_expected_explicit(sample, g_wahr, aliquot_fraction, e_ab_g)
         if v_expected_ml is None:
-            v_expected_ml = self._v_expected_legacy(sample, g_wahr, aliquot_fraction)
+            v_expected_ml = self._v_expected_legacy(sample, g_wahr, aliquot_fraction, e_ab_g)
 
         return SampleCalculation(g_wahr=g_wahr, a_min=a_min, a_max=a_max, v_expected_ml=v_expected_ml)
 
