@@ -18,12 +18,6 @@ AMOUNT_UNIT_MASS = "mass"
 AMOUNT_UNIT_VOLUME = "volume"
 AMOUNT_UNIT_COUNT = "count"
 
-WEIGHING_BASIS_PER_PREPARATION = "per_preparation"
-WEIGHING_BASIS_PER_DETERMINATION = "per_determination"
-WEIGHING_BASIS_OPTIONS = (
-    (WEIGHING_BASIS_PER_PREPARATION, "Einwaage gilt für Gesamtansatz"),
-    (WEIGHING_BASIS_PER_DETERMINATION, "Einwaage gilt je Bestimmung"),
-)
 
 UNIT_DEFINITIONS = (
     ("mg", "mg", AMOUNT_UNIT_MASS),
@@ -216,8 +210,8 @@ class Method(db.Model):
     blind_required = db.Column(db.Boolean, nullable=False, default=False)
     b_blind_determinations = db.Column(db.Integer, nullable=False, default=1)
     v_vorlage_ml = db.Column(db.Float)
-    weighing_basis = db.Column(db.String(30), nullable=False, default=WEIGHING_BASIS_PER_PREPARATION)
-    n_aliquots = db.Column(db.Integer)
+    v_solution_ml = db.Column(db.Float)       # Total volume substance is dissolved to (e.g. 100.0 mL)
+    v_aliquot_ml = db.Column(db.Float)        # Aliquot volume taken for each titration (e.g. 20.0 mL)
     primary_standard_id = db.Column(db.Integer, db.ForeignKey("substance.id"))
     m_eq_primary_mg = db.Column(db.Float)
     description = db.Column(db.Text)
@@ -239,9 +233,14 @@ class Method(db.Model):
         return self.titrant_name
 
     @property
-    def weighing_basis_label(self) -> str:
-        labels = dict(WEIGHING_BASIS_OPTIONS)
-        return labels.get(self.weighing_basis or WEIGHING_BASIS_PER_PREPARATION, "Einwaage gilt für Gesamtansatz")
+    def aliquot_fraction(self) -> float:
+        if self.v_solution_ml and self.v_aliquot_ml and self.v_solution_ml > 0:
+            return self.v_aliquot_ml / self.v_solution_ml
+        return 1.0
+
+    @property
+    def has_aliquot(self) -> bool:
+        return bool(self.v_solution_ml and self.v_aliquot_ml)
 
 
 # ── Reagenzien-BOM ────────────────────────────────────────────────────────
@@ -335,10 +334,10 @@ def migrate_schema() -> None:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN c_vorlage_mol_l FLOAT")
         if "n_eq_vorlage" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN n_eq_vorlage FLOAT")
-        if "weighing_basis" not in method_cols:
-            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN weighing_basis VARCHAR(30) DEFAULT 'per_preparation'")
-        if "n_aliquots" not in method_cols:
-            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN n_aliquots INTEGER")
+        if "v_solution_ml" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN v_solution_ml REAL")
+        if "v_aliquot_ml" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN v_aliquot_ml REAL")
         if "primary_standard_id" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN primary_standard_id INTEGER REFERENCES substance(id)")
         if "m_eq_primary_mg" not in method_cols:
@@ -373,13 +372,9 @@ def migrate_schema() -> None:
         conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'L' WHERE lower(amount_unit) = 'l'")
         conn.exec_driver_sql("UPDATE method_reagent SET amount_unit = 'pcs' WHERE lower(amount_unit) IN ('stk', 'piece', 'pieces')")
 
-        conn.exec_driver_sql("UPDATE method SET weighing_basis = COALESCE(weighing_basis, 'per_preparation')")
-        conn.exec_driver_sql(
-            "UPDATE method SET weighing_basis = 'per_preparation' "
-            "WHERE weighing_basis NOT IN ('per_preparation', 'per_determination')"
-        )
-        conn.exec_driver_sql("UPDATE method SET n_aliquots = NULL WHERE weighing_basis = 'per_preparation'")
-        conn.exec_driver_sql("UPDATE method SET n_aliquots = 1 WHERE weighing_basis = 'per_determination' AND COALESCE(n_aliquots, 0) < 1")
+        # Ensure aliquot fields are consistent: both set or both NULL
+        conn.exec_driver_sql("UPDATE method SET v_aliquot_ml = NULL WHERE v_solution_ml IS NULL")
+        conn.exec_driver_sql("UPDATE method SET v_solution_ml = NULL WHERE v_aliquot_ml IS NULL")
 
         valid_units_sql = "('mg','g','kg','µL','mL','L','pcs')"
         conn.exec_driver_sql(f"UPDATE reagent SET base_unit = 'mL' WHERE base_unit NOT IN {valid_units_sql}")

@@ -38,10 +38,10 @@ class ModeEvaluator(Protocol):
 
 
 class MassBasedEvaluator:
-    def _scale_factor(self, sample) -> float:
+    def _aliquot_fraction(self, sample) -> float:
         method = sample.batch.analysis.method
-        if method and method.weighing_basis == "per_determination":
-            return float(method.n_aliquots or sample.batch.analysis.k_determinations or 1)
+        if method and method.v_solution_ml and method.v_aliquot_ml and method.v_solution_ml > 0:
+            return method.v_aliquot_ml / method.v_solution_ml
         return 1.0
 
     def _g_wahr(self, sample) -> float | None:
@@ -49,7 +49,7 @@ class MassBasedEvaluator:
             return (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
         return None
 
-    def _v_expected_explicit(self, sample, g_wahr: float, scale_factor: float) -> float | None:
+    def _v_expected_explicit(self, sample, g_wahr: float, aliquot_fraction: float) -> float | None:
         """Calculate V_expected using explicit titration parameters (preferred)."""
         method = sample.batch.analysis.method
         if method is None or g_wahr is None or sample.m_s_actual_g is None:
@@ -66,7 +66,7 @@ class MassBasedEvaluator:
 
         if method.method_type in ("direct", "complexometric", "argentometric", "other"):
             n_eq = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
-            v_titrant = n_analyte_mmol * n_eq / method.c_titrant_mol_l * scale_factor
+            v_titrant = n_analyte_mmol * n_eq / method.c_titrant_mol_l * aliquot_fraction
             return round(v_titrant, 3)
         elif method.method_type == "back":
             if (method.v_vorlage_ml is None or method.c_vorlage_mol_l is None
@@ -76,11 +76,11 @@ class MassBasedEvaluator:
             n_vorlage_consumed = n_analyte_mmol * method.n_eq_vorlage
             n_vorlage_total = method.v_vorlage_ml * method.c_vorlage_mol_l
             n_vorlage_excess = n_vorlage_total - n_vorlage_consumed
-            v_titrant = n_vorlage_excess * n_eq_titrant / method.c_titrant_mol_l * scale_factor
+            v_titrant = n_vorlage_excess * n_eq_titrant / method.c_titrant_mol_l * aliquot_fraction
             return round(v_titrant, 3)
         return None
 
-    def _v_expected_legacy(self, sample, g_wahr: float, scale_factor: float) -> float | None:
+    def _v_expected_legacy(self, sample, g_wahr: float, aliquot_fraction: float) -> float | None:
         """Fallback: calculate V_expected using legacy m_eq_mg parameter."""
         method = sample.batch.analysis.method
         if method is None or method.m_eq_mg is None or method.m_eq_mg <= 0:
@@ -89,7 +89,7 @@ class MassBasedEvaluator:
             return None
         m_s_mg = sample.m_s_actual_g * 1000.0
         t = 1.0  # Nominal concentration (Sollkonzentration = 1.000)
-        equiv_vol = (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor
+        equiv_vol = (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * aliquot_fraction
         if method.method_type in ("direct", "complexometric", "argentometric", "other"):
             return round(equiv_vol, 3)
         elif method.method_type == "back" and method.v_vorlage_ml is not None:
@@ -101,17 +101,15 @@ class MassBasedEvaluator:
         tol_min = sample.batch.analysis.tol_min
         tol_max = sample.batch.analysis.tol_max
 
-        scale_factor = self._scale_factor(sample)
+        aliquot_fraction = self._aliquot_fraction(sample)
 
-        a_min_base = round(g_wahr * tol_min / 100.0, 4) if g_wahr is not None and tol_min is not None else None
-        a_max_base = round(g_wahr * tol_max / 100.0, 4) if g_wahr is not None and tol_max is not None else None
-        a_min = round(a_min_base * scale_factor, 4) if a_min_base is not None else None
-        a_max = round(a_max_base * scale_factor, 4) if a_max_base is not None else None
+        a_min = round(g_wahr * tol_min / 100.0, 4) if g_wahr is not None and tol_min is not None else None
+        a_max = round(g_wahr * tol_max / 100.0, 4) if g_wahr is not None and tol_max is not None else None
 
         # Prefer explicit titration parameters, fall back to legacy m_eq_mg
-        v_expected_ml = self._v_expected_explicit(sample, g_wahr, scale_factor)
+        v_expected_ml = self._v_expected_explicit(sample, g_wahr, aliquot_fraction)
         if v_expected_ml is None:
-            v_expected_ml = self._v_expected_legacy(sample, g_wahr, scale_factor)
+            v_expected_ml = self._v_expected_legacy(sample, g_wahr, aliquot_fraction)
 
         return SampleCalculation(g_wahr=g_wahr, a_min=a_min, a_max=a_max, v_expected_ml=v_expected_ml)
 

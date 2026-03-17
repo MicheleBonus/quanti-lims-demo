@@ -14,8 +14,7 @@
       p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) |
       {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }})
       {% if not is_standardization %} |
-      Einwaage-Logik: {{ batch.analysis.method.weighing_basis_label if batch.analysis.method else 'Einwaage gilt für Gesamtansatz' }}
-      {% if batch.analysis.method and batch.analysis.method.weighing_basis == 'per_determination' %}(n_aliquots = {{ batch.analysis.method.n_aliquots }}){% endif %}
+      {% if batch.analysis.method and batch.analysis.method.has_aliquot %}Aliquot: {{ batch.analysis.method.v_aliquot_ml }} / {{ batch.analysis.method.v_solution_ml }} mL{% endif %}
       {% endif %}
     </small>
   </div>
@@ -136,9 +135,9 @@ const N_EQ_VORLAGE = {{ batch.analysis.method.n_eq_vorlage if batch.analysis.met
 const MW_ANALYTE = {{ batch.analysis.substance.molar_mass_gmol if batch.analysis.substance and batch.analysis.substance.molar_mass_gmol else 'null' }};
 const TOL_MIN = {{ batch.analysis.tol_min or 'null' }};
 const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
-const WEIGHING_BASIS = '{{ batch.analysis.method.weighing_basis if batch.analysis.method else "per_preparation" }}';
-const N_ALIQUOTS = {{ batch.analysis.method.n_aliquots if batch.analysis.method and batch.analysis.method.n_aliquots else (batch.analysis.k_determinations or 1) }};
-const SCALE = WEIGHING_BASIS === 'per_determination' ? N_ALIQUOTS : 1;
+const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.method and batch.analysis.method.v_solution_ml else 0 }};
+const V_ALIQUOT = {{ batch.analysis.method.v_aliquot_ml if batch.analysis.method and batch.analysis.method.v_aliquot_ml else 0 }};
+const ALIQUOT_FRAC = (V_SOLUTION > 0 && V_ALIQUOT > 0) ? V_ALIQUOT / V_SOLUTION : 1.0;
 {% endif %}
 
 const TARGET_M_S_MIN_G = {{ batch.target_m_s_min_g if batch.target_m_s_min_g is not none else 'null' }};
@@ -207,8 +206,8 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       document.getElementById('gw-' + sid).textContent = gw.toFixed(4);
 
       if (TOL_MIN !== null && TOL_MAX !== null) {
-        const amin = (gw * TOL_MIN / 100) * SCALE;
-        const amax = (gw * TOL_MAX / 100) * SCALE;
+        const amin = gw * TOL_MIN / 100;
+        const amax = gw * TOL_MAX / 100;
         document.getElementById('amin-' + sid).textContent = amin.toFixed(4);
         document.getElementById('amax-' + sid).textContent = amax.toFixed(4);
       }
@@ -220,20 +219,20 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         const nAnalyte = (msMg * gw / 100) / MW_ANALYTE;
         const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
         if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
-          vExp = (nAnalyte * nEqT / C_TITRANT) * SCALE;
+          vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
         } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
           const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
           const nVorTotal = V_VORLAGE * C_VORLAGE;
           const nVorExcess = nVorTotal - nVorConsumed;
-          vExp = (nVorExcess * nEqT / C_TITRANT) * SCALE;
+          vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
         }
       }
       if (vExp === null && M_EQ !== null) {
         // Legacy fallback using m_eq_mg
         if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
-          vExp = ((msMg * gw / 100) / (M_EQ * TITER)) * SCALE;
+          vExp = ((msMg * gw / 100) / (M_EQ * TITER)) * ALIQUOT_FRAC;
         } else if (METHOD === 'back' && V_VORLAGE !== null) {
-          vExp = V_VORLAGE - ((msMg * gw / 100) / (M_EQ * TITER)) * SCALE;
+          vExp = V_VORLAGE - ((msMg * gw / 100) / (M_EQ * TITER)) * ALIQUOT_FRAC;
         }
       }
       if (vExp !== null) {
