@@ -8,7 +8,7 @@
 </div>
 <div class="card"><div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th style="width:30px"></th><th>Name</th><th>Kürzel</th><th>Einheit</th><th>Zusammengesetzt?</th><th>CAS</th><th>BOM</th><th></th></tr></thead>
+<thead class="table-light"><tr><th style="width:30px"></th><th>Name</th><th>Kürzel</th><th>Einheit</th><th>Typ</th><th>CAS</th><th>BOM</th><th></th></tr></thead>
 <tbody id="reagent-sortable">
 {% for r in items %}
 <tr data-id="{{ r.id }}">
@@ -16,7 +16,7 @@
   <td><a href="{{ url_for('admin_reagent_form', id=r.id) }}">{{ r.name }}</a></td>
   <td class="text-body-secondary">{{ r.abbreviation or '–' }}</td>
   <td>{{ r.base_unit|unit }}</td>
-  <td>{% if r.is_composite %}<span class="badge bg-warning text-dark">Ja</span>{% else %}–{% endif %}</td>
+  <td>{% if r.is_primary_standard %}<span class="badge bg-info text-dark">Primärstandard</span>{% endif %}{% if r.is_composite %}<span class="badge bg-warning text-dark">Zusammengesetzt</span>{% endif %}{% if not r.is_primary_standard and not r.is_composite %}–{% endif %}</td>
   <td class="text-body-secondary">{{ r.cas_number or '–' }}</td>
   <td>{% if r.is_composite %}<a href="{{ url_for('admin_reagent_components', reagent_id=r.id) }}" class="btn btn-outline-secondary btn-sm">{{ r.components|length }} Komp.</a>{% endif %}</td>
   <td>

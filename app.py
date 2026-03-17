@@ -308,7 +308,6 @@ def register_routes(app):
             item.name = request.form["name"]
             item.formula = request.form.get("formula") or None
             item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
-            item.is_primary_standard = bool(request.form.get("is_primary_standard"))
             item.notes = request.form.get("notes") or None
             duplicate = Substance.query.filter(
                 Substance.name == item.name,
@@ -491,8 +490,8 @@ def register_routes(app):
             if validation_error:
                 flash(validation_error, "danger")
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-                all_subs = Substance.query.order_by(Substance.name).all()
-                ps_opts = [(s.id, f"{s.name} ({s.formula}, MW={s.molar_mass_gmol})") for s in all_subs if s.is_primary_standard]
+                all_reagents = Reagent.query.order_by(Reagent.name).all()
+                ps_opts = [(r.id, f"{r.name} ({r.formula}, MW={r.molar_mass_gmol})") for r in all_reagents if r.is_primary_standard]
                 return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, primary_std_opts=ps_opts)
             if not id:
                 db.session.add(item)
@@ -504,8 +503,8 @@ def register_routes(app):
                 db.session.rollback()
                 flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
-        all_subs = Substance.query.order_by(Substance.name).all()
-        ps_opts = [(s.id, f"{s.name} ({s.formula}, MW={s.molar_mass_gmol})") for s in all_subs if s.is_primary_standard]
+        all_reagents = Reagent.query.order_by(Reagent.name).all()
+        ps_opts = [(r.id, f"{r.name} ({r.formula}, MW={r.molar_mass_gmol})") for r in all_reagents if r.is_primary_standard]
         return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, primary_std_opts=ps_opts)
 
     @app.route("/admin/methods/<int:id>/delete", methods=["POST"])
@@ -535,6 +534,15 @@ def register_routes(app):
             item.name = request.form["name"]
             item.abbreviation = request.form.get("abbreviation") or None
             item.is_composite = "is_composite" in request.form
+            item.is_primary_standard = "is_primary_standard" in request.form
+            if item.is_primary_standard:
+                item.formula = request.form.get("formula") or None
+                item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
+                item.e_ab_g = _float(request.form.get("e_ab_g"))
+            else:
+                item.formula = None
+                item.molar_mass_gmol = None
+                item.e_ab_g = None
             base_unit = normalize_unit(request.form.get("base_unit") or "mL")
             if not is_known_unit(base_unit):
                 flash("Ungültige Einheit für Reagenz.", "danger")
@@ -568,6 +576,9 @@ def register_routes(app):
         item = Reagent.query.get_or_404(id)
         if item.method_usages:
             flash("Reagenz kann nicht gelöscht werden – es ist Methoden zugewiesen. Bitte zuerst die Methoden-Zuweisungen entfernen.", "danger")
+            return redirect(url_for("admin_reagents"))
+        if item.primary_standard_methods:
+            flash("Reagenz kann nicht gelöscht werden – es wird als Primärstandard in Methoden verwendet.", "danger")
             return redirect(url_for("admin_reagents"))
         if item.components:
             for c in list(item.components):

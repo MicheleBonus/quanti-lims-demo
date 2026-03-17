@@ -49,10 +49,6 @@ def seed_database():
         substances[name] = s
     db.session.flush()
 
-    # ── Primärstandards kennzeichnen ──────────────────────────────
-    for ps_name in ("Natriumtetraborat", "Natriumcarbonat", "Trometamol"):
-        substances[ps_name].is_primary_standard = True
-
     # ── Analysen ───────────────────────────────────────────────────
     analyses = {}
     ana_data = [
@@ -117,7 +113,7 @@ def seed_database():
 
     # Primary standard for titrant standardization (I.1: HCl standardized with Na2B4O7)
     # Na2B4O7·10H2O: MW=381.37, 2 equiv → m_eq_primary = 381.37/2 × 0.1 = 19.069 mg/mL
-    methods["I.1"].primary_standard = substances["Natriumtetraborat"]
+    methods["I.1"].primary_standard = reagents["Natriumtetraborat (Primärstandard)"]
     methods["I.1"].m_eq_primary_mg = 19.069
 
     # ── Explicit titration parameters ───────────────────────────────
@@ -146,7 +142,7 @@ def seed_database():
     # ── Reagenzien (Beispiel-Katalog) ──────────────────────────────
     reagents = {}
     reag_data = [
-        # Grundchemikalien
+        # Grundchemikalien / Primärstandards
         ("Ethanol 96 % R",          "EtOH 96%",   False, "mL", None),
         ("Natriumhydroxid-Lösung 0,5 mol/L", "NaOH 0,5M", False, "mL", None),
         ("Salzsäure 0,5 mol/L",     "HCl 0,5M",   False, "mL", None),
@@ -178,6 +174,19 @@ def seed_database():
                     base_unit=unit, cas_number=cas)
         db.session.add(r)
         reagents[name] = r
+
+    # ── Primärstandards / Urtitersubstanzen ──────────────────────
+    ps_data = [
+        ("Natriumtetraborat (Primärstandard)", "Na₂B₄O₇", "Na₂B₄O₇·10H₂O", 381.37, 0.200, "g"),
+        ("Natriumcarbonat (Primärstandard)",   "Na₂CO₃",  "Na₂CO₃",          105.99, None,  "g"),
+        ("Trometamol (Primärstandard)",        "TRIS",     "C₄H₁₁NO₃",       121.14, None,  "g"),
+    ]
+    for name, abbrev, formula, mm, e_ab, unit in ps_data:
+        r = Reagent(name=name, abbreviation=abbrev, is_primary_standard=True,
+                    formula=formula, molar_mass_gmol=mm, e_ab_g=e_ab, base_unit=unit)
+        db.session.add(r)
+        reagents[name] = r
+
     db.session.flush()
 
     # ── BOM: Verdünnte Schwefelsäure R ─────────────────────────────
