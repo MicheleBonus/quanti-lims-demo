@@ -66,14 +66,14 @@
                  name="m_s_{{ s.id }}" value="{{ s.m_s_actual_g if s.m_s_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_s"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="invalid-feedback d-block field-hint" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none !important;"{% endif %}>unter Mindest-Substanzmasse</div>
+          <div class="field-hint text-danger small" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none"{% endif %}>unter Mindest-Substanzmasse</div>
         </td>
         <td>
           <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_target_violation %}is-invalid{% endif %}"
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_ges"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none !important;"{% endif %}>unter Mindesteinwaage</div>
+          <div class="field-hint text-danger small" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none"{% endif %}>unter Mindesteinwaage</div>
         </td>
         <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
@@ -85,10 +85,10 @@
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_ges"
                  placeholder="0.000" inputmode="decimal">
-          <div class="invalid-feedback d-block field-hint" data-hint-field="m_ges" {% if not flags.volume_range_violation %}style="display:none !important;"{% endif %}>außerhalb Zielbereich</div>
+          <div class="field-hint text-danger small" data-hint-field="m_ges" {% if not flags.volume_range_violation %}style="display:none"{% endif %}>außerhalb Zielbereich</div>
         </td>
         {% endif %}
-        <td>
+        <td data-status-cell>
           {% if flags.out_of_range %}
             <i class="bi bi-exclamation-triangle-fill text-danger"></i>
           {% elif s.is_weighed %}
@@ -128,6 +128,12 @@ const TITER = {{ batch.titer }};
 const M_EQ = {{ batch.analysis.method.m_eq_mg if batch.analysis.method and batch.analysis.method.m_eq_mg else 'null' }};
 const METHOD = '{{ batch.analysis.method.method_type if batch.analysis.method else "" }}';
 const V_VORLAGE = {{ batch.analysis.method.v_vorlage_ml if batch.analysis.method and batch.analysis.method.v_vorlage_ml else 'null' }};
+// Explicit titration parameters (preferred over M_EQ)
+const C_TITRANT = {{ batch.analysis.method.c_titrant_mol_l if batch.analysis.method and batch.analysis.method.c_titrant_mol_l else 'null' }};
+const N_EQ_TITRANT = {{ batch.analysis.method.n_eq_titrant if batch.analysis.method and batch.analysis.method.n_eq_titrant else 'null' }};
+const C_VORLAGE = {{ batch.analysis.method.c_vorlage_mol_l if batch.analysis.method and batch.analysis.method.c_vorlage_mol_l else 'null' }};
+const N_EQ_VORLAGE = {{ batch.analysis.method.n_eq_vorlage if batch.analysis.method and batch.analysis.method.n_eq_vorlage else 'null' }};
+const MW_ANALYTE = {{ batch.analysis.substance.molar_mass_gmol if batch.analysis.substance and batch.analysis.substance.molar_mass_gmol else 'null' }};
 const TOL_MIN = {{ batch.analysis.tol_min or 'null' }};
 const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const WEIGHING_BASIS = '{{ batch.analysis.method.weighing_basis if batch.analysis.method else "per_preparation" }}';
@@ -158,7 +164,7 @@ function evaluateLimits(ms, mges) {
   return flags;
 }
 
-function applyLimitUi(row, flags) {
+function applyLimitUi(row, flags, ms, mges) {
   row.classList.toggle('table-danger', flags.out);
   const msInput = row.querySelector('[data-field="m_s"]');
   const mgesInput = row.querySelector('[data-field="m_ges"]');
@@ -171,6 +177,18 @@ function applyLimitUi(row, flags) {
     mgesInput.classList.toggle('is-invalid', flags.mGesBand || flags.volumeRange);
     const mgesHint = row.querySelector('[data-hint-field="m_ges"]');
     if (mgesHint) mgesHint.style.display = (flags.mGesBand || flags.volumeRange) ? 'block' : 'none';
+  }
+  // Live status icon update
+  const statusCell = row.querySelector('[data-status-cell]');
+  if (statusCell) {
+    const hasInput = !Number.isNaN(ms) || !Number.isNaN(mges);
+    if (flags.out) {
+      statusCell.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger"></i>';
+    } else if (hasInput) {
+      statusCell.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+    } else {
+      statusCell.innerHTML = '<i class="bi bi-circle text-body-secondary"></i>';
+    }
   }
 }
 
@@ -195,21 +213,36 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         document.getElementById('amax-' + sid).textContent = amax.toFixed(4);
       }
 
-      if (M_EQ !== null) {
-        const msMg = ms * 1000;
-        let vExp = null;
-        if (METHOD === 'direct') {
+      // V_erw calculation: prefer explicit parameters, fall back to legacy m_eq
+      const msMg = ms * 1000;
+      let vExp = null;
+      if (C_TITRANT !== null && C_TITRANT > 0 && MW_ANALYTE !== null && MW_ANALYTE > 0) {
+        const nAnalyte = (msMg * gw / 100) / MW_ANALYTE;
+        const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
+        if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
+          vExp = (nAnalyte * nEqT / C_TITRANT) * SCALE;
+        } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
+          const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
+          const nVorTotal = V_VORLAGE * C_VORLAGE;
+          const nVorExcess = nVorTotal - nVorConsumed;
+          vExp = (nVorExcess * nEqT / C_TITRANT) * SCALE;
+        }
+      }
+      if (vExp === null && M_EQ !== null) {
+        // Legacy fallback using m_eq_mg
+        if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
           vExp = ((msMg * gw / 100) / (M_EQ * TITER)) * SCALE;
         } else if (METHOD === 'back' && V_VORLAGE !== null) {
           vExp = V_VORLAGE - ((msMg * gw / 100) / (M_EQ * TITER)) * SCALE;
         }
-        if (vExp !== null) {
-          document.getElementById('vexp-' + sid).textContent = vExp.toFixed(3);
-        }
+      }
+      if (vExp !== null) {
+        document.getElementById('vexp-' + sid).textContent = vExp.toFixed(3);
       }
     }
     {% endif %}
-    applyLimitUi(row, evaluateLimits(ms, mges));
+    const limFlags = evaluateLimits(ms, mges);
+    applyLimitUi(row, limFlags, ms, mges);
   });
   input.dispatchEvent(new Event('input'));
 });

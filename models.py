@@ -208,6 +208,11 @@ class Method(db.Model):
     m_eq_mg = db.Column(db.Float)
     titrant_name = db.Column(db.String(200))
     titrant_concentration = db.Column(db.String(50))
+    # Explicit titration parameters (preferred over m_eq_mg)
+    c_titrant_mol_l = db.Column(db.Float)      # Numeric concentration of titrant (mol/L)
+    n_eq_titrant = db.Column(db.Float)          # Equivalents of titrant per mol analyte (direct) or per mol Vorlage (back)
+    c_vorlage_mol_l = db.Column(db.Float)       # Concentration of Vorlage reagent (back-titration only)
+    n_eq_vorlage = db.Column(db.Float)          # Equivalents of Vorlage consumed per mol analyte (back-titration only)
     blind_required = db.Column(db.Boolean, nullable=False, default=False)
     b_blind_determinations = db.Column(db.Integer, nullable=False, default=1)
     v_vorlage_ml = db.Column(db.Float)
@@ -310,6 +315,10 @@ def migrate_schema() -> None:
             conn.exec_driver_sql("ALTER TABLE method_reagent ADD COLUMN amount_unit VARCHAR(20) DEFAULT 'mL'")
 
         batch_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sample_batch)").fetchall()}
+        if "n_extra_determinations" not in batch_cols:
+            conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN n_extra_determinations INTEGER DEFAULT 1")
+        if "mortar_loss_factor" not in batch_cols:
+            conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN mortar_loss_factor FLOAT DEFAULT 1.1")
         if "blend_description" not in batch_cols:
             conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN blend_description VARCHAR(500)")
 
@@ -318,6 +327,14 @@ def migrate_schema() -> None:
             conn.exec_driver_sql("ALTER TABLE sample_batch ADD COLUMN gehalt_min_pct FLOAT")
 
         method_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(method)").fetchall()}
+        if "c_titrant_mol_l" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN c_titrant_mol_l FLOAT")
+        if "n_eq_titrant" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN n_eq_titrant FLOAT")
+        if "c_vorlage_mol_l" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN c_vorlage_mol_l FLOAT")
+        if "n_eq_vorlage" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN n_eq_vorlage FLOAT")
         if "weighing_basis" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN weighing_basis VARCHAR(30) DEFAULT 'per_preparation'")
         if "n_aliquots" not in method_cols:
@@ -494,6 +511,8 @@ class SampleBatch(db.Model):
     substance_lot_id = db.Column(db.Integer, db.ForeignKey("substance_lot.id"))
     blend_description = db.Column(db.String(500))
     gehalt_min_pct = db.Column(db.Float)
+    n_extra_determinations = db.Column(db.Integer, nullable=False, default=1)
+    mortar_loss_factor = db.Column(db.Float, nullable=False, default=1.1)
     target_m_s_min_g = db.Column(db.Float)
     target_m_ges_g = db.Column(db.Float)
     target_v_min_ml = db.Column(db.Float)

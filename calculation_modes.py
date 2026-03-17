@@ -49,6 +49,53 @@ class MassBasedEvaluator:
             return (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
         return None
 
+    def _v_expected_explicit(self, sample, g_wahr: float, scale_factor: float) -> float | None:
+        """Calculate V_expected using explicit titration parameters (preferred)."""
+        method = sample.batch.analysis.method
+        if method is None or g_wahr is None or sample.m_s_actual_g is None:
+            return None
+        substance = sample.batch.analysis.substance
+        if substance is None or substance.molar_mass_gmol is None or substance.molar_mass_gmol <= 0:
+            return None
+        if method.c_titrant_mol_l is None or method.c_titrant_mol_l <= 0:
+            return None
+
+        mw = substance.molar_mass_gmol
+        m_s_mg = sample.m_s_actual_g * 1000.0
+        n_analyte_mmol = (m_s_mg * g_wahr / 100.0) / mw
+
+        if method.method_type in ("direct", "complexometric", "argentometric", "other"):
+            n_eq = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
+            v_titrant = n_analyte_mmol * n_eq / method.c_titrant_mol_l * scale_factor
+            return round(v_titrant, 3)
+        elif method.method_type == "back":
+            if (method.v_vorlage_ml is None or method.c_vorlage_mol_l is None
+                    or method.n_eq_vorlage is None):
+                return None
+            n_eq_titrant = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
+            n_vorlage_consumed = n_analyte_mmol * method.n_eq_vorlage
+            n_vorlage_total = method.v_vorlage_ml * method.c_vorlage_mol_l
+            n_vorlage_excess = n_vorlage_total - n_vorlage_consumed
+            v_titrant = n_vorlage_excess * n_eq_titrant / method.c_titrant_mol_l * scale_factor
+            return round(v_titrant, 3)
+        return None
+
+    def _v_expected_legacy(self, sample, g_wahr: float, scale_factor: float) -> float | None:
+        """Fallback: calculate V_expected using legacy m_eq_mg parameter."""
+        method = sample.batch.analysis.method
+        if method is None or method.m_eq_mg is None or method.m_eq_mg <= 0:
+            return None
+        if g_wahr is None or sample.m_s_actual_g is None:
+            return None
+        m_s_mg = sample.m_s_actual_g * 1000.0
+        t = 1.0  # Nominal concentration (Sollkonzentration = 1.000)
+        equiv_vol = (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor
+        if method.method_type in ("direct", "complexometric", "argentometric", "other"):
+            return round(equiv_vol, 3)
+        elif method.method_type == "back" and method.v_vorlage_ml is not None:
+            return round(method.v_vorlage_ml - equiv_vol, 3)
+        return None
+
     def calculate_sample(self, sample) -> SampleCalculation:
         g_wahr = self._g_wahr(sample)
         tol_min = sample.batch.analysis.tol_min
@@ -61,17 +108,10 @@ class MassBasedEvaluator:
         a_min = round(a_min_base * scale_factor, 4) if a_min_base is not None else None
         a_max = round(a_max_base * scale_factor, 4) if a_max_base is not None else None
 
-        method = sample.batch.analysis.method
-        v_expected_ml = None
-        if g_wahr is not None and method is not None and method.m_eq_mg is not None and method.m_eq_mg > 0:
-            m_s_mg = sample.m_s_actual_g * 1000.0
-            # Use nominal concentration (Sollkonzentration = 1.000) for theoretical consumption
-            t = 1.0
-            equiv_vol = (m_s_mg * (g_wahr / 100.0) / (method.m_eq_mg * t)) * scale_factor
-            if method.method_type in ("direct", "complexometric", "argentometric", "other"):
-                v_expected_ml = round(equiv_vol, 3)
-            elif method.method_type == "back" and method.v_vorlage_ml is not None:
-                v_expected_ml = round(method.v_vorlage_ml - equiv_vol, 3)
+        # Prefer explicit titration parameters, fall back to legacy m_eq_mg
+        v_expected_ml = self._v_expected_explicit(sample, g_wahr, scale_factor)
+        if v_expected_ml is None:
+            v_expected_ml = self._v_expected_legacy(sample, g_wahr, scale_factor)
 
         return SampleCalculation(g_wahr=g_wahr, a_min=a_min, a_max=a_max, v_expected_ml=v_expected_ml)
 

@@ -7,8 +7,9 @@
 <div class="alert alert-light border small" id="hint-mass">
   <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong>
   Wählen Sie zuerst die Prüfung und geben Sie den Mindest-Zielgehalt an.
-  Daraus berechnet das System automatisch die Mindesteinwaagen für Substanz und Gesamtgemisch
-  (E_AB × Anzahl Bestimmungen × Mindestgehalt).
+  Daraus berechnet das System automatisch die Mindesteinwaagen für Substanz und Gesamtgemisch:
+  <strong>E_AB × (Bestimmungen + Zusatz) × Mörserfaktor × Mindestgehalt</strong>.
+  Zusatz-Bestimmungen = Puffer für Wiederholungen (0 = keine). Mörserfaktor = Aufschlag für Verluste beim Mörsern/Verschütten (1.0 = keiner, 1.1 = 10%).
   Verdünnungsfaktor nur angeben, wenn der Arzneistoff in Lösung ausgegeben wird (z.B. HCl-Lösung, Glycerol-Lösung).
   Für Festsubstanzgemische (der Normalfall) bleibt das Feld leer.
 </div>
@@ -34,6 +35,8 @@
   <div id="mass-fields">
     <div class="row">
       <div class="col-md-3">{{ field("gehalt_min_pct", "Mindest-Zielgehalt (%)", item.gehalt_min_pct, type="number", step="0.1", help="Mindestgehalt der Probe in %. Definiert den minimalen Substanzanteil im Probengemisch. Daraus werden die Mindesteinwaagen berechnet.") }}</div>
+      <div class="col-md-2">{{ field("n_extra_determinations", "Zusatz-Bestimmungen", item.n_extra_determinations if item.n_extra_determinations is not none else 1, type="number", step="1", help="Zusätzliche Bestimmungen für Wiederholung/Puffer. 0 = keine Wiederholung eingeplant, 1 = eine zusätzliche Bestimmung.") }}</div>
+      <div class="col-md-2">{{ field("mortar_loss_factor", "Mörserfaktor", item.mortar_loss_factor if item.mortar_loss_factor is not none else 1.1, type="number", step="0.01", help="Aufschlag für Verluste beim Mörsern/Verschütten (z.B. 1.1 = 10% extra, 1.0 = kein Aufschlag).") }}</div>
     </div>
     <div class="row">
       <div class="col-md-3">{{ field("target_m_ges_g", "Mindest-Gesamteinwaage (g)", item.target_m_ges_g, type="number", step="0.001", help="Mindest-Gesamtmasse des Probengemisches. Berechnet: E_AB × Anzahl Bestimmungen. Kann manuell überschrieben werden.") }}</div>
@@ -118,6 +121,8 @@
   const targetVMaxInput = document.getElementById("target_v_max_ml");
   const massCalcInfo = document.getElementById("mass-calc-info");
   const massCalcDetail = document.getElementById("mass-calc-detail");
+  const nExtraInput = document.getElementById("n_extra_determinations");
+  const mortarFactorInput = document.getElementById("mortar_loss_factor");
 
   // Cache for analysis defaults from API
   let currentDefaults = null;
@@ -142,10 +147,13 @@
     if (!currentDefaults) return;
     const eAb = currentDefaults.e_ab_g;
     const kDet = currentDefaults.k_determinations || 3;
+    const nExtra = parseInt(nExtraInput.value) || 0;
+    const mortarF = parseFloat(mortarFactorInput.value.replace(',', '.')) || 1.0;
     const gehaltMin = parseFloat(gehaltMinInput.value);
+    const kTotal = kDet + nExtra;
 
     if (eAb && !isNaN(gehaltMin) && gehaltMin > 0 && gehaltMin <= 100) {
-      const mGesMin = +(eAb * kDet).toFixed(3);
+      const mGesMin = +(eAb * kTotal * mortarF).toFixed(3);
       const mSMin = +(mGesMin * gehaltMin / 100).toFixed(3);
 
       // Only auto-fill if field is empty or was auto-filled before
@@ -158,7 +166,7 @@
 
       massCalcInfo.style.display = "";
       massCalcDetail.textContent =
-        `Berechnung: E_AB (${eAb} g) × ${kDet} Bestimmungen = ${mGesMin} g Mindest-Gesamt; ` +
+        `Berechnung: E_AB (${eAb} g) × (${kDet} + ${nExtra} Zusatz) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; ` +
         `davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`;
     } else {
       massCalcInfo.style.display = "none";
@@ -186,6 +194,18 @@
 
   gehaltMinInput.addEventListener("input", () => {
     // Reset auto-fill flags so recalc updates values
+    delete targetMGesInput.dataset.userEdited;
+    delete targetMSMinInput.dataset.userEdited;
+    recalcMassFields();
+  });
+
+  nExtraInput.addEventListener("input", () => {
+    delete targetMGesInput.dataset.userEdited;
+    delete targetMSMinInput.dataset.userEdited;
+    recalcMassFields();
+  });
+
+  mortarFactorInput.addEventListener("input", () => {
     delete targetMGesInput.dataset.userEdited;
     delete targetMSMinInput.dataset.userEdited;
     recalcMassFields();
