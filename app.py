@@ -485,6 +485,7 @@ def register_routes(app):
             item.v_aliquot_ml = _float(request.form.get("v_aliquot_ml"))
             item.primary_standard_id = _int(request.form.get("primary_standard_id"))
             item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
+            item.e_ab_ps_g = _float(request.form.get("e_ab_ps_g"))
             item.description = request.form.get("description") or None
             validation_error = _validate_aliquot(item)
             if validation_error:
@@ -538,11 +539,9 @@ def register_routes(app):
             if item.is_primary_standard:
                 item.formula = request.form.get("formula") or None
                 item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
-                item.e_ab_g = _float(request.form.get("e_ab_g"))
             else:
                 item.formula = None
                 item.molar_mass_gmol = None
-                item.e_ab_g = None
             base_unit = normalize_unit(request.form.get("base_unit") or "mL")
             if not is_known_unit(base_unit):
                 flash("Ungültige Einheit für Reagenz.", "danger")
@@ -1846,12 +1845,11 @@ def register_routes(app):
             result["n_eq_vorlage"] = method.n_eq_vorlage
             # For titrant standardization: compute theoretical volume from primary standard
             if (
-                method.primary_standard
-                and method.primary_standard.e_ab_g is not None
+                method.e_ab_ps_g is not None
                 and method.m_eq_primary_mg is not None
                 and method.m_eq_primary_mg > 0
             ):
-                v_theoretical = (method.primary_standard.e_ab_g * 1000.0) / method.m_eq_primary_mg
+                v_theoretical = (method.e_ab_ps_g * 1000.0) / method.m_eq_primary_mg
                 result["v_theoretical_ml"] = round(v_theoretical, 3)
         return jsonify(result)
 
