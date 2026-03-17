@@ -9,21 +9,30 @@
   <div class="row">
     <div class="col-md-4">{{ select("analysis_id", "Analyse", ana_opts, item.analysis_id, required=true) }}</div>
     <div class="col-md-3">{{ select("method_type", "Methodentyp", [('direct','Direkttitration'),('back','Rücktitration'),('gravimetric','Gravimetrie'),('complexometric','Komplexometrie'),('argentometric','Argentometrie'),('other','Sonstige')], item.method_type, required=true) }}</div>
-    <div class="col-md-2">{{ field("m_eq_mg", "m_eq (mg/mL) [Legacy]", item.m_eq_mg, type="number", step="0.01", help="Wird nur verwendet wenn die expliziten Titrationsparameter (unten) nicht gesetzt sind.") }}</div>
+    <div class="col-md-2" id="meq-legacy-col">{{ field("m_eq_mg", "m_eq (mg/mL) [Legacy]", item.m_eq_mg, type="number", step="0.01", help="Wird nur verwendet wenn die expliziten Titrationsparameter (unten) nicht gesetzt sind.") }}</div>
   </div>
-  <div class="row">
-    <div class="col-md-3">{{ field("titrant_concentration", "Konzentration (Text)", item.titrant_concentration, placeholder="z.B. 0,1 mol/L", help="Beschreibungsfeld. Für Berechnungen bitte c_Titrant (numerisch) unten verwenden.") }}</div>
+  <div class="row" id="assay-volumes-row">
+    <div class="col-md-3" id="titrant-conc-col">{{ field("titrant_concentration", "Konzentration (Text)", item.titrant_concentration, placeholder="z.B. 0,1 mol/L", help="Beschreibungsfeld. Für Berechnungen bitte c_Titrant (numerisch) unten verwenden.") }}</div>
     <div class="col-md-3">{{ field("v_vorlage_ml", "V_Vorlage (mL)", item.v_vorlage_ml, type="number", step="0.1", help="Vorlage-Volumen für Rücktitration (z.B. 50.0 mL NaOH)") }}</div>
-    <div class="col-md-3">{{ field("v_solution_ml", "V Lösung (mL)", item.v_solution_ml, type="number", step="0.1", help="Gesamtvolumen, in dem die Einwaage gelöst wird (z.B. 100,0 mL). Leer lassen bei Direkttitration.") }}</div>
-    <div class="col-md-3">{{ field("v_aliquot_ml", "V Aliquot (mL)", item.v_aliquot_ml, type="number", step="0.1", help="Aliquotvolumen für jede Titration (z.B. 20,0 mL). Leer lassen bei Direkttitration.") }}</div>
+    <div class="col-md-3" id="v-solution-col">{{ field("v_solution_ml", "V Lösung (mL)", item.v_solution_ml, type="number", step="0.1", help="Gesamtvolumen, in dem die Einwaage gelöst wird (z.B. 100,0 mL). Leer lassen bei Direkttitration.") }}</div>
+    <div class="col-md-3" id="v-aliquot-col">{{ field("v_aliquot_ml", "V Aliquot (mL)", item.v_aliquot_ml, type="number", step="0.1", help="Aliquotvolumen für jede Titration (z.B. 20,0 mL). Leer lassen bei Direkttitration.") }}</div>
   </div>
 
+  <div id="titration-section">
   <hr class="my-3">
-  <h6><i class="bi bi-calculator"></i> Explizite Titrationsparameter</h6>
-  <div class="alert alert-light border small">
+  <h6 id="titration-params-title"><i class="bi bi-calculator"></i> Explizite Titrationsparameter</h6>
+  <div class="alert alert-light border small" id="titration-params-help">
     <i class="bi bi-info-circle"></i> Diese Parameter werden für die transparente Berechnung von V_erw verwendet.
     Wenn gesetzt, haben sie Vorrang vor dem Legacy-Wert m_eq (mg/mL).
   </div>
+
+  <div id="primary-standard-row">
+    <div class="row">
+      <div class="col-md-4">{{ select("primary_standard_id", "Primärstandard (Urtitersubstanz)", primary_std_opts, item.primary_standard_id, blank="– Kein Primärstandard –") }}</div>
+      <div class="col-md-3">{{ field("m_eq_primary_mg", "m_eq Primärstandard (mg/mL)", item.m_eq_primary_mg, type="number", step="0.001", help="mg Primärstandard pro mL Titrant bei Sollkonzentration. Für V_min/V_max-Berechnung bei Titereinstellung.") }}</div>
+    </div>
+  </div>
+
   <div class="row">
     <div class="col-md-3">{{ field("c_titrant_mol_l", "c_Titrant (mol/L)", item.c_titrant_mol_l, type="number", step="0.001", help="Numerische Konzentration der Maßlösung (z.B. 0.5 für HCl 0,5 mol/L)") }}</div>
     <div class="col-md-3">{{ field("n_eq_titrant", "n_eq Titrant", item.n_eq_titrant, type="number", step="0.1", help="Äquivalente Titrant pro Mol Analyt (Direkt) bzw. pro Mol Vorlage-Reagenz (Rück). Standard: 1") }}</div>
@@ -31,6 +40,7 @@
   <div class="row" id="vorlage-params-row">
     <div class="col-md-3">{{ field("c_vorlage_mol_l", "c_Vorlage (mol/L)", item.c_vorlage_mol_l, type="number", step="0.001", help="Konzentration der Vorlage-Lösung (z.B. 0.5 für NaOH 0,5 mol/L). Nur bei Rücktitration.") }}</div>
     <div class="col-md-3">{{ field("n_eq_vorlage", "n_eq Vorlage pro Mol Analyt", item.n_eq_vorlage, type="number", step="0.1", help="Äquivalente der Vorlage die pro Mol Analyt verbraucht werden (z.B. 2 für ASS + 2 NaOH)") }}</div>
+  </div>
   </div>
 
   <div class="card bg-light mb-3" id="calc-preview">
@@ -43,13 +53,9 @@
   </div>
 
   <hr class="my-3">
-  <div class="row">
+  <div class="row" id="blind-row">
     <div class="col-md-3">{{ checkbox("blind_required", "Blindversuch zwingend", item.blind_required) }}</div>
     <div class="col-md-3">{{ field("b_blind_determinations", "Anzahl Blindversuche (b)", item.b_blind_determinations or 1, type="number") }}</div>
-  </div>
-  <div class="row" id="primary-standard-row">
-    <div class="col-md-4">{{ select("primary_standard_id", "Primärstandard (Urtitersubstanz)", sub_opts, item.primary_standard_id, blank="– Kein Primärstandard –") }}</div>
-    <div class="col-md-3">{{ field("m_eq_primary_mg", "m_eq Primärstandard (mg/mL)", item.m_eq_primary_mg, type="number", step="0.001", help="mg Primärstandard pro mL Titrant bei Sollkonzentration. Für V_min/V_max-Berechnung bei Titereinstellung.") }}</div>
   </div>
   {{ textarea("description", "Beschreibung / Vorschrift", item.description) }}
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>
@@ -60,17 +66,35 @@
 {% block scripts %}
 <script>
 (() => {
+  const MODE_ASSAY = 'assay_mass_based';
+  const MODE_STANDARDIZATION = 'titrant_standardization';
+
   const methodTypeSelect = document.getElementById('method_type');
+  const analysisSelect = document.getElementById('analysis_id');
   const vorlageRow = document.getElementById('vorlage-params-row');
   const previewContent = document.getElementById('calc-preview-content');
 
-  // Substance molar masses keyed by analysis_id (loaded via API)
-  const analysisMW = {};
+  // Elements for mode-based visibility
+  const meqLegacyCol = document.getElementById('meq-legacy-col');
+  const titrantConcCol = document.getElementById('titrant-conc-col');
+  const vSolutionCol = document.getElementById('v-solution-col');
+  const vAliquotCol = document.getElementById('v-aliquot-col');
+  const primaryStdRow = document.getElementById('primary-standard-row');
+  const blindRow = document.getElementById('blind-row');
+  const titrationTitle = document.getElementById('titration-params-title');
+  const titrationHelp = document.getElementById('titration-params-help');
+  const titrationSection = document.getElementById('titration-section');
 
-  function syncVorlageVisibility() {
-    const isBack = methodTypeSelect.value === 'back';
-    vorlageRow.style.display = isBack ? '' : 'none';
-  }
+  // Original label texts (for restoring when switching back to assay mode)
+  const origLabels = {
+    cTitrant: 'c_Titrant (mol/L)',
+    nEqTitrant: 'n_eq Titrant',
+    cTitrantHelp: 'Numerische Konzentration der Maßlösung (z.B. 0.5 für HCl 0,5 mol/L)',
+    nEqTitrantHelp: 'Äquivalente Titrant pro Mol Analyt (Direkt) bzw. pro Mol Vorlage-Reagenz (Rück). Standard: 1',
+  };
+
+  const analysisMW = {};
+  let currentCalcMode = null;
 
   function getFloat(id) {
     const el = document.getElementById(id);
@@ -79,7 +103,95 @@
     return isNaN(v) ? null : v;
   }
 
+  function setLabel(forAttr, text) {
+    const lbl = document.querySelector('label[for="' + forAttr + '"]');
+    if (lbl) lbl.textContent = text;
+  }
+
+  function setHelp(inputId, text) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    const helpDiv = el.closest('.mb-3')?.querySelector('.form-text');
+    if (helpDiv) helpDiv.textContent = text;
+  }
+
+  function syncModeVisibility() {
+    const isStd = currentCalcMode === MODE_STANDARDIZATION;
+
+    // Hide irrelevant fields for standardization
+    meqLegacyCol.style.display = isStd ? 'none' : '';
+    titrantConcCol.style.display = isStd ? 'none' : '';
+    vSolutionCol.style.display = isStd ? 'none' : '';
+    vAliquotCol.style.display = isStd ? 'none' : '';
+
+    // Primary standard: show for standardization, hide for assay
+    primaryStdRow.style.display = isStd ? '' : 'none';
+
+    // Vorlage: always hidden for standardization; for assay, depends on method_type
+    if (isStd) {
+      vorlageRow.style.display = 'none';
+    } else {
+      syncVorlageVisibility();
+    }
+
+    // Relabel section and fields
+    if (isStd) {
+      titrationTitle.innerHTML = '<i class="bi bi-calculator"></i> Parameter der Titereinstellung';
+      titrationHelp.innerHTML = '<i class="bi bi-info-circle"></i> Die Sollkonzentration und Äquivalenzzahl definieren zusammen mit dem Primärstandard die Titerberechnung.';
+      setLabel('c_titrant_mol_l', 'c_Titrant Soll (mol/L)');
+      setLabel('n_eq_titrant', 'Äquivalente pro Mol Primärstandard');
+      setHelp('c_titrant_mol_l', 'Nennkonzentration der einzustellenden Maßlösung (z.B. 0.1 für HCl 0,1 mol/L)');
+      setHelp('n_eq_titrant', 'Äquivalente Titrant pro Mol Primärstandard (z.B. 2 für Na₂CO₃ + 2 HCl)');
+      // Move primary standard row to top of section
+      const firstChild = titrationSection.querySelector('hr');
+      if (firstChild) titrationSection.insertBefore(primaryStdRow, firstChild.nextSibling?.nextSibling?.nextSibling);
+    } else {
+      titrationTitle.innerHTML = '<i class="bi bi-calculator"></i> Explizite Titrationsparameter';
+      titrationHelp.innerHTML = '<i class="bi bi-info-circle"></i> Diese Parameter werden für die transparente Berechnung von V_erw verwendet. Wenn gesetzt, haben sie Vorrang vor dem Legacy-Wert m_eq (mg/mL).';
+      setLabel('c_titrant_mol_l', origLabels.cTitrant);
+      setLabel('n_eq_titrant', origLabels.nEqTitrant);
+      setHelp('c_titrant_mol_l', origLabels.cTitrantHelp);
+      setHelp('n_eq_titrant', origLabels.nEqTitrantHelp);
+    }
+  }
+
+  function syncVorlageVisibility() {
+    const isBack = methodTypeSelect.value === 'back';
+    vorlageRow.style.display = isBack ? '' : 'none';
+  }
+
   function updateCalcPreview() {
+    // ── Titrant Standardization Preview ──
+    if (currentCalcMode === MODE_STANDARDIZATION) {
+      const cTitrant = getFloat('c_titrant_mol_l');
+      const nEqPS = getFloat('n_eq_titrant') ?? 1.0;
+      const mEqPrimary = getFloat('m_eq_primary_mg');
+
+      if (!mEqPrimary || mEqPrimary <= 0) {
+        previewContent.innerHTML = '<span class="text-body-secondary">m_eq Primärstandard eingeben um Vorschau zu sehen...</span>';
+        return;
+      }
+
+      let html = '<strong>Formel (Titereinstellung):</strong><br>';
+      html += 'f = (m<sub>PS</sub> &times; 1000) / (m_eq<sub>PS</sub> &times; V<sub>Titrant</sub>)<br>';
+      html += '<span class="text-body-secondary">m<sub>PS</sub> = Einwaage Primärstandard (g), V<sub>Titrant</sub> = Verbrauch (mL)</span><br>';
+      html += `<span class="text-body-secondary">m_eq<sub>PS</sub> = ${mEqPrimary.toFixed(3)} mg/mL`;
+      if (cTitrant) html += ` (bei c<sub>Soll</sub> = ${cTitrant} mol/L)`;
+      html += '</span><br>';
+      html += '<hr class="my-1">';
+
+      // Example calculation
+      const exMPS = 0.200;
+      const vEx = (exMPS * 1000) / mEqPrimary;
+      html += `<strong>Beispiel</strong> (m<sub>PS</sub> = ${exMPS} g, Titer f = 1.0000):<br>`;
+      html += `V<sub>Titrant</sub> = (${exMPS} &times; 1000) / ${mEqPrimary.toFixed(3)} = ${vEx.toFixed(3)} mL<br>`;
+      html += `<strong>f = (m<sub>PS,real</sub> &times; 1000) / (${mEqPrimary.toFixed(3)} &times; V<sub>real</sub>)</strong>`;
+
+      previewContent.innerHTML = html;
+      return;
+    }
+
+    // ── Assay Preview (existing logic) ──
     const mtype = methodTypeSelect.value;
     const cTitrant = getFloat('c_titrant_mol_l');
     const nEqTitrant = getFloat('n_eq_titrant') ?? 1.0;
@@ -91,8 +203,7 @@
     const aliquotFrac = (vSolution > 0 && vAliquot > 0) ? vAliquot / vSolution : 1.0;
     const hasAliquot = aliquotFrac < 1.0;
 
-    // Try to get MW from loaded analysis defaults
-    const analysisId = document.getElementById('analysis_id').value;
+    const analysisId = analysisSelect.value;
     const mw = analysisMW[analysisId];
 
     if (!cTitrant || cTitrant <= 0) {
@@ -101,9 +212,8 @@
     }
 
     let html = '';
-    // Example values for preview
-    const exMs = 1.0;  // 1.0 g substance mass
-    const exGw = 100.0; // 100% purity for simplicity
+    const exMs = 1.0;
+    const exGw = 100.0;
 
     if (hasAliquot) {
       html += `<span class="text-info"><i class="bi bi-info-circle"></i> Aliquot: ${vAliquot} / ${vSolution} mL = Faktor ${aliquotFrac.toFixed(4)}</span><br>`;
@@ -166,29 +276,34 @@
   }
 
   function loadAnalysisDefaults() {
-    const aid = document.getElementById('analysis_id').value;
-    if (aid && !analysisMW[aid]) {
+    const aid = analysisSelect.value;
+    if (aid) {
       fetch(`/api/analysis/${aid}/defaults`)
         .then(r => r.json())
         .then(data => {
           if (data.molar_mass_gmol) {
             analysisMW[aid] = data.molar_mass_gmol;
           }
+          currentCalcMode = data.calculation_mode || MODE_ASSAY;
+          syncModeVisibility();
           updateCalcPreview();
         });
     } else {
+      currentCalcMode = null;
+      syncModeVisibility();
       updateCalcPreview();
     }
   }
 
   methodTypeSelect.addEventListener('change', () => { syncVorlageVisibility(); updateCalcPreview(); });
+  analysisSelect.addEventListener('change', loadAnalysisDefaults);
 
-  // Update preview on any titration parameter change
-  ['c_titrant_mol_l', 'n_eq_titrant', 'c_vorlage_mol_l', 'n_eq_vorlage', 'v_vorlage_ml', 'v_solution_ml', 'v_aliquot_ml'].forEach(id => {
+  // Update preview on any parameter change
+  ['c_titrant_mol_l', 'n_eq_titrant', 'c_vorlage_mol_l', 'n_eq_vorlage',
+   'v_vorlage_ml', 'v_solution_ml', 'v_aliquot_ml', 'm_eq_primary_mg'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateCalcPreview);
   });
-  document.getElementById('analysis_id').addEventListener('change', loadAnalysisDefaults);
 
   syncVorlageVisibility();
   loadAnalysisDefaults();

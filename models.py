@@ -100,6 +100,7 @@ class Substance(db.Model):
     g_ab_min_pct = db.Column(db.Float)
     g_ab_max_pct = db.Column(db.Float)
     notes = db.Column(db.Text)
+    is_primary_standard = db.Column(db.Boolean, nullable=False, default=False)
     position = db.Column(db.Integer, nullable=False, default=0)
 
     lots = db.relationship("SubstanceLot", back_populates="substance")
@@ -440,6 +441,14 @@ def migrate_schema() -> None:
                     f"  SELECT COUNT(*) FROM {table} t2 WHERE t2.id <= {table}.id"
                     f")"
                 )
+
+        # ── Substance: is_primary_standard flag ──
+        sub_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(substance)").fetchall()}
+        if "is_primary_standard" not in sub_cols:
+            conn.exec_driver_sql("ALTER TABLE substance ADD COLUMN is_primary_standard BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "UPDATE substance SET is_primary_standard = 1 WHERE name = 'Natriumtetraborat'"
+            )
 
         indexes = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(method_reagent)").fetchall()}
         if "uq_method_reagent_single_titrant" not in indexes:

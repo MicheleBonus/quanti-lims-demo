@@ -39,6 +39,8 @@ def seed_database():
         ("Kaliumbromid",                      "KBr",            119.00,  0.100, 99.0,  100.5),
         ("Theophyllin",                       "C₇H₈N₄O₂",     180.16,  0.200, 99.0,  101.0),
         ("Glucose-Monohydrat",                "C₆H₁₂O₆·H₂O",  198.17,  1.000, None,  None),
+        ("Natriumcarbonat",                   "Na₂CO₃",         105.99,  None,  None,  None),
+        ("Trometamol",                        "C₄H₁₁NO₃",      121.14,  None,  None,  None),
     ]
     for name, formula, mm, e_ab, g_min, g_max in sub_data:
         s = Substance(name=name, formula=formula, molar_mass_gmol=mm,
@@ -46,6 +48,10 @@ def seed_database():
         db.session.add(s)
         substances[name] = s
     db.session.flush()
+
+    # ── Primärstandards kennzeichnen ──────────────────────────────
+    for ps_name in ("Natriumtetraborat", "Natriumcarbonat", "Trometamol"):
+        substances[ps_name].is_primary_standard = True
 
     # ── Analysen ───────────────────────────────────────────────────
     analyses = {}
