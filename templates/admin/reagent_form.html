@@ -20,7 +20,6 @@
   <div class="row" id="primary-standard-fields" {% if not item.is_primary_standard %}style="display:none"{% endif %}>
     <div class="col-md-3">{{ field("formula", "Summenformel", item.formula) }}</div>
     <div class="col-md-3">{{ field("molar_mass_gmol", "Molare Masse (g/mol)", item.molar_mass_gmol, type="number", step="0.01") }}</div>
-    <div class="col-md-3">{{ field("e_ab_g", "Einwaage (g)", item.e_ab_g, type="number", step="0.001", help="Arzneibuch-Einwaage für die Titereinstellung") }}</div>
   </div>
   <div class="row">
     <div class="col-md-4">{{ field("hazard_symbols", "GHS-Piktogramme", item.hazard_symbols, placeholder="z.B. GHS02,GHS07") }}</div>

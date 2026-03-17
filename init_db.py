@@ -172,13 +172,13 @@ def seed_database():
 
     # ── Primärstandards / Urtitersubstanzen ──────────────────────
     ps_data = [
-        ("Natriumtetraborat (Primärstandard)", "Na₂B₄O₇", "Na₂B₄O₇·10H₂O", 381.37, 0.200, "g"),
-        ("Natriumcarbonat (Primärstandard)",   "Na₂CO₃",  "Na₂CO₃",          105.99, None,  "g"),
-        ("Trometamol (Primärstandard)",        "TRIS",     "C₄H₁₁NO₃",       121.14, None,  "g"),
+        ("Natriumtetraborat (Primärstandard)", "Na₂B₄O₇", "Na₂B₄O₇·10H₂O", 381.37, "g"),
+        ("Natriumcarbonat (Primärstandard)",   "Na₂CO₃",  "Na₂CO₃",          105.99, "g"),
+        ("Trometamol (Primärstandard)",        "TRIS",     "C₄H₁₁NO₃",       121.14, "g"),
     ]
-    for name, abbrev, formula, mm, e_ab, unit in ps_data:
+    for name, abbrev, formula, mm, unit in ps_data:
         r = Reagent(name=name, abbreviation=abbrev, is_primary_standard=True,
-                    formula=formula, molar_mass_gmol=mm, e_ab_g=e_ab, base_unit=unit)
+                    formula=formula, molar_mass_gmol=mm, base_unit=unit)
         db.session.add(r)
         reagents[name] = r
 
@@ -188,6 +188,7 @@ def seed_database():
     # Na2B4O7·10H2O: MW=381.37, 2 equiv → m_eq_primary = 381.37/2 × 0.1 = 19.069 mg/mL
     methods["I.1"].primary_standard = reagents["Natriumtetraborat (Primärstandard)"]
     methods["I.1"].m_eq_primary_mg = 19.069
+    methods["I.1"].e_ab_ps_g = 0.200
 
     # ── BOM: Verdünnte Schwefelsäure R ─────────────────────────────
     db.session.add(ReagentComponent(

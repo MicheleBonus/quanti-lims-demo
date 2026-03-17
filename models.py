@@ -214,6 +214,7 @@ class Method(db.Model):
     v_aliquot_ml = db.Column(db.Float)        # Aliquot volume taken for each titration (e.g. 20.0 mL)
     primary_standard_id = db.Column(db.Integer, db.ForeignKey("reagent.id"))
     m_eq_primary_mg = db.Column(db.Float)
+    e_ab_ps_g = db.Column(db.Float)          # Arzneibuch-Einwaage Primärstandard (g) – per method, not per reagent
     description = db.Column(db.Text)
     position = db.Column(db.Integer, nullable=False, default=0)
 
@@ -347,6 +348,14 @@ def migrate_schema() -> None:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN primary_standard_id INTEGER REFERENCES reagent(id)")
         if "m_eq_primary_mg" not in method_cols:
             conn.exec_driver_sql("ALTER TABLE method ADD COLUMN m_eq_primary_mg FLOAT")
+        if "e_ab_ps_g" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN e_ab_ps_g FLOAT")
+            # Backfill from Reagent.e_ab_g via primary_standard_id FK
+            conn.exec_driver_sql(
+                "UPDATE method SET e_ab_ps_g = ("
+                "  SELECT r.e_ab_g FROM reagent r WHERE r.id = method.primary_standard_id"
+                ") WHERE primary_standard_id IS NOT NULL AND e_ab_ps_g IS NULL"
+            )
 
         # ── Reagent: primary standard fields ──
         reag_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(reagent)").fetchall()}
