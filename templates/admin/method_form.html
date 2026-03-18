@@ -30,7 +30,14 @@
     <div class="row">
       <div class="col-md-4">{{ select("primary_standard_id", "Primärstandard (Urtitersubstanz)", primary_std_opts, item.primary_standard_id, blank="– Kein Primärstandard –") }}</div>
       <div class="col-md-3">{{ field("e_ab_ps_g", "Einwaage PS (g)", item.e_ab_ps_g, type="number", step="0.001", help="Arzneibuch-Einwaage des Primärstandards für die Titereinstellung (g)") }}</div>
-      <div class="col-md-3">{{ field("m_eq_primary_mg", "m_eq Primärstandard (mg/mL)", item.m_eq_primary_mg, type="number", step="0.001", help="mg Primärstandard pro mL Titrant bei Sollkonzentration. Für V_min/V_max-Berechnung bei Titereinstellung.") }}</div>
+      <div class="col-md-3">
+        {{ field("m_eq_primary_mg", "m_eq Primärstandard (mg/mL)", item.m_eq_primary_mg, type="number", step="0.0001", help="mg Primärstandard pro mL Titrant bei Sollkonzentration. Wird automatisch aus c_Titrant × MW_PS / z berechnet.") }}
+        <div class="form-check mt-n2 mb-2">
+          <input type="checkbox" class="form-check-input" id="m_eq_primary_mg_override" name="m_eq_primary_mg_override"
+            {% if item.m_eq_primary_mg_override %}checked{% endif %}>
+          <label class="form-check-label small text-muted" for="m_eq_primary_mg_override">Manuell überschreiben</label>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -95,6 +102,7 @@
   };
 
   const analysisMW = {};
+  const psMolarMasses = {{ ps_molar_masses | tojson }};  // {id: molar_mass_gmol} — keys are strings after JSON serialisation
   let currentCalcMode = null;
 
   function getFloat(id) {
@@ -102,6 +110,34 @@
     if (!el) return null;
     const v = parseFloat(el.value.replace(',', '.'));
     return isNaN(v) ? null : v;
+  }
+
+  function updateMeqPrimary() {
+    const overrideCheckbox = document.getElementById('m_eq_primary_mg_override');
+    const meqInput = document.getElementById('m_eq_primary_mg');
+    if (!overrideCheckbox || !meqInput) return;
+
+    // Only active in standardization mode — currentCalcMode is null during async fetch at page load
+    if (currentCalcMode !== MODE_STANDARDIZATION) return;
+
+    const isOverride = overrideCheckbox.checked;
+    meqInput.disabled = !isOverride;
+
+    if (!isOverride) {
+      const psId = document.getElementById('primary_standard_id')?.value;
+      // psMolarMasses keys are strings (JSON serialization of Python int → string key)
+      const mwPS = psId ? (psMolarMasses[psId] ?? null) : null;
+      const cTitrant = getFloat('c_titrant_mol_l');
+      const z = getFloat('n_eq_titrant');
+
+      if (mwPS && cTitrant && cTitrant > 0 && z && z > 0) {
+        meqInput.value = (cTitrant * mwPS / z).toFixed(4);
+      } else {
+        meqInput.value = '';
+      }
+    }
+
+    updateCalcPreview();
   }
 
   function setLabel(forAttr, text) {
@@ -162,10 +198,11 @@
   }
 
   function updateCalcPreview() {
+    const cTitrant = getFloat('c_titrant_mol_l');
+    const z = getFloat('n_eq_titrant') ?? 1.0;
+
     // ── Titrant Standardization Preview ──
     if (currentCalcMode === MODE_STANDARDIZATION) {
-      const cTitrant = getFloat('c_titrant_mol_l');
-      const nEqPS = getFloat('n_eq_titrant') ?? 1.0;
       const mEqPrimary = getFloat('m_eq_primary_mg');
 
       if (!mEqPrimary || mEqPrimary <= 0) {
@@ -176,6 +213,18 @@
       let html = '<strong>Formel (Titereinstellung):</strong><br>';
       html += 'f = (m<sub>PS</sub> &times; 1000) / (m_eq<sub>PS</sub> &times; V<sub>Titrant</sub>)<br>';
       html += '<span class="text-body-secondary">m<sub>PS</sub> = Einwaage Primärstandard (g), V<sub>Titrant</sub> = Verbrauch (mL)</span><br>';
+      html += '<hr class="my-1">';
+      html += '<strong>Herleitung m_eq<sub>PS</sub>:</strong> ';
+      html += 'm_eq<sub>PS</sub> = c<sub>Soll</sub> &times; MW<sub>PS</sub> / z<br>';
+      const psId = document.getElementById('primary_standard_id')?.value;
+      const mwPS = psId ? (psMolarMasses[psId] ?? null) : null;
+      if (cTitrant && mwPS && z) {
+        const meqDerived = cTitrant * mwPS / z;
+        html += `<span class="text-body-secondary">= ${cTitrant} &times; ${mwPS} / ${z} = <strong>${meqDerived.toFixed(4)} mg/mL</strong></span><br>`;
+      } else {
+        html += '<span class="text-body-secondary">(Primärstandard, c_Soll und z eingeben um Ableitung zu sehen)</span><br>';
+      }
+      html += '<hr class="my-1">';
       const eAbPS = getFloat('e_ab_ps_g');
       if (eAbPS && eAbPS > 0) {
         const vTheo = (eAbPS * 1000) / mEqPrimary;
@@ -199,8 +248,6 @@
 
     // ── Assay Preview (existing logic) ──
     const mtype = methodTypeSelect.value;
-    const cTitrant = getFloat('c_titrant_mol_l');
-    const nEqTitrant = getFloat('n_eq_titrant') ?? 1.0;
     const cVorlage = getFloat('c_vorlage_mol_l');
     const nEqVorlage = getFloat('n_eq_vorlage');
     const vVorlage = getFloat('v_vorlage_ml');
@@ -244,13 +291,13 @@
         const nVorConsumed = nAnalyte * nEqVorlage;
         const nVorTotal = vVorlage * cVorlage;
         const nVorExcess = nVorTotal - nVorConsumed;
-        const vTitrant = nVorExcess * nEqTitrant / cTitrant * aliquotFrac;
+        const vTitrant = nVorExcess * z / cTitrant * aliquotFrac;
         html += `<strong>Beispiel</strong> (m_S=${exMs} g, G_wahr=${exGw}%, MW=${mw.toFixed(2)}):<br>`;
         html += `n_Analyt = (${exMs}×1000×${exGw}/100) / ${mw.toFixed(2)} = ${nAnalyte.toFixed(4)} mmol<br>`;
         html += `n_Vorlage_verbr. = ${nAnalyte.toFixed(4)} × ${nEqVorlage} = ${nVorConsumed.toFixed(4)} mmol<br>`;
         html += `n_Vorlage_ges. = ${vVorlage} × ${cVorlage} = ${nVorTotal.toFixed(4)} mmol<br>`;
         html += `n_Vorlage_Übersch. = ${nVorTotal.toFixed(4)} − ${nVorConsumed.toFixed(4)} = ${nVorExcess.toFixed(4)} mmol<br>`;
-        html += `<strong>V_Titrant = ${nVorExcess.toFixed(4)} × ${nEqTitrant} / ${cTitrant}`;
+        html += `<strong>V_Titrant = ${nVorExcess.toFixed(4)} × ${z} / ${cTitrant}`;
         if (hasAliquot) html += ` × ${aliquotFrac.toFixed(4)}`;
         html += ` = ${vTitrant.toFixed(3)} mL</strong>`;
       } else {
@@ -265,10 +312,10 @@
 
       if (mw && mw > 0) {
         const nAnalyte = (exMs * 1000 * exGw / 100) / mw;
-        const vTitrant = nAnalyte * nEqTitrant / cTitrant * aliquotFrac;
+        const vTitrant = nAnalyte * z / cTitrant * aliquotFrac;
         html += `<strong>Beispiel</strong> (m_S=${exMs} g, G_wahr=${exGw}%, MW=${mw.toFixed(2)}):<br>`;
         html += `n_Analyt = (${exMs}×1000×${exGw}/100) / ${mw.toFixed(2)} = ${nAnalyte.toFixed(4)} mmol<br>`;
-        html += `<strong>V_Titrant = ${nAnalyte.toFixed(4)} × ${nEqTitrant} / ${cTitrant}`;
+        html += `<strong>V_Titrant = ${nAnalyte.toFixed(4)} × ${z} / ${cTitrant}`;
         if (hasAliquot) html += ` × ${aliquotFrac.toFixed(4)}`;
         html += ` = ${vTitrant.toFixed(3)} mL</strong>`;
       } else {
@@ -292,6 +339,7 @@
           }
           currentCalcMode = data.calculation_mode || MODE_ASSAY;
           syncModeVisibility();
+          updateMeqPrimary();
           updateCalcPreview();
         });
     } else {
@@ -309,6 +357,18 @@
    'v_vorlage_ml', 'v_solution_ml', 'v_aliquot_ml', 'm_eq_primary_mg', 'e_ab_ps_g'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateCalcPreview);
+  });
+
+  // Auto-calculation of m_eq_primary_mg
+  const overrideCheckbox = document.getElementById('m_eq_primary_mg_override');
+  if (overrideCheckbox) overrideCheckbox.addEventListener('change', updateMeqPrimary);
+
+  const psSelect = document.getElementById('primary_standard_id');
+  if (psSelect) psSelect.addEventListener('change', updateMeqPrimary);
+
+  ['c_titrant_mol_l', 'n_eq_titrant'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateMeqPrimary);
   });
 
   syncVorlageVisibility();
