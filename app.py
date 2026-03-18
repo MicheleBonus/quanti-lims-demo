@@ -1561,6 +1561,9 @@ def register_routes(app):
     @app.route("/results/<int:result_id>/revoke", methods=["POST"])
     def result_revoke(result_id):
         """Admin-only: revoke a submitted result and reset assignment to 'assigned'."""
+        if not _is_admin_request():
+            flash("Nur Admins können Ergebnisse widerrufen.", "danger")
+            return redirect(url_for("admin_system"))
         result = Result.query.get_or_404(result_id)
         if result.revoked:
             flash("Dieses Ergebnis ist bereits widerrufen.", "info")
