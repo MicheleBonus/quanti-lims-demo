@@ -39,6 +39,10 @@
         </div>
       </div>
     </div>
+    <div class="row">
+      <div class="col-md-3">{{ field("c_stock_mol_l", "c_Stamm (mol/L)", item.c_stock_mol_l, type="number", step="0.001", help="Konzentration der Stammlösung die die TA dispensiert (z.B. 1.0 für 1 mol/L HCl). Nur für Titereinstellung.") }}</div>
+      <div class="col-md-3">{{ field("v_dilution_ml", "V_Verdünnung (mL)", item.v_dilution_ml, type="number", step="0.1", help="Volumen auf das Studierende auffüllen (z.B. 100.0 mL). Nur für Titereinstellung.") }}</div>
+    </div>
   </div>
 
   <div class="row">
@@ -233,6 +237,13 @@
         const vTheo = (eAbPS * 1000) / mEqPrimary;
         html += `<br><strong>V<sub>theoretisch</sub></strong> = (${eAbPS} &times; 1000) / ${mEqPrimary.toFixed(3)} = ${vTheo.toFixed(3)} mL`;
       }
+      const cStock = getFloat('c_stock_mol_l');
+      const vDilution = getFloat('v_dilution_ml');
+      if (cStock && cStock > 0 && vDilution && vDilution > 0 && cTitrant && cTitrant > 0) {
+        const vDispTheo = (vDilution * cTitrant) / cStock;
+        html += `<br><strong>V<sub>disp,theo</sub></strong> = (${vDilution} &times; ${cTitrant}) / ${cStock} = <strong>${vDispTheo.toFixed(3)} mL</strong>`;
+        html += `<br><span class="text-body-secondary">&rarr; V<sub>disp,min</sub> = ${(vDispTheo * 0.9).toFixed(3)} mL, V<sub>disp,max</sub> = ${(vDispTheo * 1.1).toFixed(3)} mL</span>`;
+      }
       html += `<span class="text-body-secondary">m_eq<sub>PS</sub> = ${mEqPrimary.toFixed(3)} mg/mL`;
       if (cTitrant) html += ` (bei c<sub>Soll</sub> = ${cTitrant} mol/L)`;
       html += '</span><br>';
@@ -357,7 +368,8 @@
 
   // Update preview on any parameter change
   ['c_titrant_mol_l', 'n_eq_titrant', 'c_vorlage_mol_l', 'n_eq_vorlage',
-   'v_vorlage_ml', 'v_solution_ml', 'v_aliquot_ml', 'm_eq_primary_mg', 'e_ab_ps_g'].forEach(id => {
+   'v_vorlage_ml', 'v_solution_ml', 'v_aliquot_ml', 'm_eq_primary_mg', 'e_ab_ps_g',
+   'c_stock_mol_l', 'v_dilution_ml'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateCalcPreview);
   });
