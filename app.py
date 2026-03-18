@@ -484,7 +484,27 @@ def register_routes(app):
             item.v_solution_ml = _float(request.form.get("v_solution_ml"))
             item.v_aliquot_ml = _float(request.form.get("v_aliquot_ml"))
             item.primary_standard_id = _int(request.form.get("primary_standard_id"))
-            item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
+            # Override/auto-calc logic only applies in standardization mode
+            _analysis = Analysis.query.get(item.analysis_id)
+            _mode = resolve_mode(_analysis.calculation_mode if _analysis else None)
+            if _mode == MODE_TITRANT_STANDARDIZATION:
+                item.m_eq_primary_mg_override = "m_eq_primary_mg_override" in request.form
+                if item.m_eq_primary_mg_override:
+                    item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
+                else:
+                    # Auto-calculate: m_eq = c_Titrant × MW_PS / z
+                    ps_id = item.primary_standard_id
+                    ps = db.session.get(Reagent, ps_id) if ps_id else None
+                    if (ps and ps.molar_mass_gmol
+                            and item.c_titrant_mol_l and item.c_titrant_mol_l > 0
+                            and item.n_eq_titrant and item.n_eq_titrant > 0):
+                        item.m_eq_primary_mg = round(
+                            item.c_titrant_mol_l * ps.molar_mass_gmol / item.n_eq_titrant, 4
+                        )
+                    else:
+                        item.m_eq_primary_mg = None
+            else:
+                item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
             item.e_ab_ps_g = _float(request.form.get("e_ab_ps_g"))
             item.description = request.form.get("description") or None
             validation_error = _validate_aliquot(item)
@@ -492,8 +512,11 @@ def register_routes(app):
                 flash(validation_error, "danger")
                 ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
                 all_reagents = Reagent.query.order_by(Reagent.name).all()
-                ps_opts = [(r.id, f"{r.name} ({r.formula}, MW={r.molar_mass_gmol})") for r in all_reagents if r.is_primary_standard]
-                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, primary_std_opts=ps_opts)
+                ps_list = [r for r in all_reagents if r.is_primary_standard]
+                ps_opts = [(r.id, f"{r.name} ({r.formula or '–'}, MW={r.molar_mass_gmol or '?'})") for r in ps_list]
+                ps_molar_masses = {r.id: r.molar_mass_gmol for r in ps_list if r.molar_mass_gmol}
+                return render_template("admin/method_form.html", item=item, ana_opts=ana_opts,
+                                       primary_std_opts=ps_opts, ps_molar_masses=ps_molar_masses)
             if not id:
                 db.session.add(item)
             try:
@@ -505,8 +528,11 @@ def register_routes(app):
                 flash("Methode konnte nicht gespeichert werden (Integritätsfehler).", "danger")
         ana_opts = [(a.id, f"{a.code} – {a.name}") for a in analyses]
         all_reagents = Reagent.query.order_by(Reagent.name).all()
-        ps_opts = [(r.id, f"{r.name} ({r.formula}, MW={r.molar_mass_gmol})") for r in all_reagents if r.is_primary_standard]
-        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts, primary_std_opts=ps_opts)
+        ps_list = [r for r in all_reagents if r.is_primary_standard]
+        ps_opts = [(r.id, f"{r.name} ({r.formula or '–'}, MW={r.molar_mass_gmol or '?'})") for r in ps_list]
+        ps_molar_masses = {r.id: r.molar_mass_gmol for r in ps_list if r.molar_mass_gmol}
+        return render_template("admin/method_form.html", item=item, ana_opts=ana_opts,
+                               primary_std_opts=ps_opts, ps_molar_masses=ps_molar_masses)
 
     @app.route("/admin/methods/<int:id>/delete", methods=["POST"])
     def admin_method_delete(id):
