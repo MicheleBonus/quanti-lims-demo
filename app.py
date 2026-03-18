@@ -2027,9 +2027,14 @@ def register_routes(app):
                 notes=request.form.get("notes") or None,
             )
             db.session.add(day)
-            db.session.commit()
-            flash("Praktikumstag gespeichert.", "success")
-            return redirect(url_for("admin_practical_days"))
+            try:
+                db.session.commit()
+                flash("Praktikumstag gespeichert.", "success")
+                return redirect(url_for("admin_practical_days"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Datum bereits vergeben für dieses Semester.", "danger")
+                return render_template("admin/practical_day_form.html", day=None, blocks=blocks)
         return render_template("admin/practical_day_form.html", day=None, blocks=blocks)
 
     @app.route("/admin/practical-days/<int:day_id>/edit", methods=["GET", "POST"])
@@ -2042,9 +2047,14 @@ def register_routes(app):
             day.day_type = request.form["day_type"]
             day.block_day_number = int(request.form["block_day_number"]) if request.form.get("block_day_number") else None
             day.notes = request.form.get("notes") or None
-            db.session.commit()
-            flash("Praktikumstag aktualisiert.", "success")
-            return redirect(url_for("admin_practical_days"))
+            try:
+                db.session.commit()
+                flash("Praktikumstag aktualisiert.", "success")
+                return redirect(url_for("admin_practical_days"))
+            except IntegrityError:
+                db.session.rollback()
+                flash("Datum bereits vergeben für dieses Semester.", "danger")
+                return render_template("admin/practical_day_form.html", day=day, blocks=blocks)
         return render_template("admin/practical_day_form.html", day=day, blocks=blocks)
 
     @app.route("/admin/practical-days/<int:day_id>/delete", methods=["POST"])
