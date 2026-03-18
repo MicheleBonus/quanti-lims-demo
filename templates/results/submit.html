@@ -48,8 +48,9 @@
 
             function nextLabel(attempt_type) {
               if (attempt_type === 'Erstanalyse') return 'A';
-              var code = attempt_type.charCodeAt(0);
-              return String.fromCharCode(code + 1);
+              if (attempt_type.length === 1 && attempt_type >= 'A' && attempt_type <= 'Z')
+                return String.fromCharCode(attempt_type.charCodeAt(0) + 1);
+              return '?';
             }
 
             function evalLabel(val) {
@@ -77,8 +78,15 @@
               return 'text-warning';
             }
 
-            var input  = document.querySelector('input[name="ansage_value"]');
-            var badge  = document.getElementById('live-eval-badge');
+            var input       = document.querySelector('input[name="ansage_value"]');
+            var badge       = document.getElementById('live-eval-badge');
+            // These elements are guaranteed to exist: this script block is only
+            // rendered when live_eval_ctx is truthy, which also renders the matching HTML.
+            var liveDetails = document.getElementById('live-details');
+            var rangeMarker = document.getElementById('live-range-marker');
+            var liveValEl   = document.getElementById('live-val-el');
+            var liveDeltaEl = document.getElementById('live-delta-el');
+            var liveVolEl   = document.getElementById('live-vol-el');
 
             function update() {
               // Accept both comma and period as decimal separator
@@ -87,6 +95,42 @@
               var label = (raw === '' || isNaN(val)) ? '' : evalLabel(val);
               badge.textContent = label;
               badge.className = 'mb-3 fs-5 fw-bold text-center ' + colorClass(label);
+
+              if (raw === '' || isNaN(val)) {
+                liveDetails.style.display = 'none';
+                return;
+              }
+              liveDetails.style.display = '';
+
+              // Range-Bar: total display range ±4× tolerance around true_value
+              var lo = ctx.true_value * (1 - 4 * T_min / 100);
+              var hi = ctx.true_value * (1 + 4 * T_max / 100);
+              var posPct = Math.max(0, Math.min(100,
+                (hi > lo) ? (val - lo) / (hi - lo) * 100 : 50
+              ));
+              rangeMarker.style.left = posPct + '%';
+
+              // Abweichungen
+              var deltaAbs = val - ctx.true_value;
+              var deltaPct = (ctx.true_value !== 0)
+                ? (deltaAbs / ctx.true_value * 100) : 0;
+              var sign = deltaAbs >= 0 ? '+' : '';
+              liveValEl.textContent  = val.toFixed(4) + '\u202F' + ctx.result_unit;
+              liveDeltaEl.textContent = sign + deltaAbs.toFixed(4) + '\u202F'
+                + ctx.result_unit + '\u2002(' + sign + deltaPct.toFixed(2) + '\u202F%)';
+              liveDeltaEl.className = 'fw-bold ' + colorClass(label);
+
+              // Titrationskorrektur (nur wenn v_expected_ml bekannt)
+              if (ctx.v_expected_ml && ctx.v_expected_ml > 0) {
+                var dv = ctx.v_expected_ml * deltaPct / 100;
+                var signV = dv >= 0 ? '+' : '';
+                var word = dv >= 0 ? 'Übertitrierung' : 'Untertitrierung';
+                liveVolEl.textContent = 'Geschätzte\u202F' + word
+                  + ':\u202Fca.\u202F' + signV + dv.toFixed(2) + '\u202FmL';
+                liveVolEl.style.display = '';
+              } else {
+                liveVolEl.style.display = 'none';
+              }
             }
 
             input.addEventListener('input', update);
@@ -103,28 +147,88 @@
   </div>
 
   <div class="col-md-6">
-    <div class="card border-info">
-      <div class="card-header bg-info text-white"><i class="bi bi-info-circle"></i> Referenzwerte (nur Praktikumsleitung)</div>
+    {% if live_eval_ctx %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header d-flex align-items-center gap-2 bg-body-secondary fw-semibold">
+        <i class="bi bi-graph-up-arrow"></i> Probenauswertung
+      </div>
       <div class="card-body">
-        <table class="table table-sm mb-0">
-          {% if is_standardization %}
-          <tr><th>Titer Soll</th><td>{{ assignment.sample.titer_expected|fmt(4) if assignment.sample.titer_expected else '–' }}</td></tr>
-          <tr><th>Titer min</th><td>{{ assignment.sample.a_min|fmt(4) if assignment.sample.a_min else '–' }}</td></tr>
-          <tr><th>Titer max</th><td>{{ assignment.sample.a_max|fmt(4) if assignment.sample.a_max else '–' }}</td></tr>
-          {% else %}
-          <tr><th>G_wahr</th><td>{{ assignment.sample.g_wahr|fmt(4) if assignment.sample.g_wahr else '–' }}</td></tr>
-          <tr><th>A_min</th><td>{{ assignment.sample.a_min|fmt(4) if assignment.sample.a_min else '–' }}</td></tr>
-          <tr><th>A_max</th><td>{{ assignment.sample.a_max|fmt(4) if assignment.sample.a_max else '–' }}</td></tr>
-          <tr><th>V_erwartet</th><td>{{ assignment.sample.v_expected|fmt(3) if assignment.sample.v_expected else '–' }} mL</td></tr>
-          {% endif %}
-          <tr><th>Reinheit (p)</th><td>{{ assignment.sample.batch.p_effective|fmt(2) }}% ({{ assignment.sample.batch.p_source }})</td></tr>
-          <tr><th>{{ titer_label }}</th><td>{{ assignment.sample.batch.titer|fmt(3) }} <span class="text-body-secondary">({{ assignment.sample.batch.titer_source_label }})</span></td></tr>
-          {% if not is_standardization and analysis.method and analysis.method.has_aliquot %}
-          <tr><th>Aliquot</th><td>{{ analysis.method.v_aliquot_ml }} / {{ analysis.method.v_solution_ml }} mL (Faktor {{ "%.4f"|format(analysis.method.aliquot_fraction) }})</td></tr>
-          {% endif %}
+        {# --- Statischer Block --- #}
+        <table class="table table-sm mb-3">
+          <tr>
+            <th style="width:50%">Sollwert ({{ live_eval_ctx.true_value_label }})</th>
+            <td class="fw-semibold">{{ live_eval_ctx.true_value|round(4) }} {{ live_eval_ctx.result_unit }}</td>
+          </tr>
+          <tr>
+            <th>Erlaubte Spanne</th>
+            <td>
+              {% if live_eval_ctx.a_min is not none and live_eval_ctx.a_max is not none %}
+                {{ live_eval_ctx.a_min|round(4) }} – {{ live_eval_ctx.a_max|round(4) }} {{ live_eval_ctx.result_unit }}
+                {% set tol_lo = ((100 - live_eval_ctx.tol_min_pct)|round(1))|abs %}
+                {% set tol_hi = ((live_eval_ctx.tol_max_pct - 100)|round(1))|abs %}
+                <span class="text-body-secondary small">
+                  {% if tol_lo == tol_hi %}(±{{ tol_lo }} %){% else %}(−{{ tol_lo }} / +{{ tol_hi }} %){% endif %}
+                </span>
+              {% else %}
+                <span class="text-body-secondary">–</span>
+              {% endif %}
+            </td>
+          </tr>
         </table>
+
+        {# --- Dynamischer Block (via JS befüllt) --- #}
+        <div id="live-details" style="display:none;">
+          <hr class="my-2">
+
+          {# Range-Bar #}
+          <div class="position-relative mb-1" style="height:24px;">
+            <div class="rounded w-100" style="
+              height:10px;
+              margin-top:7px;
+              background: linear-gradient(to right,
+                #dc3545 0%,
+                #fd7e14 18%,
+                #ffc107 28%,
+                #198754 40%,
+                #198754 60%,
+                #ffc107 72%,
+                #fd7e14 82%,
+                #dc3545 100%
+              );
+            "></div>
+            <div id="live-range-marker"
+                 class="position-absolute rounded-pill bg-dark border border-2 border-white"
+                 style="top:0;width:10px;height:24px;transform:translateX(-50%);left:50%;"></div>
+          </div>
+          <div class="d-flex justify-content-between text-body-secondary" style="font-size:.7rem;">
+            <span>← zu niedrig</span>
+            <span>Sollzone</span>
+            <span>zu hoch →</span>
+          </div>
+
+          <table class="table table-sm mt-3 mb-1">
+            <tr>
+              <th style="width:50%">Ihr Wert</th>
+              <td id="live-val-el" class="fw-semibold"></td>
+            </tr>
+            <tr>
+              <th>Abweichung</th>
+              <td id="live-delta-el" class="fw-semibold"></td>
+            </tr>
+          </table>
+
+          <div id="live-vol-el" class="text-body-secondary small mt-1" style="display:none;"></div>
+        </div>
       </div>
     </div>
+    {% else %}
+    <div class="card border-secondary-subtle">
+      <div class="card-body text-body-secondary small">
+        <i class="bi bi-info-circle"></i>
+        Keine Auswertungsvorschau verfügbar (Toleranzgrenzen oder Probendaten fehlen).
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 
