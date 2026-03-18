@@ -12,3 +12,4 @@ instance/
 *.egg-info/
 dist/
 build/
+.worktrees/
