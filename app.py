@@ -306,7 +306,22 @@ def register_routes(app):
 
     @app.route("/praktikum/")
     def praktikum_tagesansicht():
-        return render_template("praktikum/tagesansicht.html")
+        from datetime import date as _date
+        from praktikum import resolve_student_slots
+        date_str = request.args.get("date") or _date.today().isoformat()
+        semester = Semester.query.filter_by(is_active=True).first()
+        practical_day = (
+            PracticalDay.query.filter_by(semester_id=semester.id, date=date_str).first()
+            if semester else None
+        )
+        slots = resolve_student_slots(practical_day, semester) if practical_day else []
+        return render_template(
+            "praktikum/tagesansicht.html",
+            practical_day=practical_day,
+            semester=semester,
+            slots=slots,
+            selected_date=date_str,
+        )
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Substances

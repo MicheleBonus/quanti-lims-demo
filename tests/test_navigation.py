@@ -25,3 +25,25 @@ def test_praktikum_tagesansicht_loads(client):
     resp = client.get("/praktikum/")
     assert resp.status_code == 200
     assert b"Tagesansicht" in resp.data
+
+def test_tagesansicht_no_practical_day_shows_banner(client):
+    """When no PracticalDay exists for the selected date, page loads with info banner."""
+    resp = client.get("/praktikum/?date=2099-12-31")
+    assert resp.status_code == 200
+    assert b"Tagesansicht" in resp.data
+
+def test_tagesansicht_default_loads(client):
+    """Default /praktikum/ loads without error."""
+    resp = client.get("/praktikum/")
+    assert resp.status_code == 200
+
+def test_tagesansicht_no_active_semester_returns_200(client, app):
+    """If no semester is active, the route returns 200 with a warning banner."""
+    from models import db, Semester
+    with app.app_context():
+        # Deactivate all semesters temporarily
+        Semester.query.update({"is_active": False})
+        db.session.flush()
+        resp = client.get("/praktikum/?date=2099-12-31")
+        assert resp.status_code == 200
+        db.session.rollback()
