@@ -540,7 +540,7 @@ Find the relevant section (search for `"assignments":` in `app.py`) and update t
                     (s for s in batch.samples if s.running_number == st.running_number and not s.is_buffer),
                     None
                 )
-                sample_ready = sample is not None and sample.m_s_actual_g is not None and sample.m_ges_actual_g is not None
+                sample_ready = sample is not None and sample.is_weighed
                 student_rows.append({"student": st, "assignment": None, "sample_ready": sample_ready})
 
         data[a.code]["student_rows"] = student_rows
