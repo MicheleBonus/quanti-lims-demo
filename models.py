@@ -214,7 +214,7 @@ class Method(db.Model):
     v_aliquot_ml = db.Column(db.Float)        # Aliquot volume taken for each titration (e.g. 20.0 mL)
     primary_standard_id = db.Column(db.Integer, db.ForeignKey("reagent.id"))
     m_eq_primary_mg = db.Column(db.Float)
-    m_eq_primary_mg_override = db.Column(db.Boolean, nullable=False, default=False)
+    m_eq_primary_mg_override = db.Column(db.Boolean, nullable=False, default=False)  # True → use stored value; False → auto-calculate from c_Titrant × MW_PS / z
     e_ab_ps_g = db.Column(db.Float)          # Arzneibuch-Einwaage Primärstandard (g) – per method, not per reagent
     description = db.Column(db.Text)
     position = db.Column(db.Integer, nullable=False, default=0)
