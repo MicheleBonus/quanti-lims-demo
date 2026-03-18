@@ -57,6 +57,11 @@ PRACTICAL_DAY_TYPE_ENUM = db.Enum(*PRACTICAL_DAY_TYPES, name="practical_day_type
                                    native_enum=False, create_constraint=True,
                                    validate_strings=True)
 
+DUTY_TYPES = ("Saaldienst", "Entsorgungsdienst")
+DUTY_TYPE_ENUM = db.Enum(*DUTY_TYPES, name="duty_type_enum",
+                          native_enum=False, create_constraint=True,
+                          validate_strings=True)
+
 
 def normalize_unit(unit: str | None) -> str | None:
     if unit is None:
@@ -585,9 +590,38 @@ class PracticalDay(db.Model):
 
     semester = db.relationship("Semester", backref="practical_days")
     block = db.relationship("Block", backref="practical_days")
-    # group_rotations and duty_assignments relationships will be added in P3-T3
-    # when GroupRotation and DutyAssignment models are defined.
+    group_rotations = db.relationship("GroupRotation", back_populates="practical_day",
+                                      cascade="all, delete-orphan")
+    duty_assignments = db.relationship("DutyAssignment", back_populates="practical_day",
+                                       cascade="all, delete-orphan")
 
     __table_args__ = (
         db.UniqueConstraint("semester_id", "date"),
     )
+
+
+class GroupRotation(db.Model):
+    __tablename__ = "group_rotation"
+    id = db.Column(db.Integer, primary_key=True)
+    practical_day_id = db.Column(db.Integer, db.ForeignKey("practical_day.id"), nullable=False)
+    group_code = db.Column(GROUP_CODE_ENUM, nullable=False)
+    analysis_id = db.Column(db.Integer, db.ForeignKey("analysis.id"), nullable=False)
+    is_override = db.Column(db.Boolean, nullable=False, default=False)
+
+    practical_day = db.relationship("PracticalDay", back_populates="group_rotations")
+    analysis = db.relationship("Analysis")
+
+    __table_args__ = (
+        db.UniqueConstraint("practical_day_id", "group_code"),
+    )
+
+
+class DutyAssignment(db.Model):
+    __tablename__ = "duty_assignment"
+    id = db.Column(db.Integer, primary_key=True)
+    practical_day_id = db.Column(db.Integer, db.ForeignKey("practical_day.id"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    duty_type = db.Column(DUTY_TYPE_ENUM, nullable=False)
+
+    practical_day = db.relationship("PracticalDay", back_populates="duty_assignments")
+    student = db.relationship("Student", backref="duty_assignments")
