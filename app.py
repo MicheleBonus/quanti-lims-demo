@@ -506,6 +506,9 @@ def register_routes(app):
             else:
                 item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
             item.e_ab_ps_g = _float(request.form.get("e_ab_ps_g"))
+            if _mode == MODE_TITRANT_STANDARDIZATION:
+                item.c_stock_mol_l = _float(request.form.get("c_stock_mol_l"))
+                item.v_dilution_ml = _float(request.form.get("v_dilution_ml"))
             item.description = request.form.get("description") or None
             validation_error = _validate_aliquot(item)
             if validation_error:
@@ -1877,6 +1880,17 @@ def register_routes(app):
             ):
                 v_theoretical = (method.e_ab_ps_g * 1000.0) / method.m_eq_primary_mg
                 result["v_theoretical_ml"] = round(v_theoretical, 3)
+            # Dispensing volume from stock (correct formula for TA)
+            if (
+                method.v_dilution_ml is not None
+                and method.c_titrant_mol_l is not None
+                and method.c_stock_mol_l is not None
+                and method.c_stock_mol_l > 0
+            ):
+                v_disp_theoretical = (
+                    method.v_dilution_ml * method.c_titrant_mol_l / method.c_stock_mol_l
+                )
+                result["v_disp_theoretical_ml"] = round(v_disp_theoretical, 4)
         return jsonify(result)
 
     @app.route("/api/sample/<int:sample_id>/calc")
