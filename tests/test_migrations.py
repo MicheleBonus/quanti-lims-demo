@@ -12,3 +12,9 @@ def test_initial_migration_exists():
     migrations_dir = os.path.join(os.path.dirname(__file__), '..', 'migrations', 'versions')
     files = [f for f in os.listdir(migrations_dir) if f.endswith('.py') and not f.startswith('__')]
     assert len(files) >= 1, "Expected at least one migration file"
+
+
+def test_migrate_schema_removed():
+    import models
+    assert not hasattr(models, 'migrate_schema'), \
+        "migrate_schema() should have been removed — use Alembic migrations instead"
