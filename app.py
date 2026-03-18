@@ -1143,10 +1143,15 @@ def register_routes(app):
         students = Student.query.filter_by(semester_id=sem.id).order_by(Student.running_number).all()
         samples = Sample.query.filter_by(batch_id=batch.id, is_buffer=False).order_by(Sample.running_number).all()
         count = 0
+        skipped_count = 0
         for st in students:
             # Find sample with matching running_number
             sample = next((s for s in samples if s.running_number == st.running_number), None)
             if not sample:
+                continue
+            # Skip samples not yet weighed
+            if not sample.is_weighed:
+                skipped_count += 1
                 continue
             existing = (
                 SampleAssignment.query
@@ -1165,7 +1170,16 @@ def register_routes(app):
             db.session.add(sa)
             count += 1
         db.session.commit()
-        flash(f"{count} Erstanalysen zugewiesen.", "success")
+        total_students = len(students)
+        skipped = skipped_count
+        if skipped > 0:
+            flash(
+                f"{count} von {total_students} Erstanalysen zugewiesen "
+                f"({skipped} Probe(n) noch nicht eingewogen).",
+                "success" if count > 0 else "warning",
+            )
+        else:
+            flash(f"{count} Erstanalysen zugewiesen.", "success")
         return redirect(url_for("admin_batches"))
 
     @app.route("/admin/batches/<int:batch_id>/samples")
@@ -1322,10 +1336,33 @@ def register_routes(app):
                 ))
                 .order_by(Sample.running_number).all()
             )
+            # Build per-student rows (including students without assignments)
+            all_students = Student.query.filter_by(semester_id=sem.id).order_by(Student.running_number).all()
+            # Map student_id → assignment(s) for this batch
+            assignment_map = {}
+            for sa in assignments:
+                assignment_map.setdefault(sa.student_id, []).append(sa)
+
+            student_rows = []
+            for st in all_students:
+                st_assignments = assignment_map.get(st.id, [])
+                if st_assignments:
+                    for sa in st_assignments:
+                        student_rows.append({"student": st, "assignment": sa, "sample_ready": True})
+                else:
+                    # Check if sample exists and is weighed
+                    sample = next(
+                        (s for s in batch.samples if s.running_number == st.running_number and not s.is_buffer),
+                        None
+                    )
+                    sample_ready = sample is not None and sample.is_weighed
+                    student_rows.append({"student": st, "assignment": None, "sample_ready": sample_ready})
+
             data[a.code] = {
                 "batch": batch,
                 "assignments": assignments,
                 "buffer_count": len(buffer_samples),
+                "student_rows": student_rows,
             }
         return render_template("assignments/overview.html", semester=sem, analyses=analyses, data=data)
 

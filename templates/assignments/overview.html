@@ -28,48 +28,63 @@
   <table class="table table-sm table-hover mb-0 align-middle">
     <thead class="table-light"><tr><th>#</th><th>Student/in</th><th>Versuch</th><th>Probe</th><th>Status</th><th>Ansage</th><th>Aktion</th></tr></thead>
     <tbody>
-    {% for sa in d.assignments %}
+    {% for row in d.student_rows %}
+    {% set sa = row.assignment %}
     <tr>
-      <td>{{ sa.student.running_number }}</td>
-      <td>{{ sa.student.full_name }}</td>
-      <td>
-        {% if sa.attempt_type == 'Erstanalyse' %}
-          <span class="badge bg-secondary">Erstanalyse</span>
-        {% else %}
-          <span class="badge {% if sa.attempt_type == 'A' %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ sa.attempt_type }}-Analyse</span>
-        {% endif %}
-      </td>
-      <td>Probe #{{ sa.sample.running_number }}</td>
-      <td>{{ status_badge(sa.status) }}</td>
-      <td>
-        {% if sa.latest_result %}
-          {{ sa.latest_result.ansage_value|fmt(4) }} {{ sa.latest_result.ansage_unit }}
-          {% if sa.latest_result.passed %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-x-circle-fill text-danger"></i>{% endif %}
-        {% else %}–{% endif %}
-      </td>
-      <td>
-        {% if sa.status == 'assigned' %}
-          <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard-check"></i> Ansage</a>
-          <form method="POST" action="{{ url_for('assignment_cancel', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung stornieren? Ergebnisse bleiben als Historie erhalten.')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle"></i></button>
-          </form>
-          <form method="POST" action="{{ url_for('assignment_delete', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung endgültig löschen? Dadurch werden ggf. auch Ergebnisse unwiderruflich entfernt.')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="force" value="1">
-            <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button>
-          </form>
-        {% elif sa.status == 'failed' %}
-          <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="student_id" value="{{ sa.student_id }}">
-            <input type="hidden" name="analysis_id" value="{{ a.id }}">
-            <button type="submit" class="btn btn-outline-warning btn-sm" {% if d.buffer_count == 0 %}disabled{% endif %}>
-              <i class="bi bi-plus-circle"></i> Wiederholung
-            </button>
-          </form>
-        {% endif %}
-      </td>
+      <td>{{ row.student.running_number }}</td>
+      <td>{{ row.student.full_name }}</td>
+      {% if sa %}
+        <td>
+          {% if sa.attempt_type == 'Erstanalyse' %}
+            <span class="badge bg-secondary">Erstanalyse</span>
+          {% else %}
+            <span class="badge {% if sa.attempt_type == 'A' %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ sa.attempt_type }}-Analyse</span>
+          {% endif %}
+        </td>
+        <td>Probe #{{ sa.sample.running_number }}</td>
+        <td>{{ status_badge(sa.status) }}</td>
+        <td>
+          {% if sa.latest_result %}
+            {{ sa.latest_result.ansage_value|fmt(4) }} {{ sa.latest_result.ansage_unit }}
+            {% if sa.latest_result.passed %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-x-circle-fill text-danger"></i>{% endif %}
+          {% else %}–{% endif %}
+        </td>
+        <td>
+          {% if sa.status == 'assigned' %}
+            <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard-check"></i> Ansage</a>
+            <form method="POST" action="{{ url_for('assignment_cancel', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung stornieren? Ergebnisse bleiben als Historie erhalten.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle"></i></button>
+            </form>
+            <form method="POST" action="{{ url_for('assignment_delete', id=sa.id) }}" class="d-inline" onsubmit="return confirm('Zuweisung endgültig löschen? Dadurch werden ggf. auch Ergebnisse unwiderruflich entfernt.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="force" value="1">
+              <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button>
+            </form>
+          {% elif sa.status == 'failed' %}
+            <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="student_id" value="{{ sa.student_id }}">
+              <input type="hidden" name="analysis_id" value="{{ a.id }}">
+              <button type="submit" class="btn btn-outline-warning btn-sm" {% if d.buffer_count == 0 %}disabled{% endif %}>
+                <i class="bi bi-plus-circle"></i> Wiederholung
+              </button>
+            </form>
+          {% endif %}
+        </td>
+      {% else %}
+        <td><span class="badge bg-light text-muted border">–</span></td>
+        <td>–</td>
+        <td>
+          {% if row.sample_ready %}
+            <span class="badge bg-info text-white">Probe bereit, nicht zugewiesen</span>
+          {% else %}
+            <span class="badge bg-light text-muted border">Probe noch nicht bereit</span>
+          {% endif %}
+        </td>
+        <td>–</td>
+        <td>–</td>
+      {% endif %}
     </tr>
     {% endfor %}
     </tbody>
