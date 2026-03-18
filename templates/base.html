@@ -15,7 +15,8 @@
       <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
         <i class="bi bi-droplet-fill text-primary"></i> Quanti-LIMS
       </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+              aria-controls="nav" aria-expanded="false" aria-label="Navigation öffnen">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="nav">
@@ -23,7 +24,7 @@
 
           <!-- VORBEREITUNG -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
               <i class="bi bi-archive" aria-hidden="true"></i> Vorbereitung
             </a>
             <ul class="dropdown-menu">
@@ -35,9 +36,9 @@
               <li><a class="dropdown-item" href="{{ url_for('admin_reagents') }}">
                 <i class="bi bi-prescription2" aria-hidden="true"></i> Reagenzien</a></li>
               <li><a class="dropdown-item" href="{{ url_for('admin_analyses') }}">
-                <i class="bi bi-list-ol" aria-hidden="true"></i> Prüfungen</a></li>
+                <i class="bi bi-list-ol" aria-hidden="true"></i> Prüfungen <small class="text-body-secondary">(Arzneibuch-Monographien)</small></a></li>
               <li><a class="dropdown-item" href="{{ url_for('admin_methods') }}">
-                <i class="bi bi-diagram-3" aria-hidden="true"></i> Methoden</a></li>
+                <i class="bi bi-diagram-3" aria-hidden="true"></i> Methoden <small class="text-body-secondary">(Titrationsparameter)</small></a></li>
 
               <li><hr class="dropdown-divider"></li>
               <li><h6 class="dropdown-header">Semesterplanung</h6></li>
@@ -57,7 +58,7 @@
 
           <!-- PRAKTIKUM -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
               <i class="bi bi-play-circle" aria-hidden="true"></i> Praktikum
             </a>
             <ul class="dropdown-menu">
@@ -72,7 +73,7 @@
 
           <!-- BERICHTE -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
               <i class="bi bi-bar-chart" aria-hidden="true"></i> Berichte
             </a>
             <ul class="dropdown-menu">
