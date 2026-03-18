@@ -37,7 +37,7 @@
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th style="width:30px"></th><th>#</th><th>Matrikel-Nr.</th><th>Nachname</th><th>Vorname</th><th>Email</th><th class="text-end"></th></tr></thead>
+<thead class="table-light"><tr><th style="width:30px"></th><th>#</th><th>Matrikel-Nr.</th><th>Nachname</th><th>Vorname</th><th>Gruppe</th><th>Email</th><th class="text-end"></th></tr></thead>
 <tbody id="student-sortable">
 {% for s in students %}
 <tr data-id="{{ s.id }}">
@@ -46,6 +46,7 @@
   <td>{{ s.matrikel }}</td>
   <td><a href="{{ url_for('admin_student_form', id=s.id) }}">{{ s.last_name }}</a></td>
   <td>{{ s.first_name }}</td>
+  <td>{{ s.group_code or '—' }}</td>
   <td class="text-body-secondary">{{ s.email or '–' }}</td>
   <td class="text-end">
     <a href="{{ url_for('admin_student_form', id=s.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>

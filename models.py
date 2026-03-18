@@ -47,6 +47,11 @@ UNIT_CANONICAL_MAP = {
 }
 UNIT_ENUM = db.Enum(*UNIT_CODES, name="unit_code", native_enum=False, create_constraint=True, validate_strings=True)
 
+GROUP_CODES = ("A", "B", "C", "D")
+GROUP_CODE_ENUM = db.Enum(*GROUP_CODES, name="group_code_enum",
+                          native_enum=False, create_constraint=True,
+                          validate_strings=True)
+
 
 def normalize_unit(unit: str | None) -> str | None:
     if unit is None:
@@ -335,6 +340,7 @@ class Student(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     running_number = db.Column(db.Integer, nullable=False)
     email = db.Column(db.String(200))
+    group_code = db.Column(GROUP_CODE_ENUM, nullable=True)
     notes = db.Column(db.Text)
 
     semester = db.relationship("Semester", back_populates="students")

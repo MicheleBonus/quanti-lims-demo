@@ -14,6 +14,19 @@
   </div>
   <div class="row">
     <div class="col-md-5">{{ field("email", "Email", item.email, type="email") }}</div>
+    <div class="col-md-2">
+      <div class="mb-3">
+        <label class="form-label">Gruppe</label>
+        <select name="group_code" class="form-select">
+          <option value="">— keine —</option>
+          {% for code in ("A", "B", "C", "D") %}
+          <option value="{{ code }}" {% if item and item.group_code == code %}selected{% endif %}>
+            Gruppe {{ code }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
   </div>
   {{ textarea("notes", "Notizen", item.notes) }}
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>

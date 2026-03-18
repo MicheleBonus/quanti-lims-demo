@@ -799,6 +799,7 @@ def register_routes(app):
             item.first_name = request.form["first_name"]
             item.running_number = int(request.form["running_number"])
             item.email = request.form.get("email") or None
+            item.group_code = request.form.get("group_code") or None
             item.notes = request.form.get("notes") or None
             duplicate_matrikel = Student.query.filter(
                 Student.semester_id == sem.id,
