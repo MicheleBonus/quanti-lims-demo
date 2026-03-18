@@ -20,3 +20,8 @@ def test_navbar_stammdaten_link_present(client):
 def test_navbar_semesterplanung_link_present(client):
     resp = client.get("/admin/substances")
     assert b"Semesterplanung" in resp.data
+
+def test_praktikum_tagesansicht_loads(client):
+    resp = client.get("/praktikum/")
+    assert resp.status_code == 200
+    assert b"Tagesansicht" in resp.data
