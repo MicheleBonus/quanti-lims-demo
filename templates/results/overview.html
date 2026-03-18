@@ -41,7 +41,7 @@
 <tbody>
 {% for sa in assignments %}
 {% set s = sa.sample %}
-{% set r = sa.latest_result %}
+{% set active_r = sa.active_result %}
 <tr>
   <td>{{ sa.student.running_number }}</td>
   <td>{{ sa.student.full_name }}</td>
@@ -63,9 +63,17 @@
   <td>{{ s.a_max|fmt(4) }}</td>
 {% endif %}
   <td>
-    {% if r %}
-      <strong>{{ r.ansage_value|fmt(4) }}</strong> {{ r.ansage_unit }}
+    {% if active_r %}
+      <strong>{{ active_r.ansage_value|fmt(4) }}</strong> {{ active_r.ansage_unit }}
+      {% if active_r.evaluation_label %}<span class="ms-1 text-muted">{{ active_r.evaluation_label }}</span>{% endif %}
     {% else %}–{% endif %}
+    {% for r in sa.results %}
+      {% if r.revoked %}
+        <div class="text-muted small"><s>{{ r.ansage_value|fmt(4) }} {{ r.ansage_unit }}</s>
+          <span class="text-danger">widerrufen {{ r.revoked_date }} ({{ r.revoked_by }})</span>
+        </div>
+      {% endif %}
+    {% endfor %}
   </td>
   <td>{{ status_badge(sa.status) }}</td>
   <td>
@@ -73,6 +81,15 @@
       <a href="{{ url_for('results_submit', assignment_id=sa.id) }}" class="btn btn-sm btn-outline-success">
         <i class="bi bi-pencil"></i> Eingeben
       </a>
+    {% endif %}
+    {% if active_r %}
+      <form method="POST" action="{{ url_for('result_revoke', result_id=active_r.id) }}" class="d-inline"
+            onsubmit="return confirm('Ansage widerrufen? Zuweisung wird wieder geöffnet.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-warning">
+          <i class="bi bi-arrow-counterclockwise"></i> Widerruf
+        </button>
+      </form>
     {% endif %}
   </td>
 </tr>

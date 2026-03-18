@@ -504,6 +504,22 @@ def migrate_schema() -> None:
                 "WHERE attempt_number > 27"
             )
 
+        # ── Result: revocation fields ───────────────────────────────
+        result_cols = {row[1] for row in conn.exec_driver_sql(
+            "PRAGMA table_info(result)").fetchall()}
+        if "revoked" not in result_cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE result ADD COLUMN revoked BOOLEAN NOT NULL DEFAULT 0"
+            )
+        if "revoked_by" not in result_cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE result ADD COLUMN revoked_by VARCHAR(100)"
+            )
+        if "revoked_date" not in result_cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE result ADD COLUMN revoked_date VARCHAR(20)"
+            )
+
         conn.commit()
     finally:
         conn.close()
@@ -708,6 +724,14 @@ class SampleAssignment(db.Model):
             return self.results[-1]
         return None
 
+    @property
+    def active_result(self):
+        """The most recent non-revoked result, or None."""
+        for r in sorted(self.results, key=lambda r: r.id, reverse=True):
+            if not r.revoked:
+                return r
+        return None
+
 
 class Result(db.Model):
     __tablename__ = "result"
@@ -726,6 +750,9 @@ class Result(db.Model):
     titer_expected = db.Column(db.Float)
     titer_result = db.Column(db.Float)
     passed = db.Column(db.Boolean)
+    revoked       = db.Column(db.Boolean, nullable=False, default=False)
+    revoked_by    = db.Column(db.String(100), nullable=True)
+    revoked_date  = db.Column(db.String(20), nullable=True)
     submitted_date = db.Column(db.String(20))
     evaluated_by = db.Column(db.String(100))
     notes = db.Column(db.Text)

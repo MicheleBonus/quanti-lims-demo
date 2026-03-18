@@ -1558,6 +1558,27 @@ def register_routes(app):
             return redirect(url_for("results_overview", analysis_id=analysis.id))
         return render_template("results/submit.html", assignment=assignment, analysis=analysis, titer_label=mode_titer_label(analysis.calculation_mode))
 
+    @app.route("/results/<int:result_id>/revoke", methods=["POST"])
+    def result_revoke(result_id):
+        """Admin-only: revoke a submitted result and reset assignment to 'assigned'."""
+        result = Result.query.get_or_404(result_id)
+        if result.revoked:
+            flash("Dieses Ergebnis ist bereits widerrufen.", "info")
+        else:
+            assignment = result.assignment
+            result.revoked = True
+            result.revoked_by = session.get("username", "Admin")
+            result.revoked_date = date.today().isoformat()
+            assignment.status = "assigned"
+            db.session.commit()
+            flash(
+                f"Ansage {result.ansage_value} {result.ansage_unit} widerrufen. "
+                "Zuweisung wieder offen.",
+                "warning",
+            )
+        analysis_id = result.assignment.sample.batch.analysis_id
+        return redirect(url_for("results_overview", analysis_id=analysis_id))
+
     # ═══════════════════════════════════════════════════════════════
     # REPORTS
     # ═══════════════════════════════════════════════════════════════
