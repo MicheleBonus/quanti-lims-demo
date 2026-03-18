@@ -55,14 +55,16 @@ def resolve_student_slots(practical_day, semester) -> list[StudentSlot]:
 
 **Schritt 1:** `GroupRotation`s für diesen Tag als Dict `{group_code → rotation}` vorladen.
 
-**Schritt 2:** Alle offenen `SampleAssignment`s für dieses Semester in einem Query laden (status not in `["passed", "cancelled"]`), gruppiert als `{student_id → [assignments]}`. Vermeidet N+1-Queries.
+**Schritt 2:** Alle offenen `SampleAssignment`s für dieses Semester in einem Query laden (status not in `["passed", "cancelled"]`), gruppiert als `{student_id → [assignments]}`.
 
-**Schritt 3:** Pro Student:
+**Schritt 3:** Alle `SampleBatch`-Einträge für dieses Semester als Dict `{analysis_id → batch}` vorladen. Alle `Sample`-Einträge für diese Batches als Dict `{(batch_id, running_number) → sample}` vorladen. Damit werden O(n_students) Einzel-Queries für Batch- und Sample-Lookup vermieden.
+
+**Schritt 4:** Pro Student:
 1. `student.group_code` → `GroupRotation` → `analysis`
-2. `SampleBatch` für `(semester.id, analysis.id)` (UniqueConstraint, max. 1 Treffer)
-3. `Sample` mit `running_number = student.running_number` und `is_buffer = False`
-4. `rotation_assignment`: das Assignment aus Schritt 2, das zu diesem Sample gehört (`sample_id` stimmt überein) — oder `None` wenn `assign_initial` noch nicht gelaufen
-5. `extra_assignments`: alle anderen offenen Assignments dieses Studierenden (Wiederholungen aus früheren Tagen, offene Analysen anderer Blöcke)
+2. `batch = batches_by_analysis[analysis.id]` (aus Vorladung Schritt 3)
+3. `sample = samples_by_key[(batch.id, student.running_number)]` (aus Vorladung Schritt 3, `is_buffer = False`)
+4. `rotation_assignment`: das Assignment aus Schritt 2, das zu diesem Sample gehört (`sample_id` stimmt überein) — oder `None` wenn kein solches Assignment existiert
+5. `extra_assignments`: alle anderen offenen Assignments dieses Studierenden — **explizit exkludiert: das in Schritt 4 gefundene `rotation_assignment`** (Ausschluss per `assignment.id != rotation_assignment.id`)
 
 Alle Studierenden des Semesters erscheinen in der Ausgabe (auch wenn `rotation_assignment = None`).
 
@@ -87,6 +89,7 @@ Alle Studierenden des Semesters erscheinen in der Ausgabe (auch wenn `rotation_a
 | `SampleBatch` für diese Analyse fehlt | `rotation_assignment = None` |
 | `Sample` mit passender `running_number` fehlt | `rotation_assignment = None` |
 | `assign_initial` noch nicht gelaufen | `rotation_assignment = None` (Badge: „Noch nicht zugewiesen") |
+| `assign_initial` gelaufen, aber Sample war beim Aufruf nicht eingewogen | `rotation_assignment = None` (Badge: „Noch nicht zugewiesen") — visuell identisch; Ursache liegt in der Einwaagelage |
 | Normaltag, Student hat keine offenen Extra-Assignments | `extra_assignments = []`, Slot trotzdem angezeigt |
 | Nachkochtag, Student hat keine offenen Block-Assignments | Slot angezeigt, ausgegraut, Badge „Block abgeschlossen" |
 
@@ -100,7 +103,7 @@ def praktikum_tagesansicht():
     date_str = request.args.get("date") or date.today().isoformat()
     semester = Semester.query.filter_by(is_active=True).first()
     practical_day = (
-        PracticalDay.query.filter_by(date=date_str).first()
+        PracticalDay.query.filter_by(semester_id=semester.id, date=date_str).first()
         if semester else None
     )
     slots = resolve_student_slots(practical_day, semester) if practical_day else []
@@ -129,7 +132,14 @@ Bei fehlendem Semester oder kein `PracticalDay` für das gewählte Datum: leere 
   - `extra_assignments` → je ein Badge pro Assignment (Analyse + `attempt_type`)
   - Nachkochtag, `extra_assignments` leer → Zeile ausgegraut, Badge „Block abgeschlossen"
 
-Status-Farben: zugewiesen (blau), Ansage ausstehend (gelb), bestanden (grün), Wiederholung fällig (orange).
+**Status-Farben** — abgeleitet aus Modellfeldern, kein eigenes `status`-Feld:
+
+| UI-Zustand | Bedingung (aus Modell) | Farbe |
+|---|---|---|
+| Zugewiesen | `assignment.status == "assigned"` und `assignment.active_result is None` | blau |
+| Ansage ausstehend | `assignment.status == "assigned"` und `assignment.active_result is not None` und `active_result.passed is None` | gelb |
+| Bestanden | `assignment.status == "passed"` | grün |
+| Wiederholung fällig | `assignment` ist ein Erstanalyse-Assignment (`attempt_number == 1`) mit `active_result.passed == False` und ein Wiederholungs-Assignment existiert noch nicht | orange |
 
 ---
 
