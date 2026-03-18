@@ -144,8 +144,10 @@ def create_app(test_config: dict | None = None):
     with app.app_context():
         if app.config.get("TESTING"):
             db.create_all()   # tests: create schema directly (SQLite in-memory)
+        from sqlalchemy import inspect as sa_inspect
         from init_db import seed_database
-        seed_database()
+        if sa_inspect(db.engine).has_table("block"):
+            seed_database()
 
     register_routes(app)
     register_filters(app)
