@@ -216,6 +216,8 @@ class Method(db.Model):
     m_eq_primary_mg = db.Column(db.Float)
     m_eq_primary_mg_override = db.Column(db.Boolean, nullable=False, default=False)  # True → use stored value; False → auto-calculate from c_Titrant × MW_PS / z
     e_ab_ps_g = db.Column(db.Float)          # Arzneibuch-Einwaage Primärstandard (g) – per method, not per reagent
+    c_stock_mol_l = db.Column(db.Float)      # Stammkonzentration (mol/L), z.B. 1.0 für 1M HCl
+    v_dilution_ml = db.Column(db.Float)      # Verdünnungsvolumen (mL), z.B. 100.0
     description = db.Column(db.Text)
     position = db.Column(db.Integer, nullable=False, default=0)
 
@@ -365,6 +367,10 @@ def migrate_schema() -> None:
             conn.exec_driver_sql(
                 "UPDATE method SET m_eq_primary_mg_override = 1 WHERE m_eq_primary_mg IS NOT NULL"
             )
+        if "c_stock_mol_l" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN c_stock_mol_l FLOAT")
+        if "v_dilution_ml" not in method_cols:
+            conn.exec_driver_sql("ALTER TABLE method ADD COLUMN v_dilution_ml FLOAT")
 
         # ── Reagent: primary standard fields ──
         reag_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(reagent)").fetchall()}
