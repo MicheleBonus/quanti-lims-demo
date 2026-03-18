@@ -4,17 +4,45 @@ from unittest.mock import MagicMock
 from calculation_modes import TitrantStandardizationEvaluator
 
 
-def _make_sample(titer_expected, tol_min, tol_max):
-    """Build a mock sample/batch/analysis chain."""
+def _make_sample(titer_expected, tol_min, tol_max, m_ges_actual_g=None,
+                 v_dilution_ml=None, c_titrant_mol_l=None, c_stock_mol_l=None):
+    """Build a mock sample/batch/analysis chain.
+
+    When method parameters are omitted the evaluator falls back to batch.titer.
+    Pass v_dilution_ml / c_titrant_mol_l / c_stock_mol_l to test the per-sample
+    titer calculation path.
+    """
+    method = MagicMock()
+    method.v_dilution_ml = v_dilution_ml
+    method.c_titrant_mol_l = c_titrant_mol_l
+    method.c_stock_mol_l = c_stock_mol_l
     analysis = MagicMock()
     analysis.tol_min = tol_min
     analysis.tol_max = tol_max
+    analysis.method = method if v_dilution_ml is not None else None
     batch = MagicMock()
     batch.analysis = analysis
     batch.titer = titer_expected
     sample = MagicMock()
     sample.batch = batch
+    sample.m_ges_actual_g = m_ges_actual_g
     return sample
+
+
+def test_per_sample_titer_from_dispensed_volume():
+    """titer_expected must reflect the dispensed volume, not the nominal batch titer."""
+    # V_theoretical = 100 mL * 0.1 mol/L / 1.0 mol/L = 10.0 mL
+    # 9.45 mL dispensed → factor 0.9450
+    sample = _make_sample(
+        titer_expected=1.0, tol_min=98.0, tol_max=102.0,
+        m_ges_actual_g=9.45,
+        v_dilution_ml=100.0, c_titrant_mol_l=0.1, c_stock_mol_l=1.0,
+    )
+    evaluator = TitrantStandardizationEvaluator()
+    result = evaluator.calculate_sample(sample)
+    assert abs(result.titer_expected - 0.9450) < 0.0001, f"Expected 0.9450, got {result.titer_expected}"
+    assert abs(result.a_min - round(0.9450 * 0.98, 4)) < 0.0001
+    assert abs(result.a_max - round(0.9450 * 1.02, 4)) < 0.0001
 
 
 def test_tolerance_relative_to_true_value():

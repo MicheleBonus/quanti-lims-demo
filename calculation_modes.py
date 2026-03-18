@@ -215,16 +215,33 @@ class MassBasedEvaluator:
 class TitrantStandardizationEvaluator:
     """Evaluator for titrant standardization (Titereinstellung).
 
-    The student weighs the primary standard (Urtitersubstanz), titrates,
-    calculates the titer/factor, and reports it directly as ``ansage_value``.
-    The system only validates whether the reported titer falls within the
-    configured tolerance bounds.  No weighing data (m_s) from the TA is
-    needed – the TA merely dispenses a volume of titrant solution.
+    The student titrates the dispensed primary-standard solution and reports
+    the calculated titer/factor directly as ``ansage_value``.
+
+    Per-sample expected titer:
+        titer_expected = (v_dispensed / V_theoretical) * batch.titer
+    where
+        V_theoretical = method.v_dilution_ml * c_titrant_mol_l / c_stock_mol_l
+    is the volume that would yield exactly batch.titer (= 1.000 for nominal).
+    Falls back to batch.titer when method parameters or dispensed volume are
+    unavailable.
     """
 
     def calculate_sample(self, sample) -> SampleCalculation:
         analysis = sample.batch.analysis
-        titer_expected = sample.batch.titer
+        method = analysis.method
+        v_theoretical_ml = (
+            method.v_dilution_ml * method.c_titrant_mol_l / method.c_stock_mol_l
+            if method and method.v_dilution_ml and method.c_titrant_mol_l
+               and method.c_stock_mol_l and method.c_stock_mol_l > 0
+            else None
+        )
+        if v_theoretical_ml and sample.m_ges_actual_g and v_theoretical_ml > 0:
+            titer_expected = round(
+                sample.m_ges_actual_g / v_theoretical_ml * sample.batch.titer, 4
+            )
+        else:
+            titer_expected = sample.batch.titer
         titer_min = (
             round(titer_expected * analysis.tol_min / 100.0, 4)
             if titer_expected is not None and analysis.tol_min is not None
