@@ -152,10 +152,8 @@ const TARGET_M_S_MIN_G = {{ batch.target_m_s_min_g if batch.target_m_s_min_g is 
 const TARGET_M_GES_G = {{ batch.target_m_ges_g if batch.target_m_ges_g is not none else 'null' }};
 const TARGET_V_MIN_ML = {{ batch.target_v_min_ml if batch.target_v_min_ml is not none else 'null' }};
 const TARGET_V_MAX_ML = {{ batch.target_v_max_ml if batch.target_v_max_ml is not none else 'null' }};
-{% if is_standardization %}
 {%- set _m = batch.analysis.method -%}
 const V_THEORETICAL_ML = {{ (_m.e_ab_ps_g * 1000 / _m.m_eq_primary_mg) | round(4) if _m and _m.e_ab_ps_g and _m.m_eq_primary_mg and _m.m_eq_primary_mg > 0 else 'null' }};
-{% endif %}
 
 function evaluateLimits(ms, mges) {
   const flags = { mSMin: false, mGesBand: false, volumeRange: false, out: false };
@@ -258,9 +256,9 @@ document.querySelectorAll('.weighing-input').forEach(input => {
     // Live Zielfaktor für Titereinstellung
     if (MODE === 'titrant_standardization') {
       const factorCell = document.getElementById('factor-' + sid);
-      if (factorCell && V_THEORETICAL_ML !== null && V_THEORETICAL_ML > 0 && !isNaN(mges)) {
+      if (factorCell && V_THEORETICAL_ML !== null && V_THEORETICAL_ML > 0 && !isNaN(mges) && mges > 0) {
         factorCell.textContent = (mges / V_THEORETICAL_ML).toFixed(4);
-      } else if (factorCell && isNaN(mges)) {
+      } else if (factorCell && (isNaN(mges) || mges === 0)) {
         factorCell.textContent = '';
       }
     }
