@@ -161,10 +161,19 @@ class TitrantStandardizationEvaluator:
 
     def calculate_sample(self, sample) -> SampleCalculation:
         analysis = sample.batch.analysis
-        titer_min = round(analysis.tol_min / 100.0, 4) if analysis.tol_min is not None else None
-        titer_max = round(analysis.tol_max / 100.0, 4) if analysis.tol_max is not None else None
+        titer_expected = sample.batch.titer
+        titer_min = (
+            round(titer_expected * analysis.tol_min / 100.0, 4)
+            if titer_expected is not None and analysis.tol_min is not None
+            else None
+        )
+        titer_max = (
+            round(titer_expected * analysis.tol_max / 100.0, 4)
+            if titer_expected is not None and analysis.tol_max is not None
+            else None
+        )
         return SampleCalculation(
-            titer_expected=sample.batch.titer,
+            titer_expected=titer_expected,
             a_min=titer_min,
             a_max=titer_max,
         )
