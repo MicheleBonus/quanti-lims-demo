@@ -41,8 +41,18 @@ dev = ["pytest", "pytest-cov"]
 
 [build-system]
 requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 ```
+
+### `.flaskenv`
+
+Wird neu erstellt, damit `flask run` und `flask db upgrade` ohne manuelles Setzen von `FLASK_APP` funktionieren. Diese Datei wird von Flask CLI automatisch geladen (via `python-dotenv`, das mit Flask installiert wird):
+
+```
+FLASK_APP=app
+```
+
+> `.flaskenv` ist für nicht-sensitive Flask-CLI-Konfiguration gedacht und kann in Git eingecheckt werden. Sensitive Werte (Passwörter, Secret Keys) gehören in `.env` (gitignored).
 
 ---
 
@@ -73,6 +83,8 @@ flask db upgrade        # erstellt Tabellen (Alembic)
 flask run               # startet App auf http://localhost:5000
 ```
 
+> `FLASK_APP` muss nicht manuell gesetzt werden — die mitgelieferte `.flaskenv` erledigt das automatisch.
+
 **Option B — pip:**
 ```bash
 python -m venv .venv
@@ -81,6 +93,8 @@ pip install -r requirements.txt
 flask db upgrade
 flask run
 ```
+
+> Gleiches gilt hier: `.flaskenv` wird von Flask CLI automatisch eingelesen.
 
 Wichtiger Hinweis als Info-Box:
 > `flask db upgrade` **muss** beim ersten Start (und nach jedem `git pull` mit neuen Migrationen) ausgeführt werden — sonst startet die App mit leerem Schema.
@@ -94,6 +108,12 @@ Wichtiger Hinweis als Info-Box:
 | `ADMIN_BACKUP_TOKEN` | — | Optionaler Token für DB-Backup-Route |
 
 Hinweis: Für Produktion `SECRET_KEY` explizit setzen (nicht aus `.secret_key`-Datei).
+
+Das Repo enthält eine `.env.example` mit allen drei Variablen als Vorlage. Für lokale PostgreSQL-Entwicklung:
+```bash
+cp .env.example .env   # dann .env mit echten Werten befüllen
+```
+`.env` ist in `.gitignore` eingetragen und wird nicht eingecheckt.
 
 ### 2.5 Datenbank-Optionen
 
@@ -114,6 +134,8 @@ quanti-lims/
 ├── config.py            # Konfiguration (DATABASE_URL, SECRET_KEY)
 ├── pyproject.toml       # Projektmetadaten + Abhängigkeiten
 ├── requirements.txt     # Legacy pip-kompatible Abhängigkeitsliste
+├── .flaskenv            # FLASK_APP=app (Flask CLI-Konfiguration)
+├── .env.example         # Vorlage für lokale Umgebungsvariablen
 ├── Dockerfile
 ├── docker-compose.yml   # PostgreSQL + Web (Produktion)
 ├── migrations/          # Alembic-Migrationen
@@ -121,12 +143,15 @@ quanti-lims/
 ├── static/
 └── templates/
     ├── base.html
-    ├── admin/
-    ├── praktikum/       # Tagesansicht, Kalender
-    ├── ta/
-    ├── assignments/
-    ├── results/
-    └── reports/
+    ├── home.html
+    ├── macros.html
+    ├── admin/           # CRUD: Substanzen, Chargen, Analysen, Studierende, Kalender …
+    ├── praktikum/       # Tagesansicht
+    ├── ta/              # Einwaage-Workflow
+    ├── assignments/     # Zuweisungen + Wiederholungen
+    ├── results/         # Ansage-Eingabe + Bewertung
+    ├── reports/         # Fortschritt, Reagenzienbedarf
+    └── errors/          # 404, 500
 ```
 
 ### 2.7 Tests ausführen
@@ -171,3 +196,4 @@ Wie bisher.
 |---|---|
 | `README.md` | Vollständig neu geschrieben nach obiger Struktur |
 | `pyproject.toml` | Neu erstellt |
+| `.flaskenv` | Neu erstellt (`FLASK_APP=app`) |
