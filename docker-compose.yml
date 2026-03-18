@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: quanti_lims
+      POSTGRES_USER: quanti
+      POSTGRES_PASSWORD: quanti
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://quanti:quanti@db:5432/quanti_lims
+      SECRET_KEY: change-me-in-production
+    depends_on:
+      - db
+    entrypoint: ["sh", "-c", "flask db upgrade && flask run --host=0.0.0.0"]
+
+volumes:
+  pgdata:
