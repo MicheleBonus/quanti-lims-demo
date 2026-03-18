@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(grep -rn \"m_eq_primary_mg\\\\|class Method\\\\b\" /c/Users/Miche/Documents/GitHub/quanti-lims/.worktrees/meq-auto-calc/ --include=*.py)",
+      "Bash(python -m pytest)"
+    ]
+  }
+}
