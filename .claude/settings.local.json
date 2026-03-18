@@ -3,7 +3,14 @@
     "allow": [
       "Bash(git:*)",
       "Bash(grep -rn \"m_eq_primary_mg\\\\|class Method\\\\b\" /c/Users/Miche/Documents/GitHub/quanti-lims/.worktrees/meq-auto-calc/ --include=*.py)",
-      "Bash(python -m pytest)"
+      "Bash(python -m pytest)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/ -v --tb=short --collect-only)",
+      "Bash(python -c \"from tests.conftest import TEST_CONFIG, app, client, db; print\\(''imports ok''\\); print\\(''TEST_CONFIG keys:'', list\\(TEST_CONFIG.keys\\(\\)\\)\\)\")",
+      "Bash(python -m pytest tests/test_attempt_type.py -v)",
+      "Bash(python:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
