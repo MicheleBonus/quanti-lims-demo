@@ -288,13 +288,15 @@ def register_routes(app):
     # ═══════════════════════════════════════════════════════════════
     @app.route("/")
     def dashboard():
-        sem = active_semester()
-        analyses = Analysis.query.order_by(Analysis.ordinal).all()
-        batches = {}
-        if sem:
-            for b in SampleBatch.query.filter_by(semester_id=sem.id).all():
-                batches[b.analysis_id] = b
-        return render_template("dashboard.html", semester=sem, analyses=analyses, batches=batches)
+        return render_template("home.html")
+
+    @app.route("/vorbereitung/stammdaten")
+    def vorbereitung_stammdaten():
+        return redirect(url_for("admin_substances"))
+
+    @app.route("/praktikum/")
+    def praktikum_tagesansicht():
+        return render_template("praktikum/tagesansicht.html")
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Substances

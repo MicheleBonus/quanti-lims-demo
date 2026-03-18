@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Quanti-LIMS{% endblock %}
+{% block content %}
+<div class="row g-4 mt-2">
+
+  <div class="col-md-6">
+    <a href="{{ url_for('vorbereitung_stammdaten') }}" class="text-decoration-none">
+      <div class="card h-100 border-primary">
+        <div class="card-body p-4">
+          <h2 class="card-title">
+            <i class="bi bi-archive text-primary"></i> Vorbereitung
+          </h2>
+          <p class="card-text text-body-secondary">
+            Stammdaten, Semesterplanung und Probenvorbereitung.
+            Alles was vor dem Praktikum erledigt wird.
+          </p>
+          <ul class="list-unstyled mt-3">
+            <li><i class="bi bi-chevron-right text-primary"></i> Stammdaten</li>
+            <li><i class="bi bi-chevron-right text-primary"></i> Semesterplanung</li>
+            <li><i class="bi bi-chevron-right text-primary"></i> Probenvorbereitung</li>
+          </ul>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-6">
+    <a href="{{ url_for('praktikum_tagesansicht') }}" class="text-decoration-none">
+      <div class="card h-100 border-success">
+        <div class="card-body p-4">
+          <h2 class="card-title">
+            <i class="bi bi-play-circle text-success"></i> Praktikum
+          </h2>
+          <p class="card-text text-body-secondary">
+            Tagesansicht, Ansagen, Protokolle und Studentenstatus.
+            Alles was während des Praktikums benötigt wird.
+          </p>
+          <ul class="list-unstyled mt-3">
+            <li><i class="bi bi-chevron-right text-success"></i> Tagesansicht</li>
+            <li><i class="bi bi-chevron-right text-success"></i> Ansage eintragen</li>
+            <li><i class="bi bi-chevron-right text-success"></i> Protokoll abhaken</li>
+          </ul>
+        </div>
+      </div>
+    </a>
+  </div>
+
+</div>
+{% endblock %}
