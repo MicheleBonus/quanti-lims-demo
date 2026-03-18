@@ -1574,15 +1574,24 @@ def register_routes(app):
             sample = assignment.sample
             if mode == MODE_TITRANT_STANDARDIZATION:
                 true_val = sample.titer_expected
+                true_value_label = "Titer Soll"
             else:
                 true_val = sample.g_wahr
+                true_value_label = "G_wahr"
             if true_val is not None:
+                v_exp = sample.v_expected if mode != MODE_TITRANT_STANDARDIZATION else None
                 live_eval_ctx = {
                     "true_value": true_val,
+                    "true_value_label": true_value_label,
                     "tol_min_pct": analysis.tol_min,
                     "tol_max_pct": analysis.tol_max,
                     "attempt_type": assignment.attempt_type,
                     "mode": mode,
+                    "a_min": sample.a_min,
+                    "a_max": sample.a_max,
+                    "result_unit": analysis.result_unit or "",
+                    "result_label": analysis.result_label or "",
+                    "v_expected_ml": v_exp,
                 }
         return render_template("results/submit.html", assignment=assignment, analysis=analysis, titer_label=mode_titer_label(analysis.calculation_mode), live_eval_ctx=live_eval_ctx)
 
