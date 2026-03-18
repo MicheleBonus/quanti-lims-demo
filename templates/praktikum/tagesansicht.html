@@ -1,14 +1,163 @@
 {% extends "base.html" %}
 {% block title %}Tagesansicht – Quanti-LIMS{% endblock %}
 {% block content %}
-<div class="d-flex align-items-center gap-2 mb-4">
-  <i class="bi bi-calendar-day fs-3 text-success"></i>
-  <h1 class="h3 mb-0">Tagesansicht</h1>
+
+{# ── Header ────────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+  <div class="d-flex align-items-center gap-2">
+    <i class="bi bi-calendar-day fs-3 text-success"></i>
+    <h1 class="h3 mb-0">Tagesansicht</h1>
+  </div>
+  <form method="get" class="d-flex align-items-center gap-2 ms-auto">
+    <label class="form-label mb-0 fw-semibold">Datum:</label>
+    <input type="date" name="date" class="form-control form-control-sm"
+           value="{{ selected_date }}" onchange="this.form.submit()">
+  </form>
 </div>
+
+{# ── No semester / no practical day ────────────────────────────── #}
+{% if not semester %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle"></i>
+  Kein aktives Semester gefunden. Bitte zuerst ein Semester aktivieren.
+</div>
+
+{% elif not practical_day %}
 <div class="alert alert-info">
   <i class="bi bi-info-circle"></i>
-  Die Tagesansicht wird in einem späteren Schritt implementiert (Plan 4).
-  Sie zeigt dann: Rotationsübersicht, Studentenstatus, Dienste des Tages
-  und ermöglicht die schnelle Ansage-Eingabe.
+  Für den <strong>{{ selected_date }}</strong> ist kein Praktikumstag definiert.
 </div>
+
+{% else %}
+
+{# ── Day info ───────────────────────────────────────────────────── #}
+<div class="mb-3">
+  <span class="badge text-bg-secondary fs-6">
+    Block {{ practical_day.block.code }}
+    {% if practical_day.day_type == "nachkochtag" %}
+      – Nachkochtag
+    {% else %}
+      – Tag {{ practical_day.block_day_number }}
+    {% endif %}
+  </span>
+</div>
+
+{# ── Rotation overview (normal days only) ──────────────────────── #}
+{% if practical_day.day_type == "normal" and practical_day.group_rotations %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">
+    <i class="bi bi-arrow-repeat"></i> Rotation heute
+  </div>
+  <div class="card-body p-2">
+    <div class="d-flex flex-wrap gap-3">
+      {% for gr in practical_day.group_rotations | sort(attribute="group_code") %}
+      <div class="border rounded px-3 py-2 text-center">
+        <div class="fw-bold fs-5">Gruppe {{ gr.group_code }}</div>
+        <div class="text-body-secondary small">{{ gr.analysis.name }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Student table ──────────────────────────────────────────────── #}
+{% if not slots %}
+<div class="alert alert-info">Keine Studierenden im aktiven Semester.</div>
+{% else %}
+<table class="table table-hover align-middle">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Name</th>
+      <th>Gruppe</th>
+      {% if practical_day.day_type == "normal" %}
+      <th>Rotation</th>
+      {% endif %}
+      <th>Weitere offene Analysen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for slot in slots %}
+    {# Nachkochtag: grey out students with no open assignments #}
+    {% set row_class = "table-secondary text-body-secondary" if (practical_day.day_type == "nachkochtag" and not slot.extra_assignments) else "" %}
+    <tr class="{{ row_class }}">
+      <td>{{ slot.student.running_number }}</td>
+      <td>{{ slot.student.last_name }}, {{ slot.student.first_name }}</td>
+      <td>
+        {% if slot.student.group_code %}
+          <span class="badge text-bg-secondary">{{ slot.student.group_code }}</span>
+        {% else %}
+          <span class="text-body-secondary">—</span>
+        {% endif %}
+      </td>
+
+      {# ── Rotation column (normal days) ── #}
+      {% if practical_day.day_type == "normal" %}
+      <td>
+        {% if slot.rotation_analysis is none %}
+          <span class="badge text-bg-secondary">Keine Rotation</span>
+        {% elif slot.rotation_assignment is none %}
+          <span class="badge text-bg-secondary">Noch nicht zugewiesen</span>
+        {% else %}
+          {% set sa = slot.rotation_assignment %}
+          {% set ar = sa.active_result %}
+          {% if sa.status == "passed" %}
+            <span class="badge text-bg-success">
+              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} ✓
+            </span>
+          {% elif ar is not none and ar.passed == false %}
+            <span class="badge text-bg-danger">
+              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} Wdh. fällig
+            </span>
+          {% elif ar is not none and ar.passed is none %}
+            <span class="badge text-bg-warning text-dark">
+              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} ausstehend
+            </span>
+          {% else %}
+            <span class="badge text-bg-primary">
+              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }}
+            </span>
+          {% endif %}
+        {% endif %}
+      </td>
+      {% endif %}
+
+      {# ── Extra assignments ── #}
+      <td>
+        {% if practical_day.day_type == "nachkochtag" and not slot.extra_assignments %}
+          <span class="badge text-bg-success">Block abgeschlossen</span>
+        {% else %}
+          {% for sa in slot.extra_assignments %}
+            {% set ar = sa.active_result %}
+            {% if sa.status == "passed" %}
+              <span class="badge text-bg-success me-1">
+                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} ✓
+              </span>
+            {% elif ar is not none and ar.passed == false %}
+              <span class="badge text-bg-danger me-1">
+                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} Wdh. fällig
+              </span>
+            {% elif ar is not none and ar.passed is none %}
+              <span class="badge text-bg-warning text-dark me-1">
+                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} ausstehend
+              </span>
+            {% else %}
+              <span class="badge text-bg-primary me-1">
+                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }}
+              </span>
+            {% endif %}
+          {% endfor %}
+          {% if not slot.extra_assignments %}
+            <span class="text-body-secondary">—</span>
+          {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endif %}{# end practical_day check #}
 {% endblock %}
