@@ -12,7 +12,13 @@
         <table class="table table-sm mb-0">
           <tr><th style="width:40%">Student/in</th><td>{{ assignment.student.full_name }} (#{{ assignment.student.running_number }})</td></tr>
           <tr><th>Analyse</th><td>{{ analysis.code }} – {{ analysis.name }}</td></tr>
-          <tr><th>Versuch</th><td>{{ assignment.attempt_type }}-Analyse (Versuch {{ assignment.attempt_number }})</td></tr>
+          <tr><th>Versuch</th><td>
+            {% if assignment.attempt_type == 'Erstanalyse' %}
+              Erstanalyse (Versuch 1)
+            {% else %}
+              {{ assignment.attempt_type }}-Analyse (Versuch {{ assignment.attempt_number }})
+            {% endif %}
+          </td></tr>
           <tr><th>Probe</th><td>#{{ assignment.sample.running_number }}</td></tr>
           <tr><th>Erwartete Einheit</th><td><strong>{{ analysis.result_label }} in {{ analysis.result_unit }}</strong></td></tr>
         </table>

@@ -22,7 +22,7 @@ from models import (
     AMOUNT_UNIT_VOLUME,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit, migrate_schema,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for
 
 
 # Legacy constant kept for reference; validation now uses minimum-only check.
@@ -1158,7 +1158,7 @@ def register_routes(app):
             if existing:
                 continue
             sa = SampleAssignment(
-                sample=sample, student=st, attempt_number=1, attempt_type="A",
+                sample=sample, student=st, attempt_number=1, attempt_type=attempt_type_for(1),
                 assigned_date=date.today().isoformat(), assigned_by="System",
                 status="assigned",
             )
@@ -1356,17 +1356,18 @@ def register_routes(app):
             .filter(SampleAssignment.student_id == student_id)
             .count()
         )
-        types = ["A", "B", "C", "D"]
-        attempt_type = types[min(prev_count, len(types) - 1)]
+        new_attempt_number = prev_count + 1
+        attempt_type = attempt_type_for(new_attempt_number)
         sa = SampleAssignment(
             sample=buffer_sample, student_id=student_id,
-            attempt_number=prev_count + 1, attempt_type=attempt_type,
+            attempt_number=new_attempt_number, attempt_type=attempt_type,
             assigned_date=date.today().isoformat(), assigned_by="Praktikumsleitung",
             status="assigned",
         )
         db.session.add(sa)
         db.session.commit()
-        flash(f"Pufferprobe #{buffer_sample.running_number} ({attempt_type}-Analyse) zugewiesen.", "success")
+        label = "Erstanalyse" if attempt_type == "Erstanalyse" else f"{attempt_type}-Analyse"
+        flash(f"Pufferprobe #{buffer_sample.running_number} ({label}) zugewiesen.", "success")
         return redirect(url_for("assignments_overview"))
 
     @app.route("/assignments/<int:id>/cancel", methods=["POST"])

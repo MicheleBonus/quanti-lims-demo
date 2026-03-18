@@ -32,7 +32,13 @@
     <tr>
       <td>{{ sa.student.running_number }}</td>
       <td>{{ sa.student.full_name }}</td>
-      <td><span class="badge {% if sa.attempt_type == 'A' %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ sa.attempt_type }}-Analyse</span></td>
+      <td>
+        {% if sa.attempt_type == 'Erstanalyse' %}
+          <span class="badge bg-secondary">Erstanalyse</span>
+        {% else %}
+          <span class="badge {% if sa.attempt_type == 'A' %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ sa.attempt_type }}-Analyse</span>
+        {% endif %}
+      </td>
       <td>Probe #{{ sa.sample.running_number }}</td>
       <td>{{ status_badge(sa.status) }}</td>
       <td>

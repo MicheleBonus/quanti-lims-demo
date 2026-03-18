@@ -9,6 +9,23 @@ MODE_ASSAY_MASS_BASED = "assay_mass_based"
 MODE_TITRANT_STANDARDIZATION = "titrant_standardization"
 
 
+def attempt_type_for(attempt_number: int) -> str:
+    """Map attempt_number to the correct attempt_type label.
+
+    attempt_number=1 → 'Erstanalyse' (the initial analysis, no repeat letter)
+    attempt_number=2 → 'A'  (first repeat)
+    attempt_number=3 → 'B'  (second repeat)
+    attempt_number=n → chr(ord('A') + n - 2) for n in [2..27]
+    attempt_number>27 → '#N' fallback (edge case, not expected in practice)
+    """
+    if attempt_number == 1:
+        return "Erstanalyse"
+    n = attempt_number - 2
+    if 0 <= n <= 25:
+        return chr(ord("A") + n)
+    return f"#{attempt_number}"
+
+
 @dataclass
 class SampleCalculation:
     g_wahr: float | None = None

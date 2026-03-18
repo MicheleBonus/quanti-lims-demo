@@ -487,6 +487,23 @@ def migrate_schema() -> None:
                 "CREATE UNIQUE INDEX uq_method_reagent_single_titrant "
                 "ON method_reagent(method_id) WHERE is_titrant = 1"
             )
+        # ── attempt_type: remap to new terminology ──────────────────
+        sa_cols = {row[1] for row in conn.exec_driver_sql(
+            "PRAGMA table_info(sample_assignment)").fetchall()}
+        if "attempt_type" in sa_cols:
+            conn.exec_driver_sql(
+                "UPDATE sample_assignment SET attempt_type = 'Erstanalyse' "
+                "WHERE attempt_number = 1 AND attempt_type != 'Erstanalyse'"
+            )
+            conn.exec_driver_sql(
+                "UPDATE sample_assignment SET attempt_type = CHAR(65 + attempt_number - 2) "
+                "WHERE attempt_number >= 2 AND attempt_number <= 27"
+            )
+            conn.exec_driver_sql(
+                "UPDATE sample_assignment SET attempt_type = '#' || attempt_number "
+                "WHERE attempt_number > 27"
+            )
+
         conn.commit()
     finally:
         conn.close()
@@ -669,7 +686,7 @@ class SampleAssignment(db.Model):
     sample_id = db.Column(db.Integer, db.ForeignKey("sample.id"), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id", ondelete="CASCADE"), nullable=False)
     attempt_number = db.Column(db.Integer, nullable=False, default=1)
-    attempt_type = db.Column(db.String(2), nullable=False, default="A")
+    attempt_type = db.Column(db.String(20), nullable=False, default="Erstanalyse")
     assigned_date = db.Column(db.String(20), nullable=False)
     assigned_by = db.Column(db.String(100))
     status = db.Column(db.String(20), nullable=False, default="assigned")
@@ -682,6 +699,7 @@ class SampleAssignment(db.Model):
         back_populates="assignment",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        order_by="Result.id",
     )
 
     @property

@@ -6,7 +6,7 @@ from models import (
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, attempt_type_for
 
 
 def seed_database():
@@ -328,7 +328,7 @@ def seed_database():
     for st in students:
         sample = samples_ass[st.running_number - 1]
         sa = SampleAssignment(
-            sample=sample, student=st, attempt_number=1, attempt_type="A",
+            sample=sample, student=st, attempt_number=1, attempt_type=attempt_type_for(1),
             assigned_date=date.today().isoformat(), assigned_by="System",
             status="assigned",
         )

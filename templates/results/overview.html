@@ -45,7 +45,13 @@
 <tr>
   <td>{{ sa.student.running_number }}</td>
   <td>{{ sa.student.full_name }}</td>
-  <td>{{ sa.attempt_type }}</td>
+  <td>
+    {% if sa.attempt_type == 'Erstanalyse' %}
+      <span class="badge bg-secondary">Erstanalyse</span>
+    {% else %}
+      <span class="badge bg-primary">{{ sa.attempt_type }}-Analyse</span>
+    {% endif %}
+  </td>
   <td>#{{ s.running_number }}</td>
   {% if selected_analysis and selected_analysis.calculation_mode == 'titrant_standardization' %}
   <td>{{ s.titer_expected|fmt(4) }}</td>
