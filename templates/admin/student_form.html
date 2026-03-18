@@ -16,10 +16,10 @@
     <div class="col-md-5">{{ field("email", "Email", item.email, type="email") }}</div>
     <div class="col-md-2">
       <div class="mb-3">
-        <label class="form-label">Gruppe</label>
-        <select name="group_code" class="form-select">
+        <label class="form-label" for="group_code">Gruppe</label>
+        <select name="group_code" id="group_code" class="form-select">
           <option value="">— keine —</option>
-          {% for code in ("A", "B", "C", "D") %}
+          {% for code in group_codes %}
           <option value="{{ code }}" {% if item and item.group_code == code %}selected{% endif %}>
             Gruppe {{ code }}
           </option>

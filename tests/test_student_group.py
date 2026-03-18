@@ -1,4 +1,8 @@
 # tests/test_student_group.py
+import pytest
+import sqlalchemy.exc
+
+
 def test_student_has_group_code_attribute(db):
     from models import Student, Semester
     with db.session.begin_nested():
@@ -25,7 +29,6 @@ def test_student_group_code_nullable(db):
 
 def test_student_group_code_must_be_valid(db):
     from models import Student, Semester
-    import pytest
     with db.session.begin_nested():
         sem = Semester(code="TEST3", name="Test3")
         db.session.add(sem)
@@ -33,5 +36,5 @@ def test_student_group_code_must_be_valid(db):
     s = Student(semester_id=sem.id, matrikel="789", last_name="Test",
                 first_name="C", running_number=3, group_code="X")
     db.session.add(s)
-    with pytest.raises(Exception):
+    with pytest.raises((sqlalchemy.exc.StatementError, ValueError, LookupError)):
         db.session.flush()

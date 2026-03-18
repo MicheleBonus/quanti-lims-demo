@@ -20,7 +20,7 @@ from models import (
     db, Block, Substance, SubstanceLot, Analysis, Method,
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
-    AMOUNT_UNIT_VOLUME,
+    AMOUNT_UNIT_VOLUME, GROUP_CODES,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
@@ -812,7 +812,7 @@ def register_routes(app):
                 if sem:
                     max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar()
                     next_num = (max_num or 0) + 1
-                return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num)
+                return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num, group_codes=GROUP_CODES)
 
             duplicate_running_number = Student.query.filter(
                 Student.semester_id == sem.id,
@@ -825,7 +825,7 @@ def register_routes(app):
                 if sem:
                     max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar()
                     next_num = (max_num or 0) + 1
-                return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num)
+                return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num, group_codes=GROUP_CODES)
 
             if not id:
                 db.session.add(item)
@@ -840,7 +840,7 @@ def register_routes(app):
         if sem:
             max_num = db.session.query(db.func.max(Student.running_number)).filter_by(semester_id=sem.id).scalar()
             next_num = (max_num or 0) + 1
-        return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num)
+        return render_template("admin/student_form.html", item=item, semester=sem, next_num=next_num, group_codes=GROUP_CODES)
 
     @app.route("/admin/students/import", methods=["POST"])
     def admin_students_import():
