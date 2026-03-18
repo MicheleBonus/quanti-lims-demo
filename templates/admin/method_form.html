@@ -118,7 +118,10 @@
     if (!overrideCheckbox || !meqInput) return;
 
     // Only active in standardization mode — currentCalcMode is null during async fetch at page load
-    if (currentCalcMode !== MODE_STANDARDIZATION) return;
+    if (currentCalcMode !== MODE_STANDARDIZATION) {
+      meqInput.disabled = false;  // Re-enable when switching away from standardization mode
+      return;
+    }
 
     const isOverride = overrideCheckbox.checked;
     meqInput.disabled = !isOverride;
