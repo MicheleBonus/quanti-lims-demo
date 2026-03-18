@@ -189,6 +189,8 @@ def seed_database():
     methods["I.1"].primary_standard = reagents["Natriumtetraborat (Primärstandard)"]
     methods["I.1"].m_eq_primary_mg = 19.069
     methods["I.1"].e_ab_ps_g = 0.200
+    methods["I.1"].c_stock_mol_l = 1.0
+    methods["I.1"].v_dilution_ml = 100.0
 
     # ── BOM: Verdünnte Schwefelsäure R ─────────────────────────────
     db.session.add(ReagentComponent(
