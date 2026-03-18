@@ -52,6 +52,11 @@ GROUP_CODE_ENUM = db.Enum(*GROUP_CODES, name="group_code_enum",
                           native_enum=False, create_constraint=True,
                           validate_strings=True)
 
+PRACTICAL_DAY_TYPES = ("normal", "nachkochtag")
+PRACTICAL_DAY_TYPE_ENUM = db.Enum(*PRACTICAL_DAY_TYPES, name="practical_day_type",
+                                   native_enum=False, create_constraint=True,
+                                   validate_strings=True)
+
 
 def normalize_unit(unit: str | None) -> str | None:
     if unit is None:
@@ -564,3 +569,25 @@ class Result(db.Model):
         self.titer_result = evaluation.titer_result
         self.passed = evaluation.passed
         self.submitted_date = date.today().isoformat()
+
+
+# ── Praktikumsbetrieb ─────────────────────────────────────────────────────
+
+class PracticalDay(db.Model):
+    __tablename__ = "practical_day"
+    id = db.Column(db.Integer, primary_key=True)
+    semester_id = db.Column(db.Integer, db.ForeignKey("semester.id"), nullable=False)
+    block_id = db.Column(db.Integer, db.ForeignKey("block.id"), nullable=False)
+    date = db.Column(db.String(20), nullable=False)
+    day_type = db.Column(PRACTICAL_DAY_TYPE_ENUM, nullable=False, default="normal")
+    block_day_number = db.Column(db.Integer, nullable=True)  # 1–4 for normal days; NULL for Nachkochtag
+    notes = db.Column(db.Text)
+
+    semester = db.relationship("Semester", backref="practical_days")
+    block = db.relationship("Block", backref="practical_days")
+    # group_rotations and duty_assignments relationships will be added in P3-T3
+    # when GroupRotation and DutyAssignment models are defined.
+
+    __table_args__ = (
+        db.UniqueConstraint("semester_id", "date"),
+    )
