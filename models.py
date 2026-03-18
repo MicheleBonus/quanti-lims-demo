@@ -625,3 +625,18 @@ class DutyAssignment(db.Model):
 
     practical_day = db.relationship("PracticalDay", back_populates="duty_assignments")
     student = db.relationship("Student", backref="duty_assignments")
+
+
+class ProtocolCheck(db.Model):
+    __tablename__ = "protocol_check"
+    id = db.Column(db.Integer, primary_key=True)
+    sample_assignment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sample_assignment.id"),
+        nullable=False,
+        unique=True,  # one protocol check per assignment
+    )
+    checked_date = db.Column(db.String(20), nullable=False)
+    checked_by = db.Column(db.String(100), nullable=False)
+
+    assignment = db.relationship("SampleAssignment", backref=db.backref("protocol_check", uselist=False))
