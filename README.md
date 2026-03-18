@@ -51,6 +51,12 @@ flask run
 ### Tests ausführen
 
 ```bash
+# uv:
+uv sync --extra dev   # einmalig — installiert pytest und pytest-cov
+pytest
+
+# pip:
+pip install pytest pytest-cov
 pytest
 ```
 
@@ -100,7 +106,7 @@ cp .env.example .env   # .env mit echten Werten befüllen
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Python 3.10+ / Flask 3 |
+| Backend | Python 3.12+ / Flask 3 |
 | ORM + Migrationen | SQLAlchemy + Flask-Migrate (Alembic) |
 | Datenbank | SQLite (Entwicklung) / PostgreSQL 16 (Produktion) |
 | Frontend | Jinja2 + Bootstrap 5.3 + Bootstrap Icons |
