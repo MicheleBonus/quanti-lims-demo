@@ -59,11 +59,11 @@
         {# --- Statischer Block --- #}
         <table class="table table-sm mb-3">
           <tr>
-            <th style="width:50%">Sollwert ({{ live_eval_ctx.true_value_label }})</th>
+            <th style="width:50%">Referenzwert ({{ live_eval_ctx.true_value_label }})</th>
             <td class="fw-semibold">{{ live_eval_ctx.true_value|round(4) }} {{ live_eval_ctx.result_unit }}</td>
           </tr>
           <tr>
-            <th>Erlaubte Spanne</th>
+            <th>Annahmebereich (Ansage)</th>
             <td>
               {% if live_eval_ctx.a_min is not none and live_eval_ctx.a_max is not none %}
                 {{ live_eval_ctx.a_min|round(4) }} – {{ live_eval_ctx.a_max|round(4) }} {{ live_eval_ctx.result_unit }}
@@ -99,6 +99,12 @@
                 #dc3545 100%
               );
             "></div>
+            <div id="live-range-lo"
+                 class="position-absolute"
+                 style="top:2px;width:2px;height:20px;background:rgba(255,255,255,0.9);pointer-events:none;left:37.5%;"></div>
+            <div id="live-range-hi"
+                 class="position-absolute"
+                 style="top:2px;width:2px;height:20px;background:rgba(255,255,255,0.9);pointer-events:none;left:62.5%;"></div>
             <div id="live-range-marker"
                  class="position-absolute rounded-pill bg-dark border border-2 border-white"
                  style="top:0;width:10px;height:24px;transform:translateX(-50%);left:50%;"></div>
@@ -180,6 +186,8 @@
   var badge       = document.getElementById('live-eval-badge');
   var liveDetails = document.getElementById('live-details');
   var rangeMarker = document.getElementById('live-range-marker');
+  var rangeLoEl   = document.getElementById('live-range-lo');
+  var rangeHiEl   = document.getElementById('live-range-hi');
   var liveValEl   = document.getElementById('live-val-el');
   var liveDeltaEl = document.getElementById('live-delta-el');
   var liveVolEl   = document.getElementById('live-vol-el');
@@ -204,6 +212,14 @@
       (hi > lo) ? (val - lo) / (hi - lo) * 100 : 50
     ));
     rangeMarker.style.left = posPct + '%';
+
+    // Tolerance boundary markers
+    if (ctx.a_min !== null && ctx.a_max !== null) {
+      rangeLoEl.style.left = Math.max(0, Math.min(100,
+        (hi > lo) ? (ctx.a_min - lo) / (hi - lo) * 100 : 37.5)) + '%';
+      rangeHiEl.style.left = Math.max(0, Math.min(100,
+        (hi > lo) ? (ctx.a_max - lo) / (hi - lo) * 100 : 62.5)) + '%';
+    }
 
     // Abweichungen
     var deltaAbs = val - ctx.true_value;
