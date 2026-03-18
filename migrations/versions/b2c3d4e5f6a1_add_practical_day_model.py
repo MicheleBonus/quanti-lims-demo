@@ -17,6 +17,10 @@ depends_on = None
 
 
 def upgrade():
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    if 'practical_day' in inspector.get_table_names():
+        return  # already present (fresh install via db.create_all in initial migration)
     op.create_table(
         'practical_day',
         sa.Column('id', sa.Integer(), nullable=False),

@@ -17,10 +17,19 @@ depends_on = None
 
 
 def upgrade():
-    # Drop legacy partial index if it exists (may be absent on older installs)
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    if 'method_reagent' in inspector.get_table_names():
+    existing_tables = set(inspector.get_table_names())
+
+    if 'block' not in existing_tables:
+        # Fresh install — create entire schema from current SQLAlchemy models.
+        # Subsequent migrations will detect columns/tables already exist and skip.
+        from models import db
+        db.metadata.create_all(bind=conn)
+        return
+
+    # Existing pre-Alembic install — drop legacy partial index if present.
+    if 'method_reagent' in existing_tables:
         existing = {idx['name'] for idx in inspector.get_indexes('method_reagent')}
         if 'uq_method_reagent_single_titrant' in existing:
             with op.batch_alter_table('method_reagent', schema=None) as batch_op:
