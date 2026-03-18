@@ -1884,6 +1884,7 @@ def register_routes(app):
             if (
                 method.v_dilution_ml is not None
                 and method.c_titrant_mol_l is not None
+                and method.c_titrant_mol_l > 0
                 and method.c_stock_mol_l is not None
                 and method.c_stock_mol_l > 0
             ):
