@@ -20,48 +20,74 @@
       </button>
       <div class="collapse navbar-collapse" id="nav">
         <ul class="navbar-nav me-auto">
+
+          <!-- VORBEREITUNG -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-              <i class="bi bi-gear"></i> Admin
+              <i class="bi bi-archive" aria-hidden="true"></i> Vorbereitung
             </a>
             <ul class="dropdown-menu">
-              <li><h6 class="dropdown-header">Semesterbetrieb</h6></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_semesters') }}"><i class="bi bi-calendar3"></i> Semester</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_students') }}"><i class="bi bi-people"></i> Studierende</a></li>
-              <li><hr class="dropdown-divider"></li>
               <li><h6 class="dropdown-header">Stammdaten</h6></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_substances') }}"><i class="bi bi-flask-vial"></i> Arzneistoffe / Analyten</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_lots') }}"><i class="bi bi-box-seam"></i> Chargen / CoA</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_reagents') }}"><i class="bi bi-prescription2"></i> Reagenzien</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_substances') }}">
+                <i class="bi bi-flask-vial" aria-hidden="true"></i> Arzneistoffe / Analyten</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_lots') }}">
+                <i class="bi bi-box-seam" aria-hidden="true"></i> Chargen / CoA</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_reagents') }}">
+                <i class="bi bi-prescription2" aria-hidden="true"></i> Reagenzien</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_analyses') }}">
+                <i class="bi bi-list-ol" aria-hidden="true"></i> Prüfungen</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_methods') }}">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i> Methoden</a></li>
+
               <li><hr class="dropdown-divider"></li>
-              <li><h6 class="dropdown-header">Prüfvorschriften</h6></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_analyses') }}"><i class="bi bi-list-ol"></i> Prüfungen <small class="text-body-secondary">(Arzneibuch-Monographien)</small></a></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_methods') }}"><i class="bi bi-diagram-3"></i> Methoden <small class="text-body-secondary">(Titrationsparameter)</small></a></li>
+              <li><h6 class="dropdown-header">Semesterplanung</h6></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_semesters') }}">
+                <i class="bi bi-calendar3" aria-hidden="true"></i> Semester</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_students') }}">
+                <i class="bi bi-people" aria-hidden="true"></i> Studierende &amp; Gruppen</a></li>
+
               <li><hr class="dropdown-divider"></li>
-              <li><h6 class="dropdown-header">Praktikum</h6></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_batches') }}"><i class="bi bi-collection"></i> Probenansätze</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="{{ url_for('admin_system') }}"><i class="bi bi-hdd-stack"></i> System</a></li>
+              <li><h6 class="dropdown-header">Probenvorbereitung</h6></li>
+              <li><a class="dropdown-item" href="{{ url_for('admin_batches') }}">
+                <i class="bi bi-collection" aria-hidden="true"></i> Probensätze</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('ta_weighing') }}">
+                <i class="bi bi-ui-checks-grid" aria-hidden="true"></i> Einwaage</a></li>
             </ul>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('ta_weighing') }}"><i class="bi bi-ui-checks-grid"></i> Einwaage</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('assignments_overview') }}"><i class="bi bi-arrow-left-right"></i> Zuweisungen</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('results_overview') }}"><i class="bi bi-clipboard-check"></i> Ergebnisse</a>
-          </li>
+
+          <!-- PRAKTIKUM -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-              <i class="bi bi-bar-chart"></i> Berichte
+              <i class="bi bi-play-circle" aria-hidden="true"></i> Praktikum
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{{ url_for('praktikum_tagesansicht') }}">
+                <i class="bi bi-calendar-day" aria-hidden="true"></i> Tagesansicht</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('assignments_overview') }}">
+                <i class="bi bi-arrow-left-right" aria-hidden="true"></i> Zuweisungen</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('results_overview') }}">
+                <i class="bi bi-clipboard-check" aria-hidden="true"></i> Ergebnisse</a></li>
+            </ul>
+          </li>
+
+          <!-- BERICHTE -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+              <i class="bi bi-bar-chart" aria-hidden="true"></i> Berichte
             </a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{{ url_for('reports_progress') }}">Fortschritt</a></li>
               <li><a class="dropdown-item" href="{{ url_for('reports_reagents') }}">Reagenzienbedarf</a></li>
             </ul>
           </li>
+
+          <!-- SYSTEM -->
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('admin_system') }}">
+              <i class="bi bi-hdd-stack" aria-hidden="true"></i> System
+            </a>
+          </li>
+
         </ul>
       </div>
     </div>
