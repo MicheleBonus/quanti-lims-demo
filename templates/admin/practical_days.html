@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Praktikumskalender{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">Praktikumskalender</h1>
+  <a href="{{ url_for('admin_practical_day_new') }}" class="btn btn-primary">
+    <i class="bi bi-plus-lg" aria-hidden="true"></i> Tag hinzufügen
+  </a>
+</div>
+
+{% if not days %}
+<div class="alert alert-info">Noch keine Praktikumstage definiert.</div>
+{% else %}
+<table class="table table-hover">
+  <thead>
+    <tr>
+      <th>Datum</th>
+      <th>Block</th>
+      <th>Typ</th>
+      <th>Blocktag</th>
+      <th>Aktionen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for day in days %}
+    <tr>
+      <td>{{ day.date }}</td>
+      <td>{{ day.block.code }}</td>
+      <td>{% if day.day_type == "nachkochtag" %}<span class="badge text-bg-warning">Nachkochtag</span>{% else %}Normal{% endif %}</td>
+      <td>{{ day.block_day_number or "—" }}</td>
+      <td>
+        <a href="{{ url_for('admin_practical_day_edit', day_id=day.id) }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-pencil" aria-hidden="true"></i>
+        </a>
+        <form method="post" action="{{ url_for('admin_practical_day_delete', day_id=day.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Tag löschen?')">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

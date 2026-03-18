@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Praktikumstag{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">{{ "Tag bearbeiten" if day else "Tag hinzufügen" }}</h1>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="mb-3">
+    <label class="form-label" for="date">Datum</label>
+    <input type="date" name="date" id="date" class="form-control" required
+           value="{{ day.date if day else '' }}">
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="block_id">Block</label>
+    <select name="block_id" id="block_id" class="form-select" required>
+      {% for block in blocks %}
+      <option value="{{ block.id }}" {% if day and day.block_id == block.id %}selected{% endif %}>
+        Block {{ block.code }} — {{ block.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="day_type_select">Tagestyp</label>
+    <select name="day_type" id="day_type_select" class="form-select" required>
+      <option value="normal" {% if not day or day.day_type == "normal" %}selected{% endif %}>Normal (Blocktag)</option>
+      <option value="nachkochtag" {% if day and day.day_type == "nachkochtag" %}selected{% endif %}>Nachkochtag</option>
+    </select>
+  </div>
+
+  <div class="mb-3" id="block_day_number_field">
+    <label class="form-label" for="block_day_number">Blocktag-Nummer (1–4)</label>
+    <input type="number" name="block_day_number" id="block_day_number" class="form-control"
+           min="1" max="4" value="{{ day.block_day_number if day else '' }}">
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="notes">Notizen</label>
+    <textarea name="notes" id="notes" class="form-control" rows="2">{{ day.notes or "" }}</textarea>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Speichern</button>
+  <a href="{{ url_for('admin_practical_days') }}" class="btn btn-outline-secondary">Abbrechen</a>
+</form>
+
+<script>
+  document.getElementById('day_type_select').addEventListener('change', function() {
+    document.getElementById('block_day_number_field').style.display =
+      this.value === 'nachkochtag' ? 'none' : '';
+  });
+  // Init
+  if (document.getElementById('day_type_select').value === 'nachkochtag') {
+    document.getElementById('block_day_number_field').style.display = 'none';
+  }
+</script>
+{% endblock %}

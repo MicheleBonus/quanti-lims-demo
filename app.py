@@ -11,7 +11,7 @@ from datetime import date
 from sqlalchemy.exc import IntegrityError
 
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, session,
+    Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, session, abort,
 )
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
@@ -22,6 +22,7 @@ from models import (
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
     AMOUNT_UNIT_VOLUME, GROUP_CODES,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
+    PracticalDay, GroupRotation, DutyAssignment,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
 
@@ -230,6 +231,13 @@ def register_routes(app):
         except (ValueError, IndexError):
             pass
         return iso
+
+    def _get_active_semester_id():
+        """Returns the id of the active semester, or aborts with 400."""
+        sem = Semester.query.filter_by(is_active=True).first()
+        if sem is None:
+            abort(400, "Kein aktives Semester gefunden.")
+        return sem.id
 
     def flash_saved(entity_label: str, details: str | None = None) -> None:
         timestamp = _de_date(_iso_now())
@@ -2000,6 +2008,52 @@ def register_routes(app):
                 )
                 result["v_disp_theoretical_ml"] = round(v_disp_theoretical, 4)
         return jsonify(result)
+
+    @app.route("/admin/practical-days")
+    def admin_practical_days():
+        days = PracticalDay.query.order_by(PracticalDay.date).all()
+        return render_template("admin/practical_days.html", days=days)
+
+    @app.route("/admin/practical-days/new", methods=["GET", "POST"])
+    def admin_practical_day_new():
+        blocks = Block.query.order_by(Block.code).all()
+        if request.method == "POST":
+            day = PracticalDay(
+                semester_id=_get_active_semester_id(),
+                block_id=int(request.form["block_id"]),
+                date=request.form["date"],
+                day_type=request.form["day_type"],
+                block_day_number=int(request.form["block_day_number"]) if request.form.get("block_day_number") else None,
+                notes=request.form.get("notes") or None,
+            )
+            db.session.add(day)
+            db.session.commit()
+            flash("Praktikumstag gespeichert.", "success")
+            return redirect(url_for("admin_practical_days"))
+        return render_template("admin/practical_day_form.html", day=None, blocks=blocks)
+
+    @app.route("/admin/practical-days/<int:day_id>/edit", methods=["GET", "POST"])
+    def admin_practical_day_edit(day_id):
+        day = db.get_or_404(PracticalDay, day_id)
+        blocks = Block.query.order_by(Block.code).all()
+        if request.method == "POST":
+            day.block_id = int(request.form["block_id"])
+            day.date = request.form["date"]
+            day.day_type = request.form["day_type"]
+            day.block_day_number = int(request.form["block_day_number"]) if request.form.get("block_day_number") else None
+            day.notes = request.form.get("notes") or None
+            db.session.commit()
+            flash("Praktikumstag aktualisiert.", "success")
+            return redirect(url_for("admin_practical_days"))
+        return render_template("admin/practical_day_form.html", day=day, blocks=blocks)
+
+    @app.route("/admin/practical-days/<int:day_id>/delete", methods=["POST"])
+    def admin_practical_day_delete(day_id):
+        day = db.get_or_404(PracticalDay, day_id)
+        db.session.delete(day)
+        db.session.commit()
+        flash("Praktikumstag gelöscht.", "success")
+        return redirect(url_for("admin_practical_days"))
 
     @app.route("/api/sample/<int:sample_id>/calc")
     def api_sample_calc(sample_id):
