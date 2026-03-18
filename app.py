@@ -484,12 +484,13 @@ def register_routes(app):
             item.v_solution_ml = _float(request.form.get("v_solution_ml"))
             item.v_aliquot_ml = _float(request.form.get("v_aliquot_ml"))
             item.primary_standard_id = _int(request.form.get("primary_standard_id"))
-            item.m_eq_primary_mg_override = bool(request.form.get("m_eq_primary_mg_override"))
+            item.m_eq_primary_mg_override = "m_eq_primary_mg_override" in request.form
             if item.m_eq_primary_mg_override:
                 item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
             else:
                 # Auto-calculate: m_eq = c_Titrant × MW_PS / z
-                ps = item.primary_standard  # lazy-loaded relationship, no extra DB query needed
+                ps_id = item.primary_standard_id
+                ps = db.session.get(Reagent, ps_id) if ps_id else None
                 if (ps and ps.molar_mass_gmol
                         and item.c_titrant_mol_l and item.c_titrant_mol_l > 0
                         and item.n_eq_titrant and item.n_eq_titrant > 0):
