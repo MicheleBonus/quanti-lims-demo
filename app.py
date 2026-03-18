@@ -1341,7 +1341,8 @@ def register_routes(app):
             # Map student_id → assignment(s) for this batch
             assignment_map = {}
             for sa in assignments:
-                assignment_map.setdefault(sa.student_id, []).append(sa)
+                if sa.status != 'cancelled':
+                    assignment_map.setdefault(sa.student_id, []).append(sa)
 
             student_rows = []
             for st in all_students:
