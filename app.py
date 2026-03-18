@@ -22,7 +22,7 @@ from models import (
     AMOUNT_UNIT_VOLUME,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit, migrate_schema,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
 
 
 # Legacy constant kept for reference; validation now uses minimum-only check.
@@ -1534,6 +1534,18 @@ def register_routes(app):
                 ansage_unit=analysis.result_unit,
             )
             r.evaluate()
+            # Compute evaluation label (same logic as live JS)
+            if mode == MODE_TITRANT_STANDARDIZATION:
+                true_val = assignment.sample.titer_expected
+            else:
+                true_val = assignment.sample.g_wahr
+            r.evaluation_label = compute_evaluation_label(
+                ansage_value=val,
+                true_value=true_val,
+                tol_min_pct=analysis.tol_min,
+                tol_max_pct=analysis.tol_max,
+                attempt_type=assignment.attempt_type,
+            )
             db.session.add(r)
             if r.passed is True:
                 assignment.status = "passed"
@@ -1556,7 +1568,23 @@ def register_routes(app):
             else:
                 flash("⚠️ Bewertung nicht möglich – Einwaage/Toleranzdaten fehlen.", "warning")
             return redirect(url_for("results_overview", analysis_id=analysis.id))
-        return render_template("results/submit.html", assignment=assignment, analysis=analysis, titer_label=mode_titer_label(analysis.calculation_mode))
+        # Prepare live-evaluation context for JS (None if tolerances not configured)
+        live_eval_ctx = None
+        if analysis.tol_min is not None and analysis.tol_max is not None:
+            sample = assignment.sample
+            if mode == MODE_TITRANT_STANDARDIZATION:
+                true_val = sample.titer_expected
+            else:
+                true_val = sample.g_wahr
+            if true_val is not None:
+                live_eval_ctx = {
+                    "true_value": true_val,
+                    "tol_min_pct": analysis.tol_min,
+                    "tol_max_pct": analysis.tol_max,
+                    "attempt_type": assignment.attempt_type,
+                    "mode": mode,
+                }
+        return render_template("results/submit.html", assignment=assignment, analysis=analysis, titer_label=mode_titer_label(analysis.calculation_mode), live_eval_ctx=live_eval_ctx)
 
     @app.route("/results/<int:result_id>/revoke", methods=["POST"])
     def result_revoke(result_id):

@@ -519,6 +519,10 @@ def migrate_schema() -> None:
             conn.exec_driver_sql(
                 "ALTER TABLE result ADD COLUMN revoked_date VARCHAR(20)"
             )
+        if "evaluation_label" not in result_cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE result ADD COLUMN evaluation_label VARCHAR(20)"
+            )
 
         conn.commit()
     finally:
@@ -753,6 +757,7 @@ class Result(db.Model):
     revoked       = db.Column(db.Boolean, nullable=False, default=False)
     revoked_by    = db.Column(db.String(100), nullable=True)
     revoked_date  = db.Column(db.String(20), nullable=True)
+    evaluation_label = db.Column(db.String(20), nullable=True)
     submitted_date = db.Column(db.String(20))
     evaluated_by = db.Column(db.String(100))
     notes = db.Column(db.Text)

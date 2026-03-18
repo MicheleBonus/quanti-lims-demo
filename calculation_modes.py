@@ -26,6 +26,69 @@ def attempt_type_for(attempt_number: int) -> str:
     return f"#{attempt_number}"
 
 
+def _next_attempt_label(attempt_type: str) -> str:
+    """Return the label of the next repeat analysis after a failure."""
+    if attempt_type == "Erstanalyse":
+        return "A"
+    # Current is a letter (A, B, C...); next is the following letter
+    if len(attempt_type) == 1 and attempt_type.isalpha():
+        return chr(ord(attempt_type) + 1)
+    return "?"
+
+
+def compute_evaluation_label(
+    ansage_value: float,
+    true_value: float,
+    tol_min_pct: float | None,
+    tol_max_pct: float | None,
+    attempt_type: str,
+) -> str | None:
+    """Compute the evaluation label for a result (e.g. 'f↑ → A' or '✓').
+
+    Uses the same δ-based formula as the live JS in submit.html.
+
+    Args:
+        ansage_value: The submitted result value.
+        true_value:   The expected true value (titer_expected or g_wahr).
+        tol_min_pct:  Lower tolerance bound as % of true value (e.g. 98.0).
+        tol_max_pct:  Upper tolerance bound as % of true value (e.g. 102.0).
+        attempt_type: Current attempt type ('Erstanalyse', 'A', 'B', ...).
+
+    Returns:
+        Label string like 'f↑ → A', '✓', 'f↓↓ → B', or None if undetermined.
+    """
+    if tol_min_pct is None or tol_max_pct is None:
+        return None
+    if not true_value:  # zero or None
+        return None
+
+    delta = (ansage_value - true_value) / true_value * 100.0
+    T_min = 100.0 - tol_min_pct   # e.g. 100 - 98 = 2.0
+    T_max = tol_max_pct - 100.0   # e.g. 102 - 100 = 2.0
+
+    if -T_min <= delta <= T_max:
+        return "✓"
+
+    # Determine magnitude symbol
+    if delta > 0:
+        if delta > 4 * T_max:
+            symbol = "f↑↑↑"
+        elif delta > 2 * T_max:
+            symbol = "f↑↑"
+        else:
+            symbol = "f↑"
+    else:
+        if delta < -4 * T_min:
+            symbol = "f↓↓↓"
+        elif delta < -2 * T_min:
+            symbol = "f↓↓"
+        else:
+            symbol = "f↓"
+
+    next_label = _next_attempt_label(attempt_type)
+    return f"{symbol} → {next_label}"
+
+
 @dataclass
 class SampleCalculation:
     g_wahr: float | None = None
