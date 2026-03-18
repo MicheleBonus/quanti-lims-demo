@@ -107,6 +107,7 @@
               {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} ✓
             </span>
           {% elif ar is not none and ar.passed == false %}
+            {# TODO: spec requires attempt_number == 1 check here (retry-of-retry case) #}
             <span class="badge text-bg-danger">
               {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} Wdh. fällig
             </span>
@@ -135,6 +136,7 @@
                 {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} ✓
               </span>
             {% elif ar is not none and ar.passed == false %}
+              {# TODO: spec requires attempt_number == 1 check here (retry-of-retry case) #}
               <span class="badge text-bg-danger me-1">
                 {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} Wdh. fällig
               </span>

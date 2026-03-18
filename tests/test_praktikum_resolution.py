@@ -27,7 +27,9 @@ def fx(db):
     db.session.add(sub)
     db.session.flush()
 
-    # Two analyses in this block
+    # Two analyses in this block.
+    # Note: Analysis requires code (unique), ordinal, and substance_id (FK) — the
+    # plan's fixture stub omitted these; they were added to match the real schema.
     a1 = Analysis(name="Analyse 1", block_id=block.id, code="TX.1", ordinal=1,
                   substance_id=sub.id, calculation_mode="assay_mass_based")
     a2 = Analysis(name="Analyse 2", block_id=block.id, code="TX.2", ordinal=2,
