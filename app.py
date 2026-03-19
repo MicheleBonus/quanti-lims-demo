@@ -1033,6 +1033,43 @@ def register_routes(app):
 
         return redirect(url_for("admin_students"))
 
+    @app.route("/admin/students/auto-assign-groups", methods=["GET", "POST"])
+    def auto_assign_groups():
+        semester = active_semester()
+        if not semester:
+            abort(404)
+        students_all = Student.query.filter_by(semester_id=semester.id)\
+            .order_by(Student.last_name, Student.first_name).all()
+        unassigned = [s for s in students_all if not s.group_code]
+
+        active_count = semester.active_group_count or 4
+        groups = GROUP_CODES[:active_count]
+
+        if request.method == "POST":
+            for student in unassigned:
+                new_group = request.form.get(f"group_{student.id}", "").strip()
+                if new_group in groups:
+                    student.group_code = new_group
+            db.session.commit()
+            flash(f"Gruppen für {len(unassigned)} Studierende gespeichert.", "success")
+            return redirect(url_for("admin_students"))
+
+        # Compute preview
+        unassigned_sorted = sorted(unassigned, key=lambda s: s.last_name.lower())
+        proposals = {s.id: groups[i % len(groups)] for i, s in enumerate(unassigned_sorted)}
+        return render_template("admin/auto_group_preview.html",
+            semester=semester, students=unassigned_sorted, proposals=proposals, groups=groups)
+
+    @app.route("/admin/students/clear-groups", methods=["POST"])
+    def clear_all_groups():
+        semester = active_semester()
+        if not semester:
+            abort(404)
+        Student.query.filter_by(semester_id=semester.id).update({"group_code": None})
+        db.session.commit()
+        flash("Alle Gruppen-Zuteilungen gelöscht.", "success")
+        return redirect(url_for("admin_students"))
+
     # ═══════════════════════════════════════════════════════════════
     # SAMPLE BATCHES
     # ═══════════════════════════════════════════════════════════════

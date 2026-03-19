@@ -3,9 +3,19 @@
 {% block title %}Studierende – Admin{% endblock %}
 {% block content %}
 {{ page_header("Studierende", semester.code if semester else "Kein aktives Semester", url_for('admin_student_form')) }}
-<div class="mb-3 d-flex gap-2">
+<div class="mb-3 d-flex gap-2 flex-wrap">
   <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_students', fmt='csv') }}"><i class="bi bi-download"></i> CSV-Export</a>
   <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_students', fmt='json') }}"><i class="bi bi-filetype-json"></i> JSON-Export</a>
+  {% if semester %}
+  <a href="{{ url_for('auto_assign_groups') }}"
+     class="btn btn-outline-success btn-sm"><i class="bi bi-lightning"></i> Gruppen auto-zuteilen</a>
+  <form method="POST" action="{{ url_for('clear_all_groups') }}"
+        style="display:inline"
+        onsubmit="return confirm('Alle Gruppen-Zuteilungen für {{ students|length }} Studierende löschen?')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Alle Gruppen löschen</button>
+  </form>
+  {% endif %}
 </div>
 
 {% if semester %}

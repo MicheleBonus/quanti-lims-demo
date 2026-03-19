@@ -98,6 +98,7 @@ class Block(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(10), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=False)
+    max_days = db.Column(db.Integer, nullable=True)  # Orientation value; not a hard constraint
 
     analyses = db.relationship("Analysis", back_populates="block", order_by="Analysis.ordinal")
     colloquiums = db.relationship("Colloquium", back_populates="block")
@@ -338,6 +339,7 @@ class Semester(db.Model):
     end_date = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     position = db.Column(db.Integer, nullable=False, default=0)
+    active_group_count = db.Column(db.Integer, nullable=False, default=4)
 
     students = db.relationship("Student", back_populates="semester", order_by="Student.running_number")
     batches = db.relationship("SampleBatch", back_populates="semester")
