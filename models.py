@@ -100,6 +100,7 @@ class Block(db.Model):
     name = db.Column(db.String(120), nullable=False)
 
     analyses = db.relationship("Analysis", back_populates="block", order_by="Analysis.ordinal")
+    colloquiums = db.relationship("Colloquium", back_populates="block")
 
     def __repr__(self):
         return f"<Block {self.code}>"
@@ -352,9 +353,11 @@ class Student(db.Model):
     running_number = db.Column(db.Integer, nullable=False)
     email = db.Column(db.String(200))
     group_code = db.Column(GROUP_CODE_ENUM, nullable=True)
+    is_excluded = db.Column(db.Boolean, nullable=False, default=False)
     notes = db.Column(db.Text)
 
     semester = db.relationship("Semester", back_populates="students")
+    colloquiums = db.relationship("Colloquium", back_populates="student", cascade="all, delete-orphan")
     assignments = db.relationship(
         "SampleAssignment",
         back_populates="student",
@@ -370,6 +373,41 @@ class Student(db.Model):
     @property
     def full_name(self):
         return f"{self.last_name}, {self.first_name}"
+
+
+class Colloquium(db.Model):
+    __tablename__ = "colloquium"
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    block_id = db.Column(db.Integer, db.ForeignKey("block.id"), nullable=False)
+    attempt_number = db.Column(db.Integer, nullable=False)  # 1, 2, or 3
+    scheduled_date = db.Column(db.String(20), nullable=True)
+    conducted_date = db.Column(db.String(20), nullable=True)
+    examiner = db.Column(db.String(200), nullable=True)
+    passed = db.Column(db.Boolean, nullable=True)  # None = not yet held
+    notes = db.Column(db.Text, nullable=True)
+
+    student = db.relationship("Student", back_populates="colloquiums")
+    block = db.relationship("Block", back_populates="colloquiums")
+
+    __table_args__ = (
+        db.UniqueConstraint("student_id", "block_id", "attempt_number"),
+    )
+
+    @property
+    def status_label(self) -> str:
+        if self.passed is True:
+            return "Bestanden"
+        if self.passed is False:
+            return "Nicht bestanden"
+        if self.scheduled_date:
+            return "Geplant"
+        return "Nicht geplant"
+
+    @property
+    def attempt_label(self) -> str:
+        labels = {1: "Erstversuch", 2: "Nachholkolloquium", 3: "beim Chef"}
+        return labels.get(self.attempt_number, f"Versuch {self.attempt_number}")
 
 
 class SampleBatch(db.Model):

@@ -22,7 +22,7 @@ from models import (
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
     AMOUNT_UNIT_VOLUME, GROUP_CODES,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
-    PracticalDay, GroupRotation, DutyAssignment,
+    PracticalDay, GroupRotation, DutyAssignment, Colloquium,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
 
