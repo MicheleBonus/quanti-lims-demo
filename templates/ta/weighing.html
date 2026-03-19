@@ -152,6 +152,7 @@ const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.meth
 const V_ALIQUOT = {{ batch.analysis.method.v_aliquot_ml if batch.analysis.method and batch.analysis.method.v_aliquot_ml else 0 }};
 const ALIQUOT_FRAC = (V_SOLUTION > 0 && V_ALIQUOT > 0) ? V_ALIQUOT / V_SOLUTION : 1.0;
 const E_AB_G = {{ batch.analysis.e_ab_g if batch.analysis.e_ab_g is not none else 'null' }};
+const P_MIN = {{ batch.gehalt_min_pct | tojson }};
 {% endif %}
 
 const TARGET_M_S_MIN_G = {{ batch.target_m_s_min_g if batch.target_m_s_min_g is not none else 'null' }};
@@ -160,9 +161,6 @@ const TARGET_V_MIN_ML = {{ batch.target_v_min_ml if batch.target_v_min_ml is not
 const TARGET_V_MAX_ML = {{ batch.target_v_max_ml if batch.target_v_max_ml is not none else 'null' }};
 {%- set _m = batch.analysis.method -%}
 const V_THEORETICAL_ML = {{ (_m.v_dilution_ml * _m.c_titrant_mol_l / _m.c_stock_mol_l) | round(4) if _m and _m.v_dilution_ml and _m.c_titrant_mol_l and _m.c_stock_mol_l and _m.c_stock_mol_l > 0 else 'null' }};
-
-const P_EFF = {{ batch.p_effective | tojson }};
-const P_MIN = {{ batch.gehalt_min_pct | tojson }};
 
 function evaluateLimits(ms, mges) {
   const flags = { mSMin: false, mGesMax: false, volumeRange: false, out: false };
@@ -174,7 +172,9 @@ function evaluateLimits(ms, mges) {
     if (!Number.isNaN(ms) && TARGET_M_S_MIN_G !== null) {
       flags.mSMin = ms < TARGET_M_S_MIN_G;
     }
-    if (!Number.isNaN(mges) && !Number.isNaN(ms) && ms > 0 && P_MIN > 0 && P_EFF > 0) {
+    if (!Number.isNaN(mges) && !Number.isNaN(ms) && ms > 0
+        && typeof P_MIN !== 'undefined' && P_MIN > 0
+        && typeof P_EFF !== 'undefined' && P_EFF > 0) {
       const mGesMax = ms * P_EFF / P_MIN;
       flags.mGesMax = mges > mGesMax + 0.0001;
     }
