@@ -32,8 +32,15 @@ def upgrade():
 
 
 def downgrade():
-    with op.batch_alter_table('semester', schema=None) as batch_op:
-        batch_op.drop_column('active_group_count')
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    semester_cols = {c['name'] for c in inspector.get_columns('semester')}
+    block_cols = {c['name'] for c in inspector.get_columns('block')}
 
-    with op.batch_alter_table('block', schema=None) as batch_op:
-        batch_op.drop_column('max_days')
+    if 'active_group_count' in semester_cols:
+        with op.batch_alter_table('semester', schema=None) as batch_op:
+            batch_op.drop_column('active_group_count')
+
+    if 'max_days' in block_cols:
+        with op.batch_alter_table('block', schema=None) as batch_op:
+            batch_op.drop_column('max_days')

@@ -2186,8 +2186,8 @@ def register_routes(app):
         block = db.session.get(Block, block_id)
         if not block:
             abort(404)
-        if PracticalDay.query.filter_by(block_id=block.id).first():
-            flash("Block kann nicht gelöscht werden — es sind Praktikumstage verknüpft.", "danger")
+        if block.analyses or PracticalDay.query.filter_by(block_id=block.id).first():
+            flash("Block kann nicht gelöscht werden — es sind Analysen oder Praktikumstage verknüpft.", "danger")
             return redirect(url_for("admin_blocks"))
         db.session.delete(block)
         db.session.commit()
