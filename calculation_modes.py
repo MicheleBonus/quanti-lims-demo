@@ -152,7 +152,10 @@ class MassBasedEvaluator:
         if method.c_titrant_mol_l is None or method.c_titrant_mol_l <= 0:
             return None
 
-        mw = substance.molar_mass_gmol
+        # When g_wahr is on anhydrous basis (hydrate correction applied), use anhydrous MW
+        mw = (substance.anhydrous_molar_mass_gmol
+              if substance.anhydrous_molar_mass_gmol and substance.anhydrous_molar_mass_gmol > 0
+              else substance.molar_mass_gmol)
         e_ab_mg = e_ab_g * 1000.0
         n_analyte_mmol = (e_ab_mg * g_wahr / 100.0) / mw
 
