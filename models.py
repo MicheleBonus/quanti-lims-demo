@@ -230,6 +230,7 @@ class Method(db.Model):
     v_vorlage_ml = db.Column(db.Float)
     v_solution_ml = db.Column(db.Float)       # Total volume substance is dissolved to (e.g. 100.0 mL)
     v_aliquot_ml = db.Column(db.Float)        # Aliquot volume taken for each titration (e.g. 20.0 mL)
+    aliquot_enabled = db.Column(db.Boolean, nullable=True, default=None)
     primary_standard_id = db.Column(db.Integer, db.ForeignKey("reagent.id"))
     m_eq_primary_mg = db.Column(db.Float)
     m_eq_primary_mg_override = db.Column(db.Boolean, nullable=False, default=False)  # True → use stored value; False → auto-calculate from c_Titrant × MW_PS / z
@@ -256,12 +257,16 @@ class Method(db.Model):
 
     @property
     def aliquot_fraction(self) -> float:
+        if self.aliquot_enabled is False:
+            return 1.0
         if self.v_solution_ml and self.v_aliquot_ml and self.v_solution_ml > 0:
             return self.v_aliquot_ml / self.v_solution_ml
         return 1.0
 
     @property
     def has_aliquot(self) -> bool:
+        if self.aliquot_enabled is False:
+            return False
         return bool(self.v_solution_ml and self.v_aliquot_ml)
 
 

@@ -120,7 +120,11 @@ class ModeEvaluator(Protocol):
 class MassBasedEvaluator:
     def _aliquot_fraction(self, sample) -> float:
         method = sample.batch.analysis.method
-        if method and method.v_solution_ml and method.v_aliquot_ml and method.v_solution_ml > 0:
+        if method is None:
+            return 1.0
+        if method.aliquot_enabled is False:
+            return 1.0
+        if method.v_solution_ml and method.v_aliquot_ml and method.v_solution_ml > 0:
             return method.v_aliquot_ml / method.v_solution_ml
         return 1.0
 

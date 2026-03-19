@@ -50,15 +50,17 @@ def _sync_method_titrant_name(method: Method) -> None:
 
 
 def _validate_aliquot(method: Method) -> str | None:
+    if not method.aliquot_enabled:
+        return None  # Fields are disabled — no validation needed
     has_sol = method.v_solution_ml is not None
     has_aliq = method.v_aliquot_ml is not None
     if has_sol != has_aliq:
-        return "V Lösung und V Aliquot müssen beide gesetzt oder beide leer sein."
+        return "Kolbenvolumen und Aliquotvolumen müssen beide gesetzt oder beide leer sein."
     if has_sol and has_aliq:
         if method.v_solution_ml <= 0 or method.v_aliquot_ml <= 0:
-            return "V Lösung und V Aliquot müssen größer als 0 sein."
+            return "Kolbenvolumen und Aliquotvolumen müssen größer als 0 sein."
         if method.v_aliquot_ml > method.v_solution_ml:
-            return "V Aliquot darf nicht größer als V Lösung sein."
+            return "Aliquotvolumen darf nicht größer als Kolbenvolumen sein."
     return None
 
 
@@ -538,8 +540,15 @@ def register_routes(app):
             item.blind_required = "blind_required" in request.form
             item.b_blind_determinations = int(request.form.get("b_blind_determinations", 1))
             item.v_vorlage_ml = _float(request.form.get("v_vorlage_ml"))
-            item.v_solution_ml = _float(request.form.get("v_solution_ml"))
-            item.v_aliquot_ml = _float(request.form.get("v_aliquot_ml"))
+            item.aliquot_enabled = bool(request.form.get("aliquot_enabled"))
+            if not item.aliquot_enabled:
+                item.v_solution_ml = None
+                item.v_aliquot_ml = None
+            else:
+                v_sol = request.form.get("v_solution_ml", "").strip()
+                v_aliq = request.form.get("v_aliquot_ml", "").strip()
+                item.v_solution_ml = float(v_sol) if v_sol else None
+                item.v_aliquot_ml = float(v_aliq) if v_aliq else None
             item.primary_standard_id = _int(request.form.get("primary_standard_id"))
             # Override/auto-calc logic only applies in standardization mode
             _analysis = Analysis.query.get(item.analysis_id)
