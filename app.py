@@ -22,7 +22,7 @@ from models import (
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
     AMOUNT_UNIT_VOLUME, GROUP_CODES,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
-    PracticalDay, GroupRotation, DutyAssignment,
+    PracticalDay, GroupRotation, DutyAssignment, Colloquium,
 )
 from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
 
@@ -50,15 +50,17 @@ def _sync_method_titrant_name(method: Method) -> None:
 
 
 def _validate_aliquot(method: Method) -> str | None:
+    if not method.aliquot_enabled:
+        return None  # Fields are disabled — no validation needed
     has_sol = method.v_solution_ml is not None
     has_aliq = method.v_aliquot_ml is not None
     if has_sol != has_aliq:
-        return "V Lösung und V Aliquot müssen beide gesetzt oder beide leer sein."
+        return "Kolbenvolumen und Aliquotvolumen müssen beide gesetzt oder beide leer sein."
     if has_sol and has_aliq:
         if method.v_solution_ml <= 0 or method.v_aliquot_ml <= 0:
-            return "V Lösung und V Aliquot müssen größer als 0 sein."
+            return "Kolbenvolumen und Aliquotvolumen müssen größer als 0 sein."
         if method.v_aliquot_ml > method.v_solution_ml:
-            return "V Aliquot darf nicht größer als V Lösung sein."
+            return "Aliquotvolumen darf nicht größer als Kolbenvolumen sein."
     return None
 
 
@@ -68,38 +70,43 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
     checks: list[str] = []
     details: dict[str, bool] = {
         "m_s_min_violation": False,
-        "m_ges_target_violation": False,
+        "m_ges_max_violation": False,
         "volume_range_violation": False,
     }
 
     if mode == MODE_ASSAY_MASS_BASED:
-        if (
-            m_s_actual_g is not None
-            and batch.target_m_s_min_g is not None
-            and m_s_actual_g < batch.target_m_s_min_g
-        ):
+        # Check minimum substance mass
+        if (m_s_actual_g is not None
+                and batch.target_m_s_min_g is not None
+                and m_s_actual_g < batch.target_m_s_min_g):
             details["m_s_min_violation"] = True
             checks.append(f"m_S {m_s_actual_g:.3f} g < Mindest {batch.target_m_s_min_g:.3f} g")
 
-        if (
-            m_ges_actual_g is not None
-            and batch.target_m_ges_g is not None
-            and m_ges_actual_g < batch.target_m_ges_g
-        ):
-            details["m_ges_target_violation"] = True
-            checks.append(
-                f"m_ges {m_ges_actual_g:.3f} g < Mindest {batch.target_m_ges_g:.3f} g"
-            )
+        # Check maximum total mass: m_ges must not exceed m_s * p_eff / p_min
+        # (target_m_ges_g is orientation only — not a hard minimum)
+        p_min = batch.gehalt_min_pct
+        p_eff = batch.p_effective
+        if (m_s_actual_g is not None
+                and m_ges_actual_g is not None
+                and p_min is not None
+                and p_min > 0
+                and p_eff > 0):
+            m_ges_max = m_s_actual_g * p_eff / p_min
+            if m_ges_actual_g > m_ges_max + 1e-9:  # small epsilon for float precision
+                details["m_ges_max_violation"] = True
+                checks.append(
+                    f"m_ges {m_ges_actual_g:.3f} g > Max {m_ges_max:.3f} g "
+                    f"(bei m_S={m_s_actual_g:.3f} g, p_eff={p_eff:.1f}%, p_min={p_min:.1f}%)"
+                )
     else:
-        if (
-            m_ges_actual_g is not None
-            and batch.target_v_min_ml is not None
-            and batch.target_v_max_ml is not None
-            and not (batch.target_v_min_ml <= m_ges_actual_g <= batch.target_v_max_ml)
-        ):
+        if (m_ges_actual_g is not None
+                and batch.target_v_min_ml is not None
+                and batch.target_v_max_ml is not None
+                and not (batch.target_v_min_ml <= m_ges_actual_g <= batch.target_v_max_ml)):
             details["volume_range_violation"] = True
             checks.append(
-                f"V {m_ges_actual_g:.3f} mL außerhalb Zielbereich {batch.target_v_min_ml:.3f}–{batch.target_v_max_ml:.3f} mL"
+                f"V {m_ges_actual_g:.3f} mL außerhalb Zielbereich "
+                f"{batch.target_v_min_ml:.3f}–{batch.target_v_max_ml:.3f} mL"
             )
 
     return {
@@ -187,6 +194,25 @@ def register_filters(app):
     def options_for(items, value_attr="id", label_attr="name"):
         """Build select options from a list of ORM objects."""
         return [(getattr(i, value_attr), getattr(i, label_attr)) for i in items]
+
+
+def parse_de_date(s: str | None) -> str | None:
+    """Convert DD.MM.YYYY string to ISO YYYY-MM-DD for DB storage.
+    Returns None if blank or invalid. Accepts ISO format passthrough."""
+    if not s or not s.strip():
+        return None
+    s = s.strip()
+    # Already ISO?
+    if len(s) == 10 and s[4] == '-':
+        return s
+    parts = s.split('.')
+    if len(parts) == 3:
+        try:
+            day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+            return f"{year:04d}-{month:02d}-{day:02d}"
+        except ValueError:
+            return None
+    return None
 
 
 def register_error_handlers(app):
@@ -339,6 +365,8 @@ def register_routes(app):
             item.name = request.form["name"]
             item.formula = request.form.get("formula") or None
             item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
+            anhydrous_raw = request.form.get("anhydrous_molar_mass_gmol", "").strip()
+            item.anhydrous_molar_mass_gmol = float(anhydrous_raw) if anhydrous_raw else None
             item.notes = request.form.get("notes") or None
             duplicate = Substance.query.filter(
                 Substance.name == item.name,
@@ -386,12 +414,12 @@ def register_routes(app):
             item.substance_id = int(request.form["substance_id"])
             item.lot_number = request.form["lot_number"]
             item.supplier = request.form.get("supplier") or None
-            item.receipt_date = request.form.get("receipt_date") or None
+            item.receipt_date = parse_de_date(request.form.get("receipt_date"))
             item.g_coa_pct = _float(request.form.get("g_coa_pct"))
-            item.coa_date = request.form.get("coa_date") or None
-            item.coa_valid_until = request.form.get("coa_valid_until") or None
+            item.coa_date = parse_de_date(request.form.get("coa_date"))
+            item.coa_valid_until = parse_de_date(request.form.get("coa_valid_until"))
             item.g_analytical_pct = _float(request.form.get("g_analytical_pct"))
-            item.g_analytical_date = request.form.get("g_analytical_date") or None
+            item.g_analytical_date = parse_de_date(request.form.get("g_analytical_date"))
             item.g_analytical_method = request.form.get("g_analytical_method") or None
             item.notes = request.form.get("notes") or None
             duplicate = SubstanceLot.query.filter(
@@ -512,8 +540,15 @@ def register_routes(app):
             item.blind_required = "blind_required" in request.form
             item.b_blind_determinations = int(request.form.get("b_blind_determinations", 1))
             item.v_vorlage_ml = _float(request.form.get("v_vorlage_ml"))
-            item.v_solution_ml = _float(request.form.get("v_solution_ml"))
-            item.v_aliquot_ml = _float(request.form.get("v_aliquot_ml"))
+            item.aliquot_enabled = bool(request.form.get("aliquot_enabled"))
+            if not item.aliquot_enabled:
+                item.v_solution_ml = None
+                item.v_aliquot_ml = None
+            else:
+                v_sol = request.form.get("v_solution_ml", "").strip()
+                v_aliq = request.form.get("v_aliquot_ml", "").strip()
+                item.v_solution_ml = float(v_sol) if v_sol else None
+                item.v_aliquot_ml = float(v_aliq) if v_aliq else None
             item.primary_standard_id = _int(request.form.get("primary_standard_id"))
             # Override/auto-calc logic only applies in standardization mode
             _analysis = Analysis.query.get(item.analysis_id)
@@ -778,8 +813,8 @@ def register_routes(app):
         if request.method == "POST":
             item.code = request.form["code"]
             item.name = request.form["name"]
-            item.start_date = request.form.get("start_date") or None
-            item.end_date = request.form.get("end_date") or None
+            item.start_date = parse_de_date(request.form.get("start_date"))
+            item.end_date = parse_de_date(request.form.get("end_date"))
             item.is_active = "is_active" in request.form
             duplicate = Semester.query.filter(
                 Semester.code == item.code,
@@ -1007,6 +1042,43 @@ def register_routes(app):
 
         return redirect(url_for("admin_students"))
 
+    @app.route("/admin/students/auto-assign-groups", methods=["GET", "POST"])
+    def auto_assign_groups():
+        semester = active_semester()
+        if not semester:
+            abort(404)
+        students_all = Student.query.filter_by(semester_id=semester.id)\
+            .order_by(Student.last_name, Student.first_name).all()
+        unassigned = [s for s in students_all if not s.group_code]
+
+        active_count = semester.active_group_count or 4
+        groups = GROUP_CODES[:active_count]
+
+        if request.method == "POST":
+            for student in unassigned:
+                new_group = request.form.get(f"group_{student.id}", "").strip()
+                if new_group in groups:
+                    student.group_code = new_group
+            db.session.commit()
+            flash(f"Gruppen für {len(unassigned)} Studierende gespeichert.", "success")
+            return redirect(url_for("admin_students"))
+
+        # Compute preview
+        unassigned_sorted = sorted(unassigned, key=lambda s: s.last_name.lower())
+        proposals = {s.id: groups[i % len(groups)] for i, s in enumerate(unassigned_sorted)}
+        return render_template("admin/auto_group_preview.html",
+            semester=semester, students=unassigned_sorted, proposals=proposals, groups=groups)
+
+    @app.route("/admin/students/clear-groups", methods=["POST"])
+    def clear_all_groups():
+        semester = active_semester()
+        if not semester:
+            abort(404)
+        Student.query.filter_by(semester_id=semester.id).update({"group_code": None})
+        db.session.commit()
+        flash("Alle Gruppen-Zuteilungen gelöscht.", "success")
+        return redirect(url_for("admin_students"))
+
     # ═══════════════════════════════════════════════════════════════
     # SAMPLE BATCHES
     # ═══════════════════════════════════════════════════════════════
@@ -1095,7 +1167,7 @@ def register_routes(app):
 
             item.prepared_by = prepared_by
             item.total_samples_prepared = int(request.form["total_samples_prepared"])
-            item.preparation_date = request.form.get("preparation_date") or None
+            item.preparation_date = parse_de_date(request.form.get("preparation_date"))
             item.notes = request.form.get("notes") or None
 
             if mode == MODE_ASSAY_MASS_BASED:
@@ -1402,6 +1474,10 @@ def register_routes(app):
     def assign_buffer():
         student_id = int(request.form["student_id"])
         analysis_id = int(request.form["analysis_id"])
+        student = db.session.get(Student, student_id)
+        if student and student.is_excluded:
+            flash(f"{student.full_name} ist aus dem Praktikum ausgeschieden. Keine neue Zuweisung möglich.", "danger")
+            return redirect(request.referrer or url_for("home"))
         sem = active_semester()
         batch = SampleBatch.query.filter_by(semester_id=sem.id, analysis_id=analysis_id).first()
         if not batch:
@@ -2038,7 +2114,7 @@ def register_routes(app):
             day = PracticalDay(
                 semester_id=_get_active_semester_id(),
                 block_id=int(request.form["block_id"]),
-                date=request.form["date"],
+                date=parse_de_date(request.form["date"]),
                 day_type=request.form["day_type"],
                 block_day_number=int(request.form["block_day_number"]) if request.form.get("block_day_number") else None,
                 notes=request.form.get("notes") or None,
@@ -2060,7 +2136,7 @@ def register_routes(app):
         blocks = Block.query.order_by(Block.code).all()
         if request.method == "POST":
             day.block_id = int(request.form["block_id"])
-            day.date = request.form["date"]
+            day.date = parse_de_date(request.form["date"])
             day.day_type = request.form["day_type"]
             day.block_day_number = int(request.form["block_day_number"]) if request.form.get("block_day_number") else None
             day.notes = request.form.get("notes") or None
@@ -2082,6 +2158,42 @@ def register_routes(app):
         flash("Praktikumstag gelöscht.", "success")
         return redirect(url_for("admin_practical_days"))
 
+    @app.route("/admin/blocks")
+    def admin_blocks():
+        blocks = Block.query.order_by(Block.id).all()
+        return render_template("admin/blocks.html", blocks=blocks)
+
+    @app.route("/admin/blocks/new", methods=["GET", "POST"])
+    @app.route("/admin/blocks/<int:block_id>/edit", methods=["GET", "POST"])
+    def edit_block(block_id=None):
+        block = db.session.get(Block, block_id) if block_id else Block()
+        if block_id and not block:
+            abort(404)
+        if request.method == "POST":
+            block.name = request.form.get("name", "").strip()
+            block.code = request.form.get("code", "").strip()
+            max_days_raw = request.form.get("max_days", "").strip()
+            block.max_days = int(max_days_raw) if max_days_raw else None
+            if block_id is None:
+                db.session.add(block)
+            db.session.commit()
+            flash("Block gespeichert.", "success")
+            return redirect(url_for("admin_blocks"))
+        return render_template("admin/block_form.html", block=block)
+
+    @app.route("/admin/blocks/<int:block_id>/delete", methods=["POST"])
+    def delete_block(block_id):
+        block = db.session.get(Block, block_id)
+        if not block:
+            abort(404)
+        if block.analyses or PracticalDay.query.filter_by(block_id=block.id).first():
+            flash("Block kann nicht gelöscht werden — es sind Analysen oder Praktikumstage verknüpft.", "danger")
+            return redirect(url_for("admin_blocks"))
+        db.session.delete(block)
+        db.session.commit()
+        flash("Block gelöscht.", "success")
+        return redirect(url_for("admin_blocks"))
+
     @app.route("/api/sample/<int:sample_id>/calc")
     def api_sample_calc(sample_id):
         s = Sample.query.get_or_404(sample_id)
@@ -2094,6 +2206,80 @@ def register_routes(app):
             "p_effective": s.batch.p_effective,
             "p_source": s.batch.p_source,
         })
+
+    # ── Kolloquien ────────────────────────────────────────────────────────────
+
+    @app.route("/colloquium/")
+    def colloquium_overview():
+        semester = Semester.query.filter_by(is_active=True).first()
+        if not semester:
+            flash("Kein aktives Semester.", "warning")
+            return redirect(url_for("home"))
+        blocks = Block.query.order_by(Block.id).all()
+        active_block_id = request.args.get("block_id", type=int) or (blocks[0].id if blocks else None)
+        students = Student.query.filter_by(semester_id=semester.id, is_excluded=False)\
+            .order_by(Student.last_name, Student.first_name).all()
+        # Build colloquium map: {student_id: {block_id: [Colloquium]}}
+        all_colloqs = Colloquium.query.filter(
+            Colloquium.student_id.in_([s.id for s in students])
+        ).all()
+        colloq_map = {}
+        for c in all_colloqs:
+            colloq_map.setdefault(c.student_id, {}).setdefault(c.block_id, []).append(c)
+        for bid in colloq_map.values():
+            for attempts in bid.values():
+                attempts.sort(key=lambda x: x.attempt_number)
+        return render_template("colloquium/overview.html",
+            semester=semester, blocks=blocks, active_block_id=active_block_id,
+            students=students, colloq_map=colloq_map)
+
+    @app.route("/colloquium/plan", methods=["GET", "POST"])
+    def colloquium_plan():
+        """Create or update a single colloquium entry."""
+        semester = Semester.query.filter_by(is_active=True).first()
+        blocks = Block.query.order_by(Block.id).all()
+        students = Student.query.filter_by(semester_id=semester.id if semester else 0)\
+            .order_by(Student.last_name).all()
+
+        if request.method == "POST":
+            student_id = request.form.get("student_id", type=int)
+            block_id = request.form.get("block_id", type=int)
+            attempt_number = request.form.get("attempt_number", type=int, default=1)
+            colloq = Colloquium.query.filter_by(
+                student_id=student_id, block_id=block_id, attempt_number=attempt_number
+            ).first() or Colloquium(student_id=student_id, block_id=block_id, attempt_number=attempt_number)
+            colloq.scheduled_date = parse_de_date(request.form.get("scheduled_date"))
+            colloq.conducted_date = parse_de_date(request.form.get("conducted_date"))
+            colloq.examiner = request.form.get("examiner", "").strip() or None
+            passed_raw = request.form.get("passed")
+            colloq.passed = True if passed_raw == "true" else (False if passed_raw == "false" else None)
+            colloq.notes = request.form.get("notes", "").strip() or None
+            db.session.add(colloq)
+
+            # Handle exclusion after attempt 3 failure
+            if colloq.attempt_number == 3 and colloq.passed is False:
+                student = db.session.get(Student, student_id)
+                if student:
+                    student.is_excluded = True
+                    open_assignments = SampleAssignment.query.filter_by(
+                        student_id=student_id, status="assigned"
+                    ).all()
+                    for a in open_assignments:
+                        a.status = "cancelled"
+                    flash(f"{student.full_name} hat das Kolloquium dreimal nicht bestanden und scheidet aus dem Praktikum aus.", "danger")
+
+            db.session.commit()
+            flash("Kolloquium gespeichert.", "success")
+            return redirect(url_for("colloquium_overview"))
+
+        # Pre-fill from query params
+        preselect_student = request.args.get("student_id", type=int)
+        preselect_block = request.args.get("block_id", type=int)
+        preselect_attempt = request.args.get("attempt_number", type=int, default=1)
+        return render_template("colloquium/plan_form.html",
+            blocks=blocks, students=students,
+            preselect_student=preselect_student, preselect_block=preselect_block,
+            preselect_attempt=preselect_attempt)
 
 
 # ── Utility ──────────────────────────────────────────────────────────

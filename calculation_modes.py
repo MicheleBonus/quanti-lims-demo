@@ -120,14 +120,26 @@ class ModeEvaluator(Protocol):
 class MassBasedEvaluator:
     def _aliquot_fraction(self, sample) -> float:
         method = sample.batch.analysis.method
-        if method and method.v_solution_ml and method.v_aliquot_ml and method.v_solution_ml > 0:
+        if method is None:
+            return 1.0
+        if method.aliquot_enabled is False:
+            return 1.0
+        if method.v_solution_ml and method.v_aliquot_ml and method.v_solution_ml > 0:
             return method.v_aliquot_ml / method.v_solution_ml
         return 1.0
 
     def _g_wahr(self, sample) -> float | None:
-        if sample.m_s_actual_g is not None and sample.m_ges_actual_g is not None and sample.m_ges_actual_g > 0:
-            return (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
-        return None
+        if sample.m_s_actual_g is None or sample.m_ges_actual_g is None or sample.m_ges_actual_g <= 0:
+            return None
+        raw = (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
+        # Apply hydrate correction if substance has an anhydrous molar mass defined
+        substance = sample.batch.analysis.substance
+        if (substance is not None
+                and substance.anhydrous_molar_mass_gmol is not None
+                and substance.molar_mass_gmol is not None
+                and substance.molar_mass_gmol > 0):
+            raw = raw * (substance.anhydrous_molar_mass_gmol / substance.molar_mass_gmol)
+        return raw
 
     def _v_expected_explicit(self, sample, g_wahr: float, aliquot_fraction: float, e_ab_g: float | None) -> float | None:
         """Calculate V_expected using explicit titration parameters (preferred)."""

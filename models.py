@@ -98,8 +98,10 @@ class Block(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(10), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=False)
+    max_days = db.Column(db.Integer, nullable=True)  # Orientation value; not a hard constraint
 
     analyses = db.relationship("Analysis", back_populates="block", order_by="Analysis.ordinal")
+    colloquiums = db.relationship("Colloquium", back_populates="block")
 
     def __repr__(self):
         return f"<Block {self.code}>"
@@ -111,6 +113,7 @@ class Substance(db.Model):
     name = db.Column(db.String(200), unique=True, nullable=False)
     formula = db.Column(db.String(100))
     molar_mass_gmol = db.Column(db.Float)
+    anhydrous_molar_mass_gmol = db.Column(db.Float, nullable=True)  # For hydrate correction (e.g. Li citrate tetrahydrate)
     e_ab_g = db.Column(db.Float)
     g_ab_min_pct = db.Column(db.Float)
     g_ab_max_pct = db.Column(db.Float)
@@ -227,6 +230,7 @@ class Method(db.Model):
     v_vorlage_ml = db.Column(db.Float)
     v_solution_ml = db.Column(db.Float)       # Total volume substance is dissolved to (e.g. 100.0 mL)
     v_aliquot_ml = db.Column(db.Float)        # Aliquot volume taken for each titration (e.g. 20.0 mL)
+    aliquot_enabled = db.Column(db.Boolean, nullable=True, default=None)
     primary_standard_id = db.Column(db.Integer, db.ForeignKey("reagent.id"))
     m_eq_primary_mg = db.Column(db.Float)
     m_eq_primary_mg_override = db.Column(db.Boolean, nullable=False, default=False)  # True → use stored value; False → auto-calculate from c_Titrant × MW_PS / z
@@ -253,12 +257,16 @@ class Method(db.Model):
 
     @property
     def aliquot_fraction(self) -> float:
+        if self.aliquot_enabled is False:
+            return 1.0
         if self.v_solution_ml and self.v_aliquot_ml and self.v_solution_ml > 0:
             return self.v_aliquot_ml / self.v_solution_ml
         return 1.0
 
     @property
     def has_aliquot(self) -> bool:
+        if self.aliquot_enabled is False:
+            return False
         return bool(self.v_solution_ml and self.v_aliquot_ml)
 
 
@@ -336,6 +344,7 @@ class Semester(db.Model):
     end_date = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     position = db.Column(db.Integer, nullable=False, default=0)
+    active_group_count = db.Column(db.Integer, nullable=False, default=4)
 
     students = db.relationship("Student", back_populates="semester", order_by="Student.running_number")
     batches = db.relationship("SampleBatch", back_populates="semester")
@@ -351,9 +360,11 @@ class Student(db.Model):
     running_number = db.Column(db.Integer, nullable=False)
     email = db.Column(db.String(200))
     group_code = db.Column(GROUP_CODE_ENUM, nullable=True)
+    is_excluded = db.Column(db.Boolean, nullable=False, default=False)
     notes = db.Column(db.Text)
 
     semester = db.relationship("Semester", back_populates="students")
+    colloquiums = db.relationship("Colloquium", back_populates="student", cascade="all, delete-orphan")
     assignments = db.relationship(
         "SampleAssignment",
         back_populates="student",
@@ -369,6 +380,41 @@ class Student(db.Model):
     @property
     def full_name(self):
         return f"{self.last_name}, {self.first_name}"
+
+
+class Colloquium(db.Model):
+    __tablename__ = "colloquium"
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    block_id = db.Column(db.Integer, db.ForeignKey("block.id"), nullable=False)
+    attempt_number = db.Column(db.Integer, nullable=False)  # 1, 2, or 3
+    scheduled_date = db.Column(db.String(20), nullable=True)
+    conducted_date = db.Column(db.String(20), nullable=True)
+    examiner = db.Column(db.String(200), nullable=True)
+    passed = db.Column(db.Boolean, nullable=True)  # None = not yet held
+    notes = db.Column(db.Text, nullable=True)
+
+    student = db.relationship("Student", back_populates="colloquiums")
+    block = db.relationship("Block", back_populates="colloquiums")
+
+    __table_args__ = (
+        db.UniqueConstraint("student_id", "block_id", "attempt_number"),
+    )
+
+    @property
+    def status_label(self) -> str:
+        if self.passed is True:
+            return "Bestanden"
+        if self.passed is False:
+            return "Nicht bestanden"
+        if self.scheduled_date:
+            return "Geplant"
+        return "Nicht geplant"
+
+    @property
+    def attempt_label(self) -> str:
+        labels = {1: "Erstversuch", 2: "Nachholkolloquium", 3: "beim Chef"}
+        return labels.get(self.attempt_number, f"Versuch {self.attempt_number}")
 
 
 class SampleBatch(db.Model):

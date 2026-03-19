@@ -8,10 +8,13 @@
     <i class="bi bi-calendar-day fs-3 text-success"></i>
     <h1 class="h3 mb-0">Tagesansicht</h1>
   </div>
-  <form method="get" class="d-flex align-items-center gap-2 ms-auto">
+  <form method="get" class="d-flex align-items-center gap-2 ms-auto" id="tagesansicht-date-form">
     <label class="form-label mb-0 fw-semibold">Datum:</label>
-    <input type="date" name="date" class="form-control form-control-sm"
-           value="{{ selected_date }}" onchange="this.form.submit()">
+    {# Hidden ISO input is submitted; Flatpickr display input is for UI only #}
+    <input type="hidden" name="date" id="date-iso" value="{{ selected_date }}">
+    {% set _p = selected_date.split('-') %}
+    <input type="text" class="form-control form-control-sm flatpickr-date-nav" id="date-display"
+           value="{{ _p[2] }}.{{ _p[1] }}.{{ _p[0] }}" style="width:130px">
   </form>
 </div>
 
@@ -162,4 +165,26 @@
 {% endif %}
 
 {% endif %}{# end practical_day check #}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Tagesansicht navigation date picker:
+  // Flatpickr shows DD.MM.YYYY; on change, update hidden ISO input and submit.
+  flatpickr('#date-display', {
+    locale: 'de',
+    dateFormat: 'd.m.Y',
+    allowInput: true,
+    onChange: function(selectedDates, dateStr, instance) {
+      if (selectedDates.length === 1) {
+        const d = selectedDates[0];
+        const iso = d.getFullYear() + '-'
+          + String(d.getMonth() + 1).padStart(2, '0') + '-'
+          + String(d.getDate()).padStart(2, '0');
+        document.getElementById('date-iso').value = iso;
+        document.getElementById('tagesansicht-date-form').submit();
+      }
+    },
+  });
+</script>
 {% endblock %}

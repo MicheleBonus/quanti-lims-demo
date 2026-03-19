@@ -32,6 +32,8 @@
     </div>
   </div>
 
+  <div class="alert alert-info py-2 small" id="weighing-orientation"></div>
+
   <div class="card">
   <div class="table-responsive">
   <table class="table table-sm mb-0 align-middle" id="weighing-table">
@@ -42,6 +44,7 @@
         {% if not is_standardization %}
         <th style="width:160px">m_S,ist (g)</th>
         <th style="width:160px">m_ges,ist (g)</th>
+        <th style="width:120px">Max. m_ges</th>
         <th style="width:120px">G_wahr (%)</th>
         <th style="width:120px">A_min</th>
         <th style="width:120px">A_max</th>
@@ -69,11 +72,14 @@
           <div class="field-hint text-danger small" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none"{% endif %}>unter Mindest-Substanzmasse</div>
         </td>
         <td>
-          <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_target_violation %}is-invalid{% endif %}"
+          <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_max_violation %}is-invalid{% endif %}"
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_ges"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="field-hint text-danger small" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none"{% endif %}>unter Mindesteinwaage</div>
+          <div class="field-hint text-danger small" data-hint-field="m_ges" {% if not flags.m_ges_max_violation %}style="display:none"{% endif %}>Einwaage überschreitet Maximalgehalt</div>
+        </td>
+        <td>
+          <span id="max_mges_{{ s.id }}" class="fw-bold text-secondary">—</span>
         </td>
         <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
@@ -253,6 +259,31 @@ document.querySelectorAll('.weighing-input').forEach(input => {
     const limFlags = evaluateLimits(ms, mges);
     applyLimitUi(row, limFlags, ms, mges);
 
+    // Live max m_ges feedback (non-standardization only)
+    {% if not is_standardization %}
+    (function() {
+      const sid = input.dataset.sampleId;
+      const maxSpan = document.getElementById('max_mges_' + sid);
+      if (maxSpan) {
+        const pEff = {{ batch.p_effective | tojson }};
+        const pMin = {{ batch.gehalt_min_pct | tojson }};
+        const maxMges = (pMin && pMin > 0 && pEff && pEff > 0 && !isNaN(ms) && ms > 0)
+          ? ms * pEff / pMin : null;
+        if (maxMges !== null) {
+          maxSpan.textContent = maxMges.toFixed(3).replace('.', ',') + ' g';
+          if (!isNaN(mges) && mges > maxMges + 0.0001) {
+            maxSpan.className = 'fw-bold text-danger';
+          } else {
+            maxSpan.className = 'fw-bold text-success';
+          }
+        } else {
+          maxSpan.textContent = '—';
+          maxSpan.className = 'fw-bold text-secondary';
+        }
+      }
+    })();
+    {% endif %}
+
     // Live Zielfaktor für Titereinstellung
     if (MODE === 'titrant_standardization') {
       const factorCell = document.getElementById('factor-' + sid);
@@ -265,5 +296,25 @@ document.querySelectorAll('.weighing-input').forEach(input => {
   });
   input.dispatchEvent(new Event('input'));
 });
+
+{% if not is_standardization %}
+// Show orientation banner
+{% if batch.target_m_s_min_g and batch.target_m_ges_g %}
+(function() {
+  const orientText = document.getElementById('weighing-orientation');
+  if (orientText) {
+    const pEff = {{ batch.p_effective | tojson }};
+    const pMin = {{ batch.gehalt_min_pct | tojson }};
+    const mSMin = {{ batch.target_m_s_min_g | tojson }};
+    const maxAtMin = (pMin && pMin > 0 && pEff && pEff > 0 && mSMin > 0)
+      ? mSMin * pEff / pMin : null;
+    orientText.textContent =
+      'Orientierung: m_S,min = {{ "%.3f"|format(batch.target_m_s_min_g) }} g · ' +
+      'm_ges Richtwert = {{ "%.3f"|format(batch.target_m_ges_g) }} g · ' +
+      'Max. m_ges bei m_S,min = ' + (maxAtMin ? maxAtMin.toFixed(3).replace('.', ',') + ' g' : '—');
+  }
+})();
+{% endif %}
+{% endif %}
 </script>
 {% endblock %}

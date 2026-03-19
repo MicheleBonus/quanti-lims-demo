@@ -14,8 +14,42 @@
   <div class="row" id="assay-volumes-row">
     <div class="col-md-3" id="titrant-conc-col">{{ field("titrant_concentration", "Konzentration (Text)", item.titrant_concentration, placeholder="z.B. 0,1 mol/L", help="Beschreibungsfeld. Für Berechnungen bitte c_Titrant (numerisch) unten verwenden.") }}</div>
     <div class="col-md-3">{{ field("v_vorlage_ml", "V_Vorlage (mL)", item.v_vorlage_ml, type="number", step="0.1", help="Vorlage-Volumen für Rücktitration (z.B. 50.0 mL NaOH)") }}</div>
-    <div class="col-md-3" id="v-solution-col">{{ field("v_solution_ml", "V Lösung (mL)", item.v_solution_ml, type="number", step="0.1", help="Gesamtvolumen, in dem die Einwaage gelöst wird (z.B. 100,0 mL). Leer lassen bei Direkttitration.") }}</div>
-    <div class="col-md-3" id="v-aliquot-col">{{ field("v_aliquot_ml", "V Aliquot (mL)", item.v_aliquot_ml, type="number", step="0.1", help="Aliquotvolumen für jede Titration (z.B. 20,0 mL). Leer lassen bei Direkttitration.") }}</div>
+  </div>
+
+  <div id="aliquot-section">
+    <div class="mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="aliquot_enabled"
+               name="aliquot_enabled" value="1"
+               {% if item.aliquot_enabled %}checked{% endif %}
+               onchange="toggleAliquot(this.checked)">
+        <label class="form-check-label" for="aliquot_enabled">
+          <strong>Aliquotierung verwenden</strong>
+        </label>
+        <div class="form-text">Wenn aktiviert: Probe wird in einem Messkolben gelöst und davon ein Aliquot für jede Titration entnommen.</div>
+      </div>
+    </div>
+
+    <div id="aliquot-fields" {% if not item.aliquot_enabled %}style="display:none"{% endif %}>
+      <div class="row">
+        <div class="col-md-3" id="v-solution-col">
+          <div class="mb-3">
+            <label class="form-label">Kolbenvolumen V<sub>Lösung</sub> (mL)</label>
+            <input type="number" step="0.1" name="v_solution_ml" id="v_solution_ml" class="form-control"
+                   value="{{ item.v_solution_ml or '' }}">
+            <div class="form-text">Gesamtvolumen des Messkolbens (z.B. 100,0 mL). Bei Rücktitration: Kolbenvolumen <em>nach</em> Zugabe der Vorlage und Auffüllen.</div>
+          </div>
+        </div>
+        <div class="col-md-3" id="v-aliquot-col">
+          <div class="mb-3">
+            <label class="form-label">Aliquotvolumen V<sub>Aliquot</sub> (mL)</label>
+            <input type="number" step="0.1" name="v_aliquot_ml" id="v_aliquot_ml" class="form-control"
+                   value="{{ item.v_aliquot_ml or '' }}">
+            <div class="form-text">Volumen des entnommenen Aliquots für jede Titration (z.B. 20,0 mL). Aliquotfaktor = V<sub>Aliquot</sub> / V<sub>Lösung</sub>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="titration-section">
@@ -389,5 +423,9 @@
   syncVorlageVisibility();
   loadAnalysisDefaults();
 })();
+
+function toggleAliquot(enabled) {
+  document.getElementById('aliquot-fields').style.display = enabled ? '' : 'none';
+}
 </script>
 {% endblock %}

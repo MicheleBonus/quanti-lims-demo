@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Blöcke{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">Blöcke</h1>
+  <a href="{{ url_for('edit_block') }}" class="btn btn-primary btn-sm">+ Neuer Block</a>
+</div>
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Kürzel</th>
+      <th>Name</th>
+      <th>Max. Tage</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for block in blocks %}
+    <tr>
+      <td>{{ block.code }}</td>
+      <td>{{ block.name }}</td>
+      <td>{{ block.max_days or '—' }}</td>
+      <td>
+        <a href="{{ url_for('edit_block', block_id=block.id) }}" class="btn btn-outline-secondary btn-sm">Bearbeiten</a>
+        <form method="POST" action="{{ url_for('delete_block', block_id=block.id) }}" style="display:inline"
+              onsubmit="return confirm('Block {{ block.name }} wirklich löschen?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Löschen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

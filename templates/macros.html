@@ -7,6 +7,15 @@
          value="{{ value if value is not none else '' }}"
          {% if required %}required{% endif %}
          {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>
+  {% elif type == "flatpickr" %}
+  {# Date fields: Flatpickr takes over, value pre-formatted as DD.MM.YYYY #}
+  {% set _iso = value if value is not none else '' %}
+  {% set _parts = _iso.split('-') if _iso and '-' in _iso else [] %}
+  {% set _display = _parts[2] ~ '.' ~ _parts[1] ~ '.' ~ _parts[0] if _parts|length == 3 else _iso %}
+  <input type="text" class="form-control flatpickr-date" id="{{ name }}" name="{{ name }}"
+         value="{{ _display }}"
+         {% if required %}required{% endif %}
+         {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>
   {% else %}
   <input type="{{ type }}" class="form-control" id="{{ name }}" name="{{ name }}"
          value="{{ value if value is not none else '' }}"
