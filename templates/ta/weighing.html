@@ -69,11 +69,11 @@
           <div class="field-hint text-danger small" data-hint-field="m_s" {% if not flags.m_s_min_violation %}style="display:none"{% endif %}>unter Mindest-Substanzmasse</div>
         </td>
         <td>
-          <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_target_violation %}is-invalid{% endif %}"
+          <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_ges_max_violation %}is-invalid{% endif %}"
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
                  data-sample-id="{{ s.id }}" data-field="m_ges"
                  placeholder="0.0000" inputmode="decimal">
-          <div class="field-hint text-danger small" data-hint-field="m_ges" {% if not flags.m_ges_target_violation %}style="display:none"{% endif %}>unter Mindesteinwaage</div>
+          <div class="field-hint text-danger small" data-hint-field="m_ges" {% if not flags.m_ges_max_violation %}style="display:none"{% endif %}>Einwaage überschreitet Maximalgehalt</div>
         </td>
         <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
