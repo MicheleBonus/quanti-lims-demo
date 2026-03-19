@@ -2149,6 +2149,42 @@ def register_routes(app):
         flash("Praktikumstag gelöscht.", "success")
         return redirect(url_for("admin_practical_days"))
 
+    @app.route("/admin/blocks")
+    def admin_blocks():
+        blocks = Block.query.order_by(Block.id).all()
+        return render_template("admin/blocks.html", blocks=blocks)
+
+    @app.route("/admin/blocks/new", methods=["GET", "POST"])
+    @app.route("/admin/blocks/<int:block_id>/edit", methods=["GET", "POST"])
+    def edit_block(block_id=None):
+        block = db.session.get(Block, block_id) if block_id else Block()
+        if block_id and not block:
+            abort(404)
+        if request.method == "POST":
+            block.name = request.form.get("name", "").strip()
+            block.code = request.form.get("code", "").strip()
+            max_days_raw = request.form.get("max_days", "").strip()
+            block.max_days = int(max_days_raw) if max_days_raw else None
+            if block_id is None:
+                db.session.add(block)
+            db.session.commit()
+            flash("Block gespeichert.", "success")
+            return redirect(url_for("admin_blocks"))
+        return render_template("admin/block_form.html", block=block)
+
+    @app.route("/admin/blocks/<int:block_id>/delete", methods=["POST"])
+    def delete_block(block_id):
+        block = db.session.get(Block, block_id)
+        if not block:
+            abort(404)
+        if PracticalDay.query.filter_by(block_id=block.id).first():
+            flash("Block kann nicht gelöscht werden — es sind Praktikumstage verknüpft.", "danger")
+            return redirect(url_for("admin_blocks"))
+        db.session.delete(block)
+        db.session.commit()
+        flash("Block gelöscht.", "success")
+        return redirect(url_for("admin_blocks"))
+
     @app.route("/api/sample/<int:sample_id>/calc")
     def api_sample_calc(sample_id):
         s = Sample.query.get_or_404(sample_id)

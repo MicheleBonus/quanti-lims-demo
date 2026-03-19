@@ -31,9 +31,9 @@
   </div>
 
   <div class="mb-3" id="block_day_number_field">
-    <label class="form-label" for="block_day_number">Blocktag-Nummer (1–4)</label>
+    <label class="form-label" for="block_day_number">Blocktag-Nummer</label>
     <input type="number" name="block_day_number" id="block_day_number" class="form-control"
-           min="1" max="4" value="{{ day.block_day_number if day else '' }}">
+           min="1" value="{{ day.block_day_number if day else '' }}">
   </div>
 
   <div class="mb-3">

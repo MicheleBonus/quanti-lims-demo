@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Block bearbeiten{% endblock %}
+{% block content %}
+<h2 class="h4 mb-3">Block bearbeiten</h2>
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3">
+    <label class="form-label">Kürzel (z.B. I)</label>
+    <input type="text" name="code" class="form-control" value="{{ block.code or '' }}" required maxlength="10">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Name (z.B. Acidimetrie)</label>
+    <input type="text" name="name" class="form-control" value="{{ block.name or '' }}" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Max. Tage (Orientierung, optional)</label>
+    <input type="number" name="max_days" class="form-control" min="1"
+           value="{{ block.max_days if block.max_days is not none else '' }}">
+    <div class="form-text">Richtwert für die Planung. Kein hartes Limit.</div>
+  </div>
+  <button type="submit" class="btn btn-primary">Speichern</button>
+  <a href="{{ url_for('admin_blocks') }}" class="btn btn-outline-secondary">Abbrechen</a>
+</form>
+{% endblock %}
