@@ -194,6 +194,25 @@ def register_filters(app):
         return [(getattr(i, value_attr), getattr(i, label_attr)) for i in items]
 
 
+def parse_de_date(s: str | None) -> str | None:
+    """Convert DD.MM.YYYY string to ISO YYYY-MM-DD for DB storage.
+    Returns None if blank or invalid. Accepts ISO format passthrough."""
+    if not s or not s.strip():
+        return None
+    s = s.strip()
+    # Already ISO?
+    if len(s) == 10 and s[4] == '-':
+        return s
+    parts = s.split('.')
+    if len(parts) == 3:
+        try:
+            day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+            return f"{year:04d}-{month:02d}-{day:02d}"
+        except ValueError:
+            return None
+    return None
+
+
 def register_error_handlers(app):
     @app.errorhandler(404)
     def page_not_found(e):
@@ -393,12 +412,12 @@ def register_routes(app):
             item.substance_id = int(request.form["substance_id"])
             item.lot_number = request.form["lot_number"]
             item.supplier = request.form.get("supplier") or None
-            item.receipt_date = request.form.get("receipt_date") or None
+            item.receipt_date = parse_de_date(request.form.get("receipt_date"))
             item.g_coa_pct = _float(request.form.get("g_coa_pct"))
-            item.coa_date = request.form.get("coa_date") or None
-            item.coa_valid_until = request.form.get("coa_valid_until") or None
+            item.coa_date = parse_de_date(request.form.get("coa_date"))
+            item.coa_valid_until = parse_de_date(request.form.get("coa_valid_until"))
             item.g_analytical_pct = _float(request.form.get("g_analytical_pct"))
-            item.g_analytical_date = request.form.get("g_analytical_date") or None
+            item.g_analytical_date = parse_de_date(request.form.get("g_analytical_date"))
             item.g_analytical_method = request.form.get("g_analytical_method") or None
             item.notes = request.form.get("notes") or None
             duplicate = SubstanceLot.query.filter(
@@ -785,8 +804,8 @@ def register_routes(app):
         if request.method == "POST":
             item.code = request.form["code"]
             item.name = request.form["name"]
-            item.start_date = request.form.get("start_date") or None
-            item.end_date = request.form.get("end_date") or None
+            item.start_date = parse_de_date(request.form.get("start_date"))
+            item.end_date = parse_de_date(request.form.get("end_date"))
             item.is_active = "is_active" in request.form
             duplicate = Semester.query.filter(
                 Semester.code == item.code,
@@ -1102,7 +1121,7 @@ def register_routes(app):
 
             item.prepared_by = prepared_by
             item.total_samples_prepared = int(request.form["total_samples_prepared"])
-            item.preparation_date = request.form.get("preparation_date") or None
+            item.preparation_date = parse_de_date(request.form.get("preparation_date"))
             item.notes = request.form.get("notes") or None
 
             if mode == MODE_ASSAY_MASS_BASED:
@@ -2045,7 +2064,7 @@ def register_routes(app):
             day = PracticalDay(
                 semester_id=_get_active_semester_id(),
                 block_id=int(request.form["block_id"]),
-                date=request.form["date"],
+                date=parse_de_date(request.form["date"]),
                 day_type=request.form["day_type"],
                 block_day_number=int(request.form["block_day_number"]) if request.form.get("block_day_number") else None,
                 notes=request.form.get("notes") or None,
@@ -2067,7 +2086,7 @@ def register_routes(app):
         blocks = Block.query.order_by(Block.code).all()
         if request.method == "POST":
             day.block_id = int(request.form["block_id"])
-            day.date = request.form["date"]
+            day.date = parse_de_date(request.form["date"])
             day.day_type = request.form["day_type"]
             day.block_day_number = int(request.form["block_day_number"]) if request.form.get("block_day_number") else None
             day.notes = request.form.get("notes") or None

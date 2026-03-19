@@ -70,7 +70,7 @@
   <h6>Probenherstellung</h6>
   <div class="row">
     <div class="col-md-3">{{ field("total_samples_prepared", "Anzahl Proben (gesamt)", item.total_samples_prepared or (n_students + (n_students * 0.3)|round(0, 'ceil')|int), type="number", required=true, help="Inkl. ~30% Puffer. Aktuell " ~ n_students ~ " Studierende.") }}</div>
-    <div class="col-md-3">{{ field("preparation_date", "Herstellungsdatum", item.preparation_date, type="date") }}</div>
+    <div class="col-md-3">{{ field("preparation_date", "Herstellungsdatum", item.preparation_date, type="flatpickr") }}</div>
     <div class="col-md-3">{{ field("prepared_by", "Hergestellt von", item.prepared_by) }}</div>
   </div>
 

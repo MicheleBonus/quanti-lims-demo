@@ -11,8 +11,8 @@
     <div class="col-md-5">{{ field("name", "Name", item.name, required=true, placeholder="Wintersemester 2025/26") }}</div>
   </div>
   <div class="row">
-    <div class="col-md-3">{{ field("start_date", "Startdatum", item.start_date, type="date") }}</div>
-    <div class="col-md-3">{{ field("end_date", "Enddatum", item.end_date, type="date") }}</div>
+    <div class="col-md-3">{{ field("start_date", "Startdatum", item.start_date, type="flatpickr") }}</div>
+    <div class="col-md-3">{{ field("end_date", "Enddatum", item.end_date, type="flatpickr") }}</div>
     <div class="col-md-3">{{ checkbox("is_active", "Aktives Semester", item.is_active if item.id else true) }}</div>
   </div>
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>
