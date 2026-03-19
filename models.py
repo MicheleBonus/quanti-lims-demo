@@ -111,6 +111,7 @@ class Substance(db.Model):
     name = db.Column(db.String(200), unique=True, nullable=False)
     formula = db.Column(db.String(100))
     molar_mass_gmol = db.Column(db.Float)
+    anhydrous_molar_mass_gmol = db.Column(db.Float, nullable=True)  # For hydrate correction (e.g. Li citrate tetrahydrat)
     e_ab_g = db.Column(db.Float)
     g_ab_min_pct = db.Column(db.Float)
     g_ab_max_pct = db.Column(db.Float)
