@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
-*.db
+# *.db
 *.sqlite3
 .env
 .secret_key

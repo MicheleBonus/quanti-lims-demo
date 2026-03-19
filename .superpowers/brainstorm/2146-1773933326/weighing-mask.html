@@ -1,0 +1,84 @@
+<h2>Phase 1 · Einwaagemaske — neues Design</h2>
+<p class="subtitle">Orientierungswerte beim Laden + dynamische Obergrenzen live während der Eingabe</p>
+
+<div class="section">
+  <h3>Orientierungsblock (beim Laden angezeigt)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Batch: ASS-Block-I · Analyse I.2 · p<sub>eff</sub> = 99,5 % · p<sub>min</sub> = 90,0 %</div>
+    <div class="mockup-body">
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+        <thead>
+          <tr style="background:#f0f4ff">
+            <th style="padding:8px;text-align:left;border-bottom:2px solid #ccd">Probe</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd">Min. Substanzmasse m<sub>s,min</sub></th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd">Richtwert m<sub>ges</sub></th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd;color:#c62828">Max. m<sub>ges</sub> bei m<sub>s,min</sub></th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd">m<sub>s</sub> (Eingabe)</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd">m<sub>ges</sub> (Eingabe)</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd">Max. m<sub>ges</sub> ⟵ live</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #ccd">G<sub>wahr</sub></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #eee">
+            <td style="padding:8px">Probe 1</td>
+            <td style="padding:8px;text-align:right;color:#555">2,20 g</td>
+            <td style="padding:8px;text-align:right;color:#555">~4,00 g</td>
+            <td style="padding:8px;text-align:right;color:#c62828;font-weight:600">2,44 g</td>
+            <td style="padding:8px"><input class="mock-input" style="width:80px;text-align:right" value="2,45" /></td>
+            <td style="padding:8px"><input class="mock-input" style="width:80px;text-align:right" value="5,00" /></td>
+            <td style="padding:8px;text-align:right;background:#ffebee;color:#c62828;font-weight:700">2,72 g ⚠️</td>
+            <td style="padding:8px;text-align:right;color:#c62828">48,8 %</td>
+          </tr>
+          <tr style="border-bottom:1px solid #eee">
+            <td style="padding:8px">Probe 2</td>
+            <td style="padding:8px;text-align:right;color:#555">2,20 g</td>
+            <td style="padding:8px;text-align:right;color:#555">~4,00 g</td>
+            <td style="padding:8px;text-align:right;color:#c62828;font-weight:600">2,44 g</td>
+            <td style="padding:8px"><input class="mock-input" style="width:80px;text-align:right" value="2,31" /></td>
+            <td style="padding:8px"><input class="mock-input" style="width:80px;text-align:right" value="2,40" /></td>
+            <td style="padding:8px;text-align:right;background:#e8f5e9;color:#2e7d32;font-weight:700">2,57 g ✓</td>
+            <td style="padding:8px;text-align:right;color:#2e7d32">95,7 %</td>
+          </tr>
+          <tr>
+            <td style="padding:8px">Probe 3 (Puffer)</td>
+            <td style="padding:8px;text-align:right;color:#555">2,20 g</td>
+            <td style="padding:8px;text-align:right;color:#555">~4,00 g</td>
+            <td style="padding:8px;text-align:right;color:#c62828;font-weight:600">2,44 g</td>
+            <td style="padding:8px"><input class="mock-input" style="width:80px;text-align:right" placeholder="g" /></td>
+            <td style="padding:8px"><input class="mock-input" style="width:80px;text-align:right" placeholder="g" /></td>
+            <td style="padding:8px;text-align:right;color:#aaa">—</td>
+            <td style="padding:8px;text-align:right;color:#aaa">—</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:0.75rem;padding:0.6rem 0.8rem;background:#fff8e1;border-left:4px solid #f9a825;border-radius:4px;font-size:0.85rem">
+        <strong>Formel:</strong> Max. m<sub>ges</sub> = m<sub>s,eingabe</sub> × p<sub>eff</sub> / p<sub>min</sub> = m<sub>s</sub> × 99,5% / 90,0% · Aktualisiert sich live mit jeder Eingabe in m<sub>s</sub>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Was sich ändert</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <div style="padding:1rem;background:#ffebee;border-radius:8px">
+      <div class="label" style="color:#c62828">Vorher (fehlerhaft)</div>
+      <ul style="margin:0.5rem 0 0;padding-left:1.2rem;font-size:0.9rem">
+        <li>Zeigt „Mindest-Gesamteinwaage" = 4,40 g</li>
+        <li>Validierung prüft nur m<sub>ges</sub> ≥ target</li>
+        <li>TA kann 2,2 g + 7,8 g wiegen → G<sub>wahr</sub> = 22 %</li>
+        <li>Kein Live-Feedback während Eingabe</li>
+      </ul>
+    </div>
+    <div style="padding:1rem;background:#e8f5e9;border-radius:8px">
+      <div class="label" style="color:#2e7d32">Nachher (korrekt)</div>
+      <ul style="margin:0.5rem 0 0;padding-left:1.2rem;font-size:0.9rem">
+        <li>Zeigt „Max. m<sub>ges</sub>" dynamisch basierend auf m<sub>s</sub></li>
+        <li>Validierung prüft m<sub>ges</sub> ≤ m<sub>s</sub> × p<sub>eff</sub> / p<sub>min</sub></li>
+        <li>G<sub>wahr</sub> live berechnet + rot/grün markiert</li>
+        <li>Orientierungswert m<sub>ges</sub>-Richtwert bleibt als Hinweis</li>
+      </ul>
+    </div>
+  </div>
+</div>
