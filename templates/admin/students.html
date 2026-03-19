@@ -44,7 +44,7 @@
   <td class="drag-handle" style="cursor:grab"><i class="bi bi-grip-vertical text-body-secondary"></i></td>
   <td class="running-num"><strong>{{ s.running_number }}</strong></td>
   <td>{{ s.matrikel }}</td>
-  <td><a href="{{ url_for('admin_student_form', id=s.id) }}">{{ s.last_name }}</a></td>
+  <td><a href="{{ url_for('admin_student_form', id=s.id) }}">{{ s.last_name }}</a>{% if s.is_excluded %}<span class="badge bg-danger ms-1">Ausgeschieden</span>{% endif %}</td>
   <td>{{ s.first_name }}</td>
   <td>{{ s.group_code or '—' }}</td>
   <td class="text-body-secondary">{{ s.email or '—' }}</td>

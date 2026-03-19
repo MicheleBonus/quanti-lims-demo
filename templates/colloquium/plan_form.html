@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Kolloquium planen{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Kolloquium planen / Ergebnis eintragen</h1>
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3">
+    <label class="form-label">Studierende/r</label>
+    <select name="student_id" class="form-select" required>
+      <option value="">— bitte wählen —</option>
+      {% for s in students %}
+      <option value="{{ s.id }}" {% if s.id == preselect_student %}selected{% endif %}>
+        {{ s.full_name }} ({{ s.matrikel }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Block</label>
+    <select name="block_id" class="form-select" required>
+      {% for b in blocks %}
+      <option value="{{ b.id }}" {% if b.id == preselect_block %}selected{% endif %}>
+        Block {{ b.code }} — {{ b.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Versuch</label>
+    <select name="attempt_number" class="form-select">
+      <option value="1" {% if preselect_attempt == 1 %}selected{% endif %}>1 — Erstversuch</option>
+      <option value="2" {% if preselect_attempt == 2 %}selected{% endif %}>2 — Nachholkolloquium</option>
+      <option value="3" {% if preselect_attempt == 3 %}selected{% endif %}>3 — beim Chef</option>
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Geplantes Datum</label>
+    <input type="text" name="scheduled_date" class="form-control flatpickr-date">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Tatsächliches Datum</label>
+    <input type="text" name="conducted_date" class="form-control flatpickr-date">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Prüfer/in</label>
+    <input type="text" name="examiner" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Ergebnis</label>
+    <select name="passed" class="form-select">
+      <option value="">— noch ausstehend —</option>
+      <option value="true">Bestanden</option>
+      <option value="false">Nicht bestanden</option>
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Anmerkungen</label>
+    <textarea name="notes" class="form-control" rows="2"></textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">Speichern</button>
+  <a href="{{ url_for('colloquium_overview') }}" class="btn btn-outline-secondary">Abbrechen</a>
+</form>
+{% endblock %}

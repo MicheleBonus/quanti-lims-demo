@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Kolloquien{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">Kolloquien — {{ semester.name }}</h1>
+  <a href="{{ url_for('colloquium_plan') }}" class="btn btn-primary btn-sm">+ Kolloquium planen</a>
+</div>
+
+{# Block tabs #}
+<ul class="nav nav-tabs mb-3">
+  {% for block in blocks %}
+  <li class="nav-item">
+    <a class="nav-link {% if block.id == active_block_id %}active{% endif %}"
+       href="{{ url_for('colloquium_overview', block_id=block.id) }}">
+      Block {{ block.code }}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Studierende/r</th>
+      <th>Gr.</th>
+      <th class="text-center">Versuch 1</th>
+      <th class="text-center">Versuch 2 (Nachholkoll.)</th>
+      <th class="text-center">Versuch 3 (Chef)</th>
+      <th class="text-center">Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for student in students %}
+    {% set attempts = colloq_map.get(student.id, {}).get(active_block_id, []) %}
+    {% set by_attempt = {} %}
+    {% for a in attempts %}{% set _ = by_attempt.update({a.attempt_number: a}) %}{% endfor %}
+    <tr>
+      <td>{{ student.full_name }}</td>
+      <td>{{ student.group_code or '—' }}</td>
+      {% for n in [1, 2, 3] %}
+      {% set c = by_attempt.get(n) %}
+      <td class="text-center">
+        {% if c %}
+          {% if c.passed is true %}
+            <span class="badge bg-success">✓ {{ c.conducted_date | de_date }}</span>
+          {% elif c.passed is false %}
+            <span class="badge bg-danger">✗ {{ c.conducted_date | de_date }}</span>
+          {% elif c.scheduled_date %}
+            <span class="badge bg-warning text-dark">📅 {{ c.scheduled_date | de_date }}</span>
+          {% endif %}
+        {% else %}
+          <span class="text-muted">—</span>
+        {% endif %}
+      </td>
+      {% endfor %}
+      <td class="text-center">
+        {% set all_passed = by_attempt.values() | selectattr('passed', 'equalto', True) | list %}
+        {% if all_passed %}
+          <span class="badge bg-success">Bestanden</span>
+        {% elif by_attempt.get(3) and by_attempt[3].passed is false %}
+          <span class="badge bg-danger">Ausgeschieden</span>
+        {% elif attempts %}
+          <span class="badge bg-warning text-dark">Ausstehend</span>
+        {% else %}
+          <span class="badge bg-secondary">Nicht geplant</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="{{ url_for('colloquium_plan', student_id=student.id, block_id=active_block_id) }}"
+           class="btn btn-outline-secondary btn-sm">Bearbeiten</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1428,6 +1428,10 @@ def register_routes(app):
     def assign_buffer():
         student_id = int(request.form["student_id"])
         analysis_id = int(request.form["analysis_id"])
+        student = db.session.get(Student, student_id)
+        if student and student.is_excluded:
+            flash(f"{student.full_name} ist aus dem Praktikum ausgeschieden. Keine neue Zuweisung möglich.", "danger")
+            return redirect(request.referrer or url_for("home"))
         sem = active_semester()
         batch = SampleBatch.query.filter_by(semester_id=sem.id, analysis_id=analysis_id).first()
         if not batch:
@@ -2120,6 +2124,80 @@ def register_routes(app):
             "p_effective": s.batch.p_effective,
             "p_source": s.batch.p_source,
         })
+
+    # ── Kolloquien ────────────────────────────────────────────────────────────
+
+    @app.route("/colloquium/")
+    def colloquium_overview():
+        semester = Semester.query.filter_by(is_active=True).first()
+        if not semester:
+            flash("Kein aktives Semester.", "warning")
+            return redirect(url_for("home"))
+        blocks = Block.query.order_by(Block.id).all()
+        active_block_id = request.args.get("block_id", type=int) or (blocks[0].id if blocks else None)
+        students = Student.query.filter_by(semester_id=semester.id, is_excluded=False)\
+            .order_by(Student.last_name, Student.first_name).all()
+        # Build colloquium map: {student_id: {block_id: [Colloquium]}}
+        all_colloqs = Colloquium.query.filter(
+            Colloquium.student_id.in_([s.id for s in students])
+        ).all()
+        colloq_map = {}
+        for c in all_colloqs:
+            colloq_map.setdefault(c.student_id, {}).setdefault(c.block_id, []).append(c)
+        for bid in colloq_map.values():
+            for attempts in bid.values():
+                attempts.sort(key=lambda x: x.attempt_number)
+        return render_template("colloquium/overview.html",
+            semester=semester, blocks=blocks, active_block_id=active_block_id,
+            students=students, colloq_map=colloq_map)
+
+    @app.route("/colloquium/plan", methods=["GET", "POST"])
+    def colloquium_plan():
+        """Create or update a single colloquium entry."""
+        semester = Semester.query.filter_by(is_active=True).first()
+        blocks = Block.query.order_by(Block.id).all()
+        students = Student.query.filter_by(semester_id=semester.id if semester else 0)\
+            .order_by(Student.last_name).all()
+
+        if request.method == "POST":
+            student_id = request.form.get("student_id", type=int)
+            block_id = request.form.get("block_id", type=int)
+            attempt_number = request.form.get("attempt_number", type=int, default=1)
+            colloq = Colloquium.query.filter_by(
+                student_id=student_id, block_id=block_id, attempt_number=attempt_number
+            ).first() or Colloquium(student_id=student_id, block_id=block_id, attempt_number=attempt_number)
+            colloq.scheduled_date = parse_de_date(request.form.get("scheduled_date"))
+            colloq.conducted_date = parse_de_date(request.form.get("conducted_date"))
+            colloq.examiner = request.form.get("examiner", "").strip() or None
+            passed_raw = request.form.get("passed")
+            colloq.passed = True if passed_raw == "true" else (False if passed_raw == "false" else None)
+            colloq.notes = request.form.get("notes", "").strip() or None
+            db.session.add(colloq)
+
+            # Handle exclusion after attempt 3 failure
+            if colloq.attempt_number == 3 and colloq.passed is False:
+                student = db.session.get(Student, student_id)
+                if student:
+                    student.is_excluded = True
+                    open_assignments = SampleAssignment.query.filter_by(
+                        student_id=student_id, status="assigned"
+                    ).all()
+                    for a in open_assignments:
+                        a.status = "cancelled"
+                    flash(f"{student.full_name} hat das Kolloquium dreimal nicht bestanden und scheidet aus dem Praktikum aus.", "danger")
+
+            db.session.commit()
+            flash("Kolloquium gespeichert.", "success")
+            return redirect(url_for("colloquium_overview"))
+
+        # Pre-fill from query params
+        preselect_student = request.args.get("student_id", type=int)
+        preselect_block = request.args.get("block_id", type=int)
+        preselect_attempt = request.args.get("attempt_number", type=int, default=1)
+        return render_template("colloquium/plan_form.html",
+            blocks=blocks, students=students,
+            preselect_student=preselect_student, preselect_block=preselect_block,
+            preselect_attempt=preselect_attempt)
 
 
 # ── Utility ──────────────────────────────────────────────────────────
