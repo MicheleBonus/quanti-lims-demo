@@ -339,6 +339,8 @@ def register_routes(app):
             item.name = request.form["name"]
             item.formula = request.form.get("formula") or None
             item.molar_mass_gmol = _float(request.form.get("molar_mass_gmol"))
+            anhydrous_raw = request.form.get("anhydrous_molar_mass_gmol", "").strip()
+            item.anhydrous_molar_mass_gmol = float(anhydrous_raw) if anhydrous_raw else None
             item.notes = request.form.get("notes") or None
             duplicate = Substance.query.filter(
                 Substance.name == item.name,
