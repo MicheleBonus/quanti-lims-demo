@@ -1184,7 +1184,7 @@ def register_routes(app):
         item = SampleBatch.query.get(id) if id else SampleBatch()
         sem = active_semester()
         analyses = Analysis.query.order_by(Analysis.ordinal).all()
-        analysis_modes = {a.id: resolve_mode(a.calculation_mode) for a in analyses}
+        analysis_modes = {a.id: (a.calculation_mode or MODE_ASSAY_MASS_BASED) for a in analyses}
         lots = SubstanceLot.query.order_by(SubstanceLot.id.desc()).all()
         n_students = Student.query.filter_by(semester_id=sem.id).count() if sem else 0
 
@@ -1199,6 +1199,7 @@ def register_routes(app):
             item.analysis_id = int(request.form["analysis_id"])
             analysis = Analysis.query.get(item.analysis_id)
             mode = resolve_mode(analysis.calculation_mode if analysis else None)
+            item.safety_factor = _float(request.form.get("safety_factor")) or 1.2
             prepared_by = request.form.get("prepared_by") or None
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
@@ -2164,6 +2165,8 @@ def register_routes(app):
             "g_ab_max_pct": analysis.g_ab_max_pct,
             "calculation_mode": resolve_mode(analysis.calculation_mode),
             "molar_mass_gmol": analysis.substance.molar_mass_gmol if analysis.substance else None,
+            "m_einwaage_min_mg": analysis.m_einwaage_min_mg,
+            "m_einwaage_max_mg": analysis.m_einwaage_max_mg,
         }
         if method:
             result["has_aliquot"] = method.has_aliquot

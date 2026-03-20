@@ -19,6 +19,13 @@
   V_min/V_max = V_disp,theo × 0.9 / 1.1 (±10%). V_disp,theo = V_Verdünnung × c_Soll / c_Stamm.
   Studierende melden den berechneten Faktor (= V_disp / V_disp,theo) direkt als Ansage.
 </div>
+<div class="alert alert-light border small" id="hint-mass-det" style="display:none">
+  <i class="bi bi-info-circle"></i> <strong>Hinweis (Massenbestimmung):</strong>
+  Die TA wiegt eine bestimmte Menge reiner Substanz ein (keine Verschnittberechnung).
+  Einwaagebereich aus der Methode:
+  <strong id="mass-det-range">–</strong>.
+  Sicherheitsfaktor gilt für den Reagenzienbedarf (Grundbedarf = Erstanalysen).
+</div>
 
 <div class="card"><div class="card-body">
 <form method="POST">
@@ -73,6 +80,9 @@
     <div class="col-md-3">{{ field("preparation_date", "Herstellungsdatum", item.preparation_date, type="flatpickr") }}</div>
     <div class="col-md-3">{{ field("prepared_by", "Hergestellt von", item.prepared_by) }}</div>
   </div>
+  <div class="row" id="safety-factor-row">
+    <div class="col-md-3">{{ field("safety_factor", "Sicherheitsfaktor", item.safety_factor if item.safety_factor is not none else 1.2, type="number", step="0.01", help="Aufschlag für Reagenzienbedarf. 1.2 = 20% extra. Gilt nur für Erstanalysen (k=1).") }}</div>
+  </div>
 
   {% if item.id %}
   <div class="alert alert-secondary py-2 small mt-2">
@@ -105,6 +115,7 @@
 (() => {
   const MODE_ASSAY = "assay_mass_based";
   const MODE_STD = "titrant_standardization";
+  const MODE_MASS_DET = "mass_determination";
   const analysisModes = {{ analysis_modes|tojson }};
   const analysisSelect = document.getElementById("analysis_id");
   const massFields = document.getElementById("mass-fields");
@@ -134,10 +145,13 @@
 
   function setGroupVisibility(mode) {
     const isMass = mode === MODE_ASSAY;
+    const isStd = mode === MODE_STD;
+    const isMassDet = mode === MODE_MASS_DET;
     massFields.style.display = isMass ? "" : "none";
-    volumeFields.style.display = isMass ? "none" : "";
+    volumeFields.style.display = isStd ? "" : "none";
     hintMass.style.display = isMass ? "" : "none";
-    hintStd.style.display = isMass ? "none" : "";
+    hintStd.style.display = isStd ? "" : "none";
+    document.getElementById("hint-mass-det").style.display = isMassDet ? "" : "none";
     blendRow.style.display = isMass ? "" : "none";
     dilutionRow.style.display = isMass ? "" : "none";
     dilutionNotesRow.style.display = isMass ? "" : "none";
@@ -229,8 +243,17 @@
           currentDefaults = data;
           if (mode === MODE_ASSAY) {
             recalcMassFields();
-          } else {
+          } else if (mode === MODE_STD) {
             recalcVolumeFields();
+          } else if (mode === MODE_MASS_DET) {
+            const minMg = data.m_einwaage_min_mg;
+            const maxMg = data.m_einwaage_max_mg;
+            const rangeEl = document.getElementById("mass-det-range");
+            if (minMg != null && maxMg != null) {
+              rangeEl.textContent = `${minMg} – ${maxMg} mg`;
+            } else {
+              rangeEl.textContent = "nicht definiert";
+            }
           }
         });
     }
@@ -242,7 +265,20 @@
   if (initialAid) {
     fetch(`/api/analysis/${initialAid}/defaults`)
       .then(r => r.json())
-      .then(data => { currentDefaults = data; });
+      .then(data => {
+        currentDefaults = data;
+        const initMode = currentMode();
+        if (initMode === MODE_MASS_DET) {
+          const minMg = data.m_einwaage_min_mg;
+          const maxMg = data.m_einwaage_max_mg;
+          const rangeEl = document.getElementById("mass-det-range");
+          if (minMg != null && maxMg != null) {
+            rangeEl.textContent = `${minMg} – ${maxMg} mg`;
+          } else {
+            rangeEl.textContent = "nicht definiert";
+          }
+        }
+      });
   }
 
   // Titer override toggle

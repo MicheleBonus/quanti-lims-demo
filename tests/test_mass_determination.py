@@ -128,3 +128,41 @@ def test_analysis_form_saves_mass_determination_fields(client, db):
         assert a.calculation_mode == "mass_determination"
         assert abs(a.m_einwaage_min_mg - 120.0) < 0.001
         assert abs(a.m_einwaage_max_mg - 180.0) < 0.001
+
+
+def test_batch_form_mass_determination_skips_mass_validation(client, db):
+    """POST batch form with mass_determination analysis does not require target_m_ges_g."""
+    from models import Block, Substance, Analysis, Method, Semester
+    with client.application.app_context():
+        sem = Semester(code="TS26", name="Test 26", is_active=True)
+        block = Block(code="TB", name="Test Block", max_days=4)
+        substance = Substance(name="Glycerol Batch Test", molar_mass_gmol=92.09)
+        db.session.add_all([sem, block, substance])
+        db.session.flush()
+        analysis = Analysis(
+            block_id=block.id, code="GB1", ordinal=98, name="Glycerol Batch",
+            substance_id=substance.id, calculation_mode="mass_determination",
+            m_einwaage_min_mg=120.0, m_einwaage_max_mg=180.0,
+            g_ab_min_pct=98.0, g_ab_max_pct=102.0,
+        )
+        db.session.add(analysis)
+        db.session.flush()
+        method = Method(analysis_id=analysis.id, method_type="back",
+                        blind_required=True, b_blind_determinations=1,
+                        v_solution_ml=100.0, v_aliquot_ml=20.0, aliquot_enabled=True)
+        db.session.add(method)
+        db.session.commit()
+
+        resp = client.post(f"/admin/batches/new", data={
+            "analysis_id": analysis.id,
+            "total_samples_prepared": "5",
+            "safety_factor": "1.3",
+            "titer": "1.000",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        from models import SampleBatch
+        batch = SampleBatch.query.filter_by(analysis_id=analysis.id).first()
+        assert batch is not None
+        assert abs(batch.safety_factor - 1.3) < 0.001
+        assert batch.target_m_s_min_g is None
+        assert batch.target_m_ges_g is None
