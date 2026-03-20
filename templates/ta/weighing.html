@@ -498,5 +498,25 @@ function fillRows(parsed, startIndex) {
     showPasteToast(filled, firstNum, lastNum);
   }
 }
+
+// ── Global paste handler ──────────────────────────────────────────────────
+
+document.addEventListener('paste', event => {
+  // If a field is focused, let the browser handle paste normally
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+    return;
+  }
+
+  const text = event.clipboardData.getData('text/plain');
+  if (!text || !text.trim()) return;
+
+  const parsed = parseClipboard(text);
+  if (parsed.length === 0) return;
+
+  fillRows(parsed, anchorRowIndex ?? 0);
+  clearAnchorRow();
+  event.preventDefault();
+});
 </script>
 {% endblock %}
