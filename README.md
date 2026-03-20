@@ -47,6 +47,8 @@ flask run
 > **Wichtig:** `flask db upgrade` muss **beim ersten Start** und nach jedem `git pull` mit neuen Migrationen ausgeführt werden. Ohne diesen Schritt startet die App mit leerem Datenbankschema.
 >
 > `FLASK_APP` muss nicht manuell gesetzt werden — die mitgelieferte `.flaskenv` erledigt das automatisch.
+>
+> Zusätzliche Spalten-Migrationen (`migrations/legacy_sql/`) werden beim **App-Start automatisch** angewendet — kein manueller Schritt erforderlich.
 
 ### Tests ausführen
 
@@ -95,9 +97,11 @@ cp .env.example .env   # .env mit echten Werten befüllen
 - **Probenverwaltung**: Automatische Generierung von Erst- und Wiederholungsproben, dynamische Zuweisung
 - **Einwaage-Eingabe**: Tabellarische TA-Eingabemaske mit Live-Berechnung von G_wahr, A_min/A_max, V_erwartet
 - **Ergebnisbewertung**: Automatischer Abgleich der Ansage mit Toleranzgrenzen (AB oder 98–102 % Override)
+- **Drei Berechnungsmodi**: Gehaltsbestimmung (`assay_mass_based`), Titerstandardisierung (`titrant_standardization`), reine Massenbestimmung (`mass_determination`, z. B. Glycerol)
 - **Tagesansicht**: Auflösung von Rotations- und Extra-Assignments pro Student und Praktikumstag
 - **Praktikumskalender**: Verwaltung von Blocktagen und Nachkochtagen
-- **Berichte**: Fortschritts-Heatmap, Reagenzienbedarf
+- **Reagenzienbedarf**: Übersicht mit aufklappbaren Zusammensetzungen, konfigurierbarem Sicherheitsfaktor (pro Batch), Grundbedarf auf Erstanalysen-Basis (k=1); druckbare Bestellliste (Grundsubstanzen aggregiert) und Herstellliste pro Block
+- **Berichte**: Fortschritts-Heatmap, Reagenzienbedarf, CSV/JSON-Export
 - **Admin-Interface**: CRUD für alle Stammdaten (Substanzen, Chargen, Methoden, Reagenzien, BOM, Semester, Studierende)
 
 ---
@@ -122,7 +126,7 @@ quanti-lims/
 ├── app.py               # Flask App-Factory + alle Routes
 ├── models.py            # SQLAlchemy ORM-Modelle
 ├── praktikum.py         # Service-Modul: Auflösungslogik Tagesansicht
-├── calculation_modes.py # Berechnungslogik (assay_mass_based, titrant_standardization)
+├── calculation_modes.py # Berechnungslogik (assay_mass_based, titrant_standardization, mass_determination)
 ├── init_db.py           # Referenz-Seed (wird automatisch aufgerufen)
 ├── config.py            # Konfiguration (DATABASE_URL, SECRET_KEY)
 ├── pyproject.toml       # Projektmetadaten + Abhängigkeiten
@@ -131,7 +135,7 @@ quanti-lims/
 ├── .env.example         # Vorlage für lokale Umgebungsvariablen
 ├── Dockerfile
 ├── docker-compose.yml   # PostgreSQL + Web (Produktion)
-├── migrations/          # Alembic-Migrationen
+├── migrations/          # Alembic-Migrationen + legacy_sql/ (werden beim Start automatisch angewendet)
 ├── tests/               # pytest-Testsuite
 ├── static/
 └── templates/
@@ -156,6 +160,7 @@ Die Berechnungen erfolgen modus-spezifisch über `calculation_modes.py` und werd
 - **Reinheits-Hierarchie**: `SubstanceLot.p_effective` → analytisch > CoA > 100 %
 - **assay_mass_based**: `Sample.g_wahr`, `a_min/a_max`, `v_expected` aus Einwaage- und Methodenparametern
 - **titrant_standardization**: `Sample.v_expected` und `titer_expected`; Bewertung über berechneten `titer_result` gegen Titer-Grenzen
+- **mass_determination**: TA wiegt reine Substanz ein (`m_s_actual_g`); Student sagt Masse in mg an; Toleranz relativ zur Einwaage (g_ab_min/max_pct); Einwaagebereich aus `Analysis.m_einwaage_min/max_mg`; Aliquotierung wird unterstützt
 - **Bewertung**: `Result.evaluate()` delegiert an den jeweiligen Mode-Evaluator und persistiert mode-spezifische Referenzwerte
 
 ---
