@@ -359,7 +359,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
  *              If only one numeric found → m_s only.
  * - Blank/unparseable rows → skipped (do NOT advance probe counter).
  * @param {string} text
- * @returns {{m_s: number|null, m_ges: number|null}[]}
+ * @returns {Array<{m_s: (number|null), m_ges: (number|null)}>}
  */
 function parseClipboard(text) {
   const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
