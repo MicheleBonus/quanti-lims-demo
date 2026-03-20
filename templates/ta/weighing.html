@@ -475,14 +475,15 @@ function fillRows(parsed, startIndex) {
 
     if (!msInput && !mgesInput) break; // past end of table
 
-    if (msInput && m_s !== null) {
-      msInput.value = String(m_s);
-      msInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
-    if (mgesInput && m_ges !== null) {
-      mgesInput.value = String(m_ges);
-      mgesInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
+    if (msInput && m_s !== null) msInput.value = String(m_s);
+    if (mgesInput && m_ges !== null) mgesInput.value = String(m_ges);
+
+    // Fire a single input event after both values are written so the existing
+    // live-calculation listener sees a consistent row state (not an intermediate one).
+    const triggerInput = (mgesInput && m_ges !== null) ? mgesInput
+                       : (msInput && m_s !== null)     ? msInput
+                       : null;
+    if (triggerInput) triggerInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
     // Count as filled if at least one value was written
     if ((msInput && m_s !== null) || (mgesInput && m_ges !== null)) {
