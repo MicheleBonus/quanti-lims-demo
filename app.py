@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import glob
 import io
 import json
 import os
@@ -145,26 +146,80 @@ def resolve_standardization_titer(semester_id: int) -> dict | None:
 
 
 def apply_legacy_sql_migrations(app):
-    """Apply legacy SQL migrations from migrations/legacy_sql/ in filename order."""
-    import glob
+    """Apply legacy SQL migrations from migrations/legacy_sql/ in filename order.
+
+    Uses _legacy_migrations table to track which files have been applied,
+    avoiding repeated execution and silent partial-application errors.
+    """
     legacy_dir = os.path.join(os.path.dirname(__file__), "migrations", "legacy_sql")
     if not os.path.isdir(legacy_dir):
         return
 
-    migration_files = sorted(glob.glob(os.path.join(legacy_dir, "*.sql")))
-    for migration_file in migration_files:
-        with open(migration_file, "r", encoding='utf-8') as f:
-            sql_content = f.read()
-        if sql_content.strip():
+    _ddl_prefixes = ("alter table", "create table", "create unique index", "create index", "drop table", "drop index")
+    already_applied_markers = (
+        "duplicate column name",
+        "already exists",
+        "duplicate column",
+    )
+
+    # Use a single persistent engine connection so in-memory SQLite retains
+    # schema changes (ALTER TABLE) across commit boundaries within this call.
+    with db.engine.connect() as conn:
+        # Ensure tracking table exists
+        conn.execute(db.text(
+            "CREATE TABLE IF NOT EXISTS _legacy_migrations "
+            "(filename TEXT PRIMARY KEY, applied_at TEXT)"
+        ))
+        conn.commit()
+
+        migration_files = sorted(glob.glob(os.path.join(legacy_dir, "*.sql")))
+        for migration_file in migration_files:
+            filename = os.path.basename(migration_file)
+            row = conn.execute(
+                db.text("SELECT filename FROM _legacy_migrations WHERE filename = :fn"),
+                {"fn": filename}
+            ).fetchone()
+            if row:
+                continue  # Already applied
+
+            with open(migration_file, "r", encoding="utf-8") as f:
+                sql_content = f.read()
+
+            # Strip comment lines before splitting so a leading block comment
+            # does not cause the first SQL statement to be silently dropped.
+            sql_stripped = "\n".join(
+                line for line in sql_content.splitlines()
+                if not line.strip().startswith("--")
+            )
+            statements = [s.strip() for s in sql_stripped.split(";") if s.strip()]
             try:
-                # Split by semicolon and execute each statement separately
-                statements = [s.strip() for s in sql_content.split(';') if s.strip()]
                 for stmt in statements:
-                    db.session.execute(db.text(stmt))
-                db.session.commit()
+                    conn.execute(db.text(stmt))
+                    # Commit after each DDL statement so schema changes are immediately
+                    # visible to subsequent DML in the same migration file (required for SQLite).
+                    if stmt.lower().startswith(_ddl_prefixes):
+                        conn.commit()
+                conn.execute(
+                    db.text("INSERT INTO _legacy_migrations (filename, applied_at) VALUES (:fn, :ts)"),
+                    {"fn": filename, "ts": __import__("datetime").date.today().isoformat()}
+                )
+                conn.commit()
+                app.logger.info(f"Applied legacy migration: {filename}")
             except Exception as e:
-                # Log but don't fail — migration may have already been applied
-                app.logger.warning(f"Legacy migration {os.path.basename(migration_file)} issue: {e}")
+                conn.rollback()
+                err_lower = str(e).lower()
+                if any(marker in err_lower for marker in already_applied_markers):
+                    # Migration was already applied to this DB before tracking was introduced;
+                    # record it in the tracking table so it won't be attempted again.
+                    conn.execute(
+                        db.text("INSERT OR IGNORE INTO _legacy_migrations (filename, applied_at) VALUES (:fn, :ts)"),
+                        {"fn": filename, "ts": __import__("datetime").date.today().isoformat()}
+                    )
+                    conn.commit()
+                    app.logger.warning(f"Legacy migration {filename} appears already applied (recorded in tracker): {e}")
+                else:
+                    app.logger.error(f"Failed to apply legacy migration {filename}: {e}")
+                    raise  # Re-raise — a genuinely failed migration is a startup error
 
 
 def create_app(test_config: dict | None = None):

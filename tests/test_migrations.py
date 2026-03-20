@@ -18,3 +18,16 @@ def test_migrate_schema_removed():
     import models
     assert not hasattr(models, 'migrate_schema'), \
         "migrate_schema() should have been removed — use Alembic migrations instead"
+
+
+def test_legacy_migration_columns_exist(app):
+    """Verify that legacy SQL migrations added the expected columns."""
+    from sqlalchemy import inspect as sa_inspect
+    with app.app_context():
+        from models import db
+        inspector = sa_inspect(db.engine)
+        analysis_cols = [c["name"] for c in inspector.get_columns("analysis")]
+        assert "m_einwaage_min_mg" in analysis_cols
+        assert "m_einwaage_max_mg" in analysis_cols
+        batch_cols = [c["name"] for c in inspector.get_columns("sample_batch")]
+        assert "safety_factor" in batch_cols
