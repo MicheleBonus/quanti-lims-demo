@@ -150,10 +150,14 @@
     const nExtra = parseInt(nExtraInput.value) || 0;
     const mortarF = parseFloat(mortarFactorInput.value.replace(',', '.')) || 1.0;
     const gehaltMin = parseFloat(gehaltMinInput.value);
-    const kTotal = kDet + nExtra;
+    const hasAliquot = !!currentDefaults.has_aliquot;
 
     if (eAb && !isNaN(gehaltMin) && gehaltMin > 0 && gehaltMin <= 100) {
-      const mGesMin = +(eAb * kTotal * mortarF).toFixed(3);
+      // With aliquoting, one dissolution (Stammlösung) serves all determinations —
+      // only the mortar factor applies, not k_total.
+      const mGesMin = hasAliquot
+        ? +(eAb * mortarF).toFixed(3)
+        : +(eAb * (kDet + nExtra) * mortarF).toFixed(3);
       const mSMin = +(mGesMin * gehaltMin / 100).toFixed(3);
 
       // Only auto-fill if field is empty or was auto-filled before
@@ -165,9 +169,9 @@
       }
 
       massCalcInfo.style.display = "";
-      massCalcDetail.textContent =
-        `Berechnung: E_AB (${eAb} g) × (${kDet} + ${nExtra} Zusatz) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; ` +
-        `davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`;
+      massCalcDetail.textContent = hasAliquot
+        ? `Berechnung (mit Aliquotierung): E_AB (${eAb} g) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`
+        : `Berechnung: E_AB (${eAb} g) × (${kDet} + ${nExtra} Zusatz) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`;
     } else {
       massCalcInfo.style.display = "none";
     }

@@ -1134,10 +1134,16 @@ def register_routes(app):
                 k_det = analysis.k_determinations or 3
                 n_extra = item.n_extra_determinations if item.n_extra_determinations is not None else 1
                 mortar_f = item.mortar_loss_factor or 1.1
-                k_total = k_det + n_extra
                 gehalt_min = item.gehalt_min_pct
+                method = analysis.method
+                has_aliquot = method.has_aliquot if method else False
                 if e_ab is not None and gehalt_min is not None:
-                    computed_m_ges = round(e_ab * k_total * mortar_f, 3)
+                    if has_aliquot:
+                        # One dissolution serves all determinations; only mortar factor applies.
+                        computed_m_ges = round(e_ab * mortar_f, 3)
+                    else:
+                        k_total = k_det + n_extra
+                        computed_m_ges = round(e_ab * k_total * mortar_f, 3)
                     computed_m_s = round(computed_m_ges * gehalt_min / 100.0, 3)
                     if item.target_m_ges_g is None:
                         item.target_m_ges_g = computed_m_ges
@@ -2077,6 +2083,9 @@ def register_routes(app):
             "molar_mass_gmol": analysis.substance.molar_mass_gmol if analysis.substance else None,
         }
         if method:
+            result["has_aliquot"] = method.has_aliquot
+            result["v_solution_ml"] = method.v_solution_ml
+            result["v_aliquot_ml"] = method.v_aliquot_ml
             result["m_eq_mg"] = method.m_eq_mg
             result["titrant_concentration"] = method.titrant_concentration
             result["method_type"] = method.method_type
