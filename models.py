@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from calculation_modes import (
     MODE_ASSAY_MASS_BASED,
+    MODE_MASS_DETERMINATION,
     MODE_TITRANT_STANDARDIZATION,
     get_evaluator,
     resolve_mode,
@@ -185,6 +186,8 @@ class Analysis(db.Model):
     tolerance_override_min_pct = db.Column(db.Float)
     tolerance_override_max_pct = db.Column(db.Float)
     notes = db.Column(db.Text)
+    m_einwaage_min_mg = db.Column(db.Float, nullable=True)  # Min TA weighing mass (mass_determination mode, mg)
+    m_einwaage_max_mg = db.Column(db.Float, nullable=True)  # Max TA weighing mass (mass_determination mode, mg)
 
     block = db.relationship("Block", back_populates="analyses")
     substance = db.relationship("Substance", back_populates="analyses")
@@ -442,6 +445,7 @@ class SampleBatch(db.Model):
     preparation_date = db.Column(db.String(20))
     prepared_by = db.Column(db.String(100))
     notes = db.Column(db.Text)
+    safety_factor = db.Column(db.Float, nullable=False, default=1.2)
 
     position = db.Column(db.Integer, nullable=False, default=0)
 
@@ -529,8 +533,9 @@ class Sample(db.Model):
     def is_weighed(self) -> bool:
         mode = resolve_mode(self.batch.analysis.calculation_mode if self.batch and self.batch.analysis else None)
         if mode == MODE_TITRANT_STANDARDIZATION:
-            # TA only dispenses volume (stored in m_ges_actual_g)
             return self.m_ges_actual_g is not None
+        if mode == MODE_MASS_DETERMINATION:
+            return self.m_s_actual_g is not None
         return self.m_s_actual_g is not None and self.m_ges_actual_g is not None
 
     @property
