@@ -403,5 +403,40 @@ function parseClipboard(text) {
   }
   return result;
 }
+
+// ── Anchor tracking ───────────────────────────────────────────────────────
+
+let anchorRowIndex = null;
+
+// sampleRows: ordered array of <tr> elements in tbody (one per sample)
+const sampleRows = [...document.querySelectorAll('#weighing-table tbody tr')];
+
+// probeNumberByRowIndex: maps row index → running_number (integer)
+// Read from the <strong> in the first <td> of each row at page load.
+const probeNumberByRowIndex = sampleRows.map(tr => {
+  const strong = tr.querySelector('td:first-child strong');
+  return strong ? parseInt(strong.textContent, 10) : null;
+});
+
+function setAnchorRow(rowIndex) {
+  sampleRows.forEach(tr => tr.classList.remove('paste-anchor-row'));
+  anchorRowIndex = rowIndex;
+  if (rowIndex !== null && sampleRows[rowIndex]) {
+    sampleRows[rowIndex].classList.add('paste-anchor-row');
+  }
+}
+
+function clearAnchorRow() {
+  setAnchorRow(null);
+}
+
+// Attach focus listener to all weighing inputs
+document.querySelectorAll('.weighing-input').forEach(input => {
+  input.addEventListener('focus', () => {
+    const tr = input.closest('tr');
+    const idx = sampleRows.indexOf(tr);
+    if (idx >= 0) setAnchorRow(idx);
+  });
+});
 </script>
 {% endblock %}
