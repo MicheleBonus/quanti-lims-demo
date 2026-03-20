@@ -7,6 +7,7 @@ from typing import Protocol
 
 MODE_ASSAY_MASS_BASED = "assay_mass_based"
 MODE_TITRANT_STANDARDIZATION = "titrant_standardization"
+MODE_MASS_DETERMINATION = "mass_determination"
 
 
 def attempt_type_for(attempt_number: int) -> str:
@@ -295,8 +296,44 @@ class TitrantStandardizationEvaluator:
         )
 
 
+class MassDeterminationEvaluator:
+    """Evaluator for pure-substance mass determination (e.g. Glycerol).
+
+    The TA weighs a known mass of pure substance (m_s_actual_g in grams).
+    The student announces the determined mass in mg (ansage_value).
+    Pass/fail: announced mass within tol_min/tol_max % of actual mass.
+
+    g_wahr stores the actual weighed mass in mg (reference for display).
+    a_min/a_max are the tolerance bounds in mg.
+    v_expected_ml and titer_expected are always None.
+    """
+
+    def calculate_sample(self, sample) -> SampleCalculation:
+        m_s_g = sample.m_s_actual_g
+        if m_s_g is None:
+            return SampleCalculation()
+        m_s_mg = m_s_g * 1000.0
+        tol_min = sample.batch.analysis.tol_min
+        tol_max = sample.batch.analysis.tol_max
+        a_min = round(m_s_mg * tol_min / 100.0, 3) if tol_min is not None else None
+        a_max = round(m_s_mg * tol_max / 100.0, 3) if tol_max is not None else None
+        return SampleCalculation(g_wahr=round(m_s_mg, 3), a_min=a_min, a_max=a_max)
+
+    def evaluate_result(self, result) -> EvaluationResult:
+        calc = self.calculate_sample(result.assignment.sample)
+        passed = None
+        if calc.a_min is not None and calc.a_max is not None:
+            passed = calc.a_min <= result.ansage_value <= calc.a_max
+        return EvaluationResult(
+            g_wahr=calc.g_wahr,
+            a_min=calc.a_min,
+            a_max=calc.a_max,
+            passed=passed,
+        )
+
+
 def resolve_mode(mode: str | None) -> str:
-    if mode in {MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION}:
+    if mode in {MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, MODE_MASS_DETERMINATION}:
         return mode
     return MODE_ASSAY_MASS_BASED
 
@@ -305,4 +342,6 @@ def get_evaluator(mode: str | None) -> ModeEvaluator:
     resolved = resolve_mode(mode)
     if resolved == MODE_TITRANT_STANDARDIZATION:
         return TitrantStandardizationEvaluator()
+    if resolved == MODE_MASS_DETERMINATION:
+        return MassDeterminationEvaluator()
     return MassBasedEvaluator()
