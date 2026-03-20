@@ -108,6 +108,8 @@ The existing `k_determinations` field on Analysis is not changed; it continues t
 
 The reagent report UI makes the formula explicit: `n × (1 × V_Einzel + b × V_Blind) × Sicherheitsfaktor` with a note that this covers Erstanalysen only.
 
+**Implementation note:** The demand dict currently passes `"k": analysis.k_determinations` to the template. This key must be updated to `"k": 1` (or removed) so the template does not silently continue showing the old per-analysis k value.
+
 ### 2c: Reagent Requirements Report Redesign
 
 **Problem:** Composite reagents (lab-prepared solutions) and their base substances (orderable from ZCL) are not distinguished. Base substances are missing from the list entirely.
@@ -121,7 +123,8 @@ The reagent report UI makes the formula explicit: `n × (1 × V_Einzel + b × V_
 
 #### Printable Bestellliste (new)
 - Route: `/reports/reagents/order-list` (or export button on the existing report page)
-- Content: only base/simple reagents (where `is_composite = False`), aggregated across all batches of the semester
+- Uses the active semester (same as the existing `/reports/reagents` route — no semester selector needed)
+- Content: only base/simple reagents (where `is_composite = False`), aggregated across all batches of the active semester
 - Each entry shows: substance name, CAS number, total amount needed, and a note indicating which composite reagent(s) it feeds into (`→ für NaOH-Lösung (0,1 mol/L)`)
 - Directly orderable substances (used as-is in procedures) are also listed
 - Formatted for printing (clean table, no interactive elements)
@@ -132,7 +135,7 @@ The reagent report UI makes the formula explicit: `n × (1 × V_Einzel + b × V_
 - Each composite reagent shown as a card with:
   - Name and total volume to prepare
   - Component list with calculated quantities
-  - Optional preparation instruction (from reagent notes or a new `prep_instruction` field)
+  - Optional preparation instruction — sourced from the existing `notes` field on `Reagent` (no new DB column needed)
 - Formatted for printing
 
 ### Database Migration
@@ -146,6 +149,7 @@ The reagent report UI makes the formula explicit: `n × (1 × V_Einzel + b × V_
 ## Out of Scope
 
 - No changes to the `titrant_standardization` mode
+- **`calculation_modes.py`:** Both `resolve_mode()` and `get_evaluator()` must be extended to handle `"mass_determination"` — otherwise batches with this mode fall back silently to `assay_mass_based`. A new evaluator class (e.g., `MassDeterminationEvaluator`) is required alongside the existing ones.
 - No changes to how `k_determinations` is used outside reagent requirements
 - No new reagent management features (BOM editing, etc.)
 - No changes to how the student-facing result display works (TAs only)
