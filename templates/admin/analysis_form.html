@@ -19,6 +19,8 @@
     <div class="col-md-2">{{ field("result_unit", "Ergebnis-Einheit", item.result_unit or '%') }}</div>
     <div class="col-md-3">{{ field("result_label", "Ergebnis-Bezeichnung", item.result_label or 'Gehalt') }}</div>
     <div class="col-md-2" id="e_ab_group">{{ field("e_ab_g", "E_AB (g)", item.e_ab_g, type="number", step="0.001", help="Arzneibuch-Einwaage, Basis für Ziel-m_S,min") }}</div>
+    <div class="col-md-2" id="m_einwaage_min_group">{{ field("m_einwaage_min_mg", "Mindesteinwaage (mg)", item.m_einwaage_min_mg, type="number", step="0.1", help="Untere Grenze der TA-Einwaage (nur bei mass_determination)") }}</div>
+    <div class="col-md-2" id="m_einwaage_max_group">{{ field("m_einwaage_max_mg", "Maximaleinwaage (mg)", item.m_einwaage_max_mg, type="number", step="0.1", help="Obere Grenze der TA-Einwaage (nur bei mass_determination)") }}</div>
     <div class="col-md-2" id="g_ab_min_group">{{ field("g_ab_min_pct", "G_AB,min (%)", item.g_ab_min_pct, type="number", step="0.1") }}</div>
     <div class="col-md-2" id="g_ab_max_group">{{ field("g_ab_max_pct", "G_AB,max (%)", item.g_ab_max_pct, type="number", step="0.1") }}</div>
   </div>
@@ -27,6 +29,12 @@
     E_AB entfällt (die TA dispensiert nur Volumen, Studierende wiegen den Urtiter selbst).
     G_AB,min/max werden als Titer-Grenzen interpretiert: z.B. 99.0 / 101.0 entspricht Faktor 0.9900–1.0100.
     Studierende melden den berechneten Faktor direkt als Ansage.
+  </div>
+  <div id="mass-det-hint" class="alert alert-info small mb-3" style="display:none">
+    <i class="bi bi-info-circle"></i> <strong>Massenbestimmung:</strong>
+    Keine Arzneibuch-Einwaage — die TA wiegt eine Menge reiner Substanz zwischen Mindest- und Maximaleinwaage ein.
+    Die Studierenden berechnen die Masse aus ihrer Titration und sagen eine Masse in mg an.
+    G_AB,min/max werden als relative Toleranz der angesagten Masse interpretiert.
   </div>
   <div class="row">
     <div class="col-md-4">{{ field("source_reference", "Quelle / Monographie", item.source_reference, placeholder="z.B. Ph. Eur. 11.0") }}</div>
@@ -53,8 +61,12 @@
 
   function syncMode() {
     const isTitrant = modeSelect.value === 'titrant_standardization';
-    eAbGroup.style.display = isTitrant ? 'none' : '';
+    const isMassDet = modeSelect.value === 'mass_determination';
+    eAbGroup.style.display = (isTitrant || isMassDet) ? 'none' : '';
+    document.getElementById('m_einwaage_min_group').style.display = isMassDet ? '' : 'none';
+    document.getElementById('m_einwaage_max_group').style.display = isMassDet ? '' : 'none';
     hint.style.display = isTitrant ? '' : 'none';
+    document.getElementById('mass-det-hint').style.display = isMassDet ? '' : 'none';
     gAbMinLabel.textContent = isTitrant ? 'Titer min (×100)' : origMinLabel;
     gAbMaxLabel.textContent = isTitrant ? 'Titer max (×100)' : origMaxLabel;
   }

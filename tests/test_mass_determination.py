@@ -97,3 +97,34 @@ def test_evaluate_result_no_ansage_passed_is_none():
     result = _make_result(m_s_actual_g=0.1500, ansage_mg=None)
     er = ev.evaluate_result(result)
     assert er.passed is None
+
+
+def test_analysis_form_saves_mass_determination_fields(client, db):
+    """POST to analysis form with mass_determination mode saves new fields."""
+    from models import Block, Substance, Analysis
+    with client.application.app_context():
+        block = Block(code="T", name="Test", max_days=4)
+        substance = Substance(name="Glycerol Test", molar_mass_gmol=92.09)
+        db.session.add_all([block, substance])
+        db.session.flush()
+        resp = client.post("/admin/analyses/new", data={
+            "block_id": block.id,
+            "code": "GLYC",
+            "ordinal": 99,
+            "name": "Glycerol-Bestimmung",
+            "substance_id": substance.id,
+            "calculation_mode": "mass_determination",
+            "k_determinations": 3,
+            "result_unit": "mg",
+            "result_label": "Masse",
+            "m_einwaage_min_mg": "120.0",
+            "m_einwaage_max_mg": "180.0",
+            "g_ab_min_pct": "98.0",
+            "g_ab_max_pct": "102.0",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        a = Analysis.query.filter_by(code="GLYC").first()
+        assert a is not None
+        assert a.calculation_mode == "mass_determination"
+        assert abs(a.m_einwaage_min_mg - 120.0) < 0.001
+        assert abs(a.m_einwaage_max_mg - 180.0) < 0.001

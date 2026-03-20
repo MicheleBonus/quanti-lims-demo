@@ -25,7 +25,7 @@ from models import (
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
     PracticalDay, GroupRotation, DutyAssignment, Colloquium,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
+from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_MASS_DETERMINATION, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
 
 
 # Legacy constant kept for reference; validation now uses minimum-only check.
@@ -563,6 +563,8 @@ def register_routes(app):
             item.result_label = request.form.get("result_label", "Gehalt")
             item.calculation_mode = request.form.get("calculation_mode", MODE_ASSAY_MASS_BASED)
             item.e_ab_g = _float(request.form.get("e_ab_g"))
+            item.m_einwaage_min_mg = _float(request.form.get("m_einwaage_min_mg"))
+            item.m_einwaage_max_mg = _float(request.form.get("m_einwaage_max_mg"))
             item.g_ab_min_pct = _float(request.form.get("g_ab_min_pct"))
             item.g_ab_max_pct = _float(request.form.get("g_ab_max_pct"))
             item.source_reference = request.form.get("source_reference") or None
@@ -580,6 +582,7 @@ def register_routes(app):
                 mode_opts = [
                     (MODE_ASSAY_MASS_BASED, "assay_mass_based"),
                     (MODE_TITRANT_STANDARDIZATION, "titrant_standardization"),
+                    (MODE_MASS_DETERMINATION, "mass_determination"),
                 ]
                 return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts, mode_opts=mode_opts)
             if not id:
@@ -596,6 +599,7 @@ def register_routes(app):
         mode_opts = [
             (MODE_ASSAY_MASS_BASED, "assay_mass_based"),
             (MODE_TITRANT_STANDARDIZATION, "titrant_standardization"),
+            (MODE_MASS_DETERMINATION, "mass_determination"),
         ]
         return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts, mode_opts=mode_opts)
 
