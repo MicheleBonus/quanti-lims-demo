@@ -188,6 +188,8 @@ class Analysis(db.Model):
     notes = db.Column(db.Text)
     m_einwaage_min_mg = db.Column(db.Float, nullable=True)  # Min TA weighing mass (mass_determination mode, mg)
     m_einwaage_max_mg = db.Column(db.Float, nullable=True)  # Max TA weighing mass (mass_determination mode, mg)
+    reported_molar_mass_gmol = db.Column(db.Float, nullable=True)
+    reported_stoichiometry = db.Column(db.Float, nullable=True)
 
     block = db.relationship("Block", back_populates="analyses")
     substance = db.relationship("Substance", back_populates="analyses")
