@@ -4,8 +4,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
 <h4 class="mb-0"><i class="bi bi-prescription2"></i> Reagenzienbedarf {{ semester.code if semester else '' }}</h4>
 <div class="d-flex gap-2">
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_reagents_demand', fmt='csv') }}"><i class="bi bi-download"></i> CSV-Export</a>
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_reagents_demand', fmt='json') }}"><i class="bi bi-filetype-json"></i> JSON-Export</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('reports_order_list') }}"><i class="bi bi-list-check"></i> Bestellliste</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('reports_prep_list') }}"><i class="bi bi-flask"></i> Herstellliste</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_reagents_demand', fmt='csv') }}"><i class="bi bi-download"></i> CSV</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('export_reagents_demand', fmt='json') }}"><i class="bi bi-filetype-json"></i> JSON</a>
 </div>
 </div>
 
@@ -16,16 +18,16 @@
 {% else %}
 
 {% if has_non_volume_units %}
-<p class="text-body-secondary">Gesamtmenge = n × (1 × Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor — k=1 (Erstanalysen)</p>
+<p class="text-body-secondary small">Grundbedarf = n × (1 × Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor &nbsp;<span class="badge bg-secondary">k=1: nur Erstanalysen</span></p>
 {% else %}
-<p class="text-body-secondary">V<sub>gesamt</sub> = n × (1 × V<sub>Einzel</sub> + b × V<sub>Blind</sub>) × Sicherheitsfaktor — k=1 (Erstanalysen)</p>
+<p class="text-body-secondary small">V<sub>Grundbedarf</sub> = n × (1 × V<sub>Einzel</sub> + b × V<sub>Blind</sub>) × Sicherheitsfaktor &nbsp;<span class="badge bg-secondary">k=1: nur Erstanalysen</span></p>
 {% endif %}
 
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light">
-<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>k</th><th>b</th><th>n</th><th class="text-end">Gesamt (inkl. Sicherheitsfaktor)</th><th>Einheit</th><th></th></tr>
+<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>b</th><th>n</th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
 </thead>
 <tbody>
 {% set ns = namespace(current_analysis='') %}
@@ -36,16 +38,50 @@
 {% endif %}
 <tr>
   <td></td>
-  <td>{{ d.reagent }}</td>
+  <td>
+    {{ d.reagent }}
+    {% if d.is_composite %}
+    <button class="btn btn-link btn-sm p-0 ms-1" type="button"
+            data-bs-toggle="collapse" data-bs-target="#comp-{{ loop.index }}"
+            aria-expanded="false" title="Zusammensetzung anzeigen">
+      <i class="bi bi-chevron-down"></i>
+    </button>
+    {% endif %}
+  </td>
   <td>{{ d.per_det }}</td>
   <td>{{ d.per_blind }}</td>
-  <td>{{ d.k }}</td>
   <td>{{ d.b }}</td>
   <td>{{ d.n }}</td>
+  <td class="text-muted small">×{{ d.safety }}</td>
   <td class="text-end"><strong>{{ d.total }}</strong></td>
   <td>{{ d.unit|unit }}</td>
-  <td>{% if d.is_titrant %}<span class="badge bg-info">Titrant</span>{% endif %}</td>
+  <td>{% if d.is_titrant %}<span class="badge bg-info">Titrant</span>{% endif %}
+      {% if d.is_composite %}<span class="badge bg-secondary">zusammengesetzt</span>{% endif %}</td>
 </tr>
+{% if d.is_composite and d.components %}
+<tr class="collapse" id="comp-{{ loop.index }}">
+  <td colspan="2"></td>
+  <td colspan="8" class="bg-light">
+    <small class="text-muted d-block mb-1">Zusammensetzung (skaliert auf {{ d.total }} {{ d.unit|unit }} Gesamtbedarf):</small>
+    <table class="table table-sm table-borderless mb-0 ms-2">
+    {% for comp in d.components %}
+    {% if comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0 %}
+    {% set comp_total = (d.total / comp.per_parent_volume_ml * comp.quantity)|round(1) %}
+    <tr>
+      <td class="py-0 pe-3"><strong>{{ comp_total }} {{ comp.quantity_unit|unit }}</strong></td>
+      <td class="py-0">{{ comp.child.name if comp.child else '?' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td class="py-0 pe-3 text-muted">{{ comp.quantity }} {{ comp.quantity_unit|unit }}</td>
+      <td class="py-0">{{ comp.child.name if comp.child else '?' }} <span class="text-muted">(kein Skalierungsvolumen)</span></td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </table>
+  </td>
+</tr>
+{% endif %}
 {% endfor %}
 </tbody></table></div></div>
 
