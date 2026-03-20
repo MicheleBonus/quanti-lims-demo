@@ -133,12 +133,20 @@ class MassBasedEvaluator:
         if sample.m_s_actual_g is None or sample.m_ges_actual_g is None or sample.m_ges_actual_g <= 0:
             return None
         raw = (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
-        # Apply hydrate correction if substance has an anhydrous molar mass defined
-        substance = sample.batch.analysis.substance
-        if (substance is not None
+        analysis = sample.batch.analysis
+        substance = analysis.substance
+        if analysis.reported_molar_mass_gmol is not None:
+            # Reported-component path: convert substance content to element/component content
+            if (substance is not None
+                    and substance.molar_mass_gmol is not None
+                    and substance.molar_mass_gmol > 0):
+                n = analysis.reported_stoichiometry or 1.0
+                raw = raw * (n * analysis.reported_molar_mass_gmol) / substance.molar_mass_gmol
+        elif (substance is not None
                 and substance.anhydrous_molar_mass_gmol is not None
                 and substance.molar_mass_gmol is not None
                 and substance.molar_mass_gmol > 0):
+            # Hydrate correction path (unchanged)
             raw = raw * (substance.anhydrous_molar_mass_gmol / substance.molar_mass_gmol)
         return raw
 
@@ -153,10 +161,16 @@ class MassBasedEvaluator:
         if method.c_titrant_mol_l is None or method.c_titrant_mol_l <= 0:
             return None
 
-        # When g_wahr is on anhydrous basis (hydrate correction applied), use anhydrous MW
-        mw = (substance.anhydrous_molar_mass_gmol
-              if substance.anhydrous_molar_mass_gmol and substance.anhydrous_molar_mass_gmol > 0
-              else substance.molar_mass_gmol)
+        # Effective MW: reported-component path takes priority over hydrate correction
+        analysis = sample.batch.analysis
+        if analysis.reported_molar_mass_gmol is not None:
+            n = analysis.reported_stoichiometry or 1.0
+            mw = n * analysis.reported_molar_mass_gmol
+        else:
+            # When g_wahr is on anhydrous basis (hydrate correction applied), use anhydrous MW
+            mw = (substance.anhydrous_molar_mass_gmol
+                  if substance.anhydrous_molar_mass_gmol and substance.anhydrous_molar_mass_gmol > 0
+                  else substance.molar_mass_gmol)
         e_ab_mg = e_ab_g * 1000.0
         n_analyte_mmol = (e_ab_mg * g_wahr / 100.0) / mw
 

@@ -24,6 +24,10 @@
     <div class="col-md-2" id="g_ab_min_group">{{ field("g_ab_min_pct", "G_AB,min (%)", item.g_ab_min_pct, type="number", step="0.1") }}</div>
     <div class="col-md-2" id="g_ab_max_group">{{ field("g_ab_max_pct", "G_AB,max (%)", item.g_ab_max_pct, type="number", step="0.1") }}</div>
   </div>
+  <div class="row">
+    <div class="col-md-3">{{ field("reported_molar_mass_gmol", "Berichtete Molmasse (g/mol)", item.reported_molar_mass_gmol, type="number", step="0.001", help="Leer = Substanzgehalt. Gesetzt = Elementgehalt (z.B. 30.974 für P)") }}</div>
+    <div class="col-md-2">{{ field("reported_stoichiometry", "Stöchiometrie", item.reported_stoichiometry, type="number", step="0.001", help="Anzahl berichteter Einheiten pro Formeleinheit (Standard: 1)") }}</div>
+  </div>
   <div id="standardization-hint" class="alert alert-info small mb-3" style="display:none">
     <i class="bi bi-info-circle"></i> <strong>Titereinstellung:</strong>
     E_AB entfällt (die TA dispensiert nur Volumen, Studierende wiegen den Urtiter selbst).

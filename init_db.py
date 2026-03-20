@@ -134,6 +134,19 @@ def seed_database():
     methods["II.1"].c_titrant_mol_l = 0.05
     methods["II.1"].n_eq_titrant = 1.0
 
+    # III.1: Phosphorgehalt – EDTA (Vorlage) 0.1 M excess, back-titrated with ZnSO4 0.1 M
+    # method_type="complexometric" uses the direct branch: V = n_analyte * n_eq / c_titrant
+    # stoichiometry 1 P ≙ 1 Mg2+ ≙ 1 ZnSO4 means n_eq_titrant=1.0 gives the correct result
+    methods["III.1"].c_titrant_mol_l = 0.1
+    methods["III.1"].n_eq_titrant = 1.0
+    methods["III.1"].c_vorlage_mol_l = 0.1
+    methods["III.1"].n_eq_vorlage = 1.0
+    methods["III.1"].v_vorlage_ml = 25.0
+
+    # III.1: report Phosphorgehalt (% P) instead of substance content
+    analyses["III.1"].reported_molar_mass_gmol = 30.974   # M(P)
+    analyses["III.1"].reported_stoichiometry = 1.0        # 1 P per Na2HPO4 formula unit
+
     # ── Reagenzien (Beispiel-Katalog) ──────────────────────────────
     reagents = {}
     reag_data = [
