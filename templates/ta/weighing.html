@@ -303,10 +303,10 @@ document.querySelectorAll('.weighing-input').forEach(input => {
           if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
             vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
           } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
-            const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
+            const nVorConsumed = nAnalyte * ALIQUOT_FRAC * N_EQ_VORLAGE;
             const nVorTotal = V_VORLAGE * C_VORLAGE;
             const nVorExcess = nVorTotal - nVorConsumed;
-            vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
+            vExp = nVorExcess * nEqT / C_TITRANT;
           }
         }
         if (vExp !== null) {
@@ -334,10 +334,10 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
           vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
         } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
-          const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
+          const nVorConsumed = nAnalyte * ALIQUOT_FRAC * N_EQ_VORLAGE;
           const nVorTotal = V_VORLAGE * C_VORLAGE;
           const nVorExcess = nVorTotal - nVorConsumed;
-          vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
+          vExp = nVorExcess * nEqT / C_TITRANT;
         }
       }
       if (vExp === null && M_EQ !== null) {

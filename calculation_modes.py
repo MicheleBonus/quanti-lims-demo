@@ -169,10 +169,10 @@ class MassBasedEvaluator:
                     or method.n_eq_vorlage is None):
                 return None
             n_eq_titrant = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
-            n_vorlage_consumed = n_analyte_mmol * method.n_eq_vorlage
+            n_vorlage_consumed = n_analyte_mmol * aliquot_fraction * method.n_eq_vorlage
             n_vorlage_total = method.v_vorlage_ml * method.c_vorlage_mol_l
             n_vorlage_excess = n_vorlage_total - n_vorlage_consumed
-            v_titrant = n_vorlage_excess * n_eq_titrant / method.c_titrant_mol_l * aliquot_fraction
+            v_titrant = n_vorlage_excess * n_eq_titrant / method.c_titrant_mol_l
             return round(v_titrant, 3)
         return None
 

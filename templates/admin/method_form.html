@@ -336,18 +336,17 @@
 
       if (mw && mw > 0) {
         const nAnalyte = (exMs * 1000 * exGw / 100) / mw;
-        const nVorConsumed = nAnalyte * nEqVorlage;
+        const nVorConsumed = nAnalyte * aliquotFrac * nEqVorlage;
         const nVorTotal = vVorlage * cVorlage;
         const nVorExcess = nVorTotal - nVorConsumed;
-        const vTitrant = nVorExcess * z / cTitrant * aliquotFrac;
+        const vTitrant = nVorExcess * z / cTitrant;
         html += `<strong>Beispiel</strong> (m_S=${exMs} g, G_wahr=${exGw}%, MW=${mw.toFixed(2)}):<br>`;
         html += `n_Analyt = (${exMs}×1000×${exGw}/100) / ${mw.toFixed(2)} = ${nAnalyte.toFixed(4)} mmol<br>`;
-        html += `n_Vorlage_verbr. = ${nAnalyte.toFixed(4)} × ${nEqVorlage} = ${nVorConsumed.toFixed(4)} mmol<br>`;
+        if (hasAliquot) html += `n_Analyt (Aliquot) = ${nAnalyte.toFixed(4)} × ${aliquotFrac.toFixed(4)} = ${(nAnalyte * aliquotFrac).toFixed(4)} mmol<br>`;
+        html += `n_Vorlage_verbr. = ${(nAnalyte * aliquotFrac).toFixed(4)} × ${nEqVorlage} = ${nVorConsumed.toFixed(4)} mmol<br>`;
         html += `n_Vorlage_ges. = ${vVorlage} × ${cVorlage} = ${nVorTotal.toFixed(4)} mmol<br>`;
         html += `n_Vorlage_Übersch. = ${nVorTotal.toFixed(4)} − ${nVorConsumed.toFixed(4)} = ${nVorExcess.toFixed(4)} mmol<br>`;
-        html += `<strong>V_Titrant = ${nVorExcess.toFixed(4)} × ${z} / ${cTitrant}`;
-        if (hasAliquot) html += ` × ${aliquotFrac.toFixed(4)}`;
-        html += ` = ${vTitrant.toFixed(3)} mL</strong>`;
+        html += `<strong>V_Titrant = ${nVorExcess.toFixed(4)} × ${z} / ${cTitrant} = ${vTitrant.toFixed(3)} mL</strong>`;
       } else {
         html += '<span class="text-body-secondary">Analyse wählen um Beispielrechnung mit MW zu sehen.</span>';
       }
