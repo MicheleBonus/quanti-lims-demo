@@ -346,4 +346,62 @@ document.querySelectorAll('.weighing-input').forEach(input => {
 {% endif %}
 {% endif %}
 </script>
+<script>
+// ── Clipboard paste feature ──────────────────────────────────────────────
+
+/**
+ * Parse tab-separated clipboard text into an array of {m_s, m_ges} pairs.
+ * - Decimal separator: both '.' and ',' accepted.
+ * - Column detection: determined from the FIRST parseable row, applied uniformly.
+ *   - 1 col  → m_s only (m_ges null)
+ *   - 2 cols → col0=m_s, col1=m_ges
+ *   - 3+ cols → scan left-to-right for first numeric col (m_s), then next numeric (m_ges).
+ *              If only one numeric found → m_s only.
+ * - Blank/unparseable rows → skipped (do NOT advance probe counter).
+ * @param {string} text
+ * @returns {{m_s: number|null, m_ges: number|null}[]}
+ */
+function parseClipboard(text) {
+  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+  const toNum = s => { const n = parseFloat(s.replace(',', '.')); return isFinite(n) ? n : null; };
+
+  // Detect column offsets from first parseable row
+  let msCol = null, mgesCol = null;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = line.split('\t');
+    if (cols.length === 1) {
+      const v = toNum(cols[0]);
+      if (v !== null) { msCol = 0; mgesCol = null; break; }
+    } else if (cols.length === 2) {
+      const v0 = toNum(cols[0]), v1 = toNum(cols[1]);
+      if (v0 !== null) { msCol = 0; mgesCol = v1 !== null ? 1 : null; break; }
+    } else {
+      // 3+ columns: scan for first two numeric columns
+      let first = null, second = null;
+      for (let i = 0; i < cols.length; i++) {
+        const v = toNum(cols[i]);
+        if (v !== null) {
+          if (first === null) first = i;
+          else { second = i; break; }
+        }
+      }
+      if (first !== null) { msCol = first; mgesCol = second; break; }
+    }
+  }
+
+  if (msCol === null) return []; // nothing parseable
+
+  const result = [];
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = line.split('\t');
+    const ms = toNum(cols[msCol] ?? '');
+    const mges = mgesCol !== null ? toNum(cols[mgesCol] ?? '') : null;
+    if (ms === null && mges === null) continue; // skip fully unparseable rows
+    result.push({ m_s: ms, m_ges: mges });
+  }
+  return result;
+}
+</script>
 {% endblock %}
