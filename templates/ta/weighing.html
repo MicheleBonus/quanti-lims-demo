@@ -210,6 +210,7 @@ const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.meth
 const V_ALIQUOT = {{ batch.analysis.method.v_aliquot_ml if batch.analysis.method and batch.analysis.method.v_aliquot_ml else 0 }};
 const ALIQUOT_FRAC = (V_SOLUTION > 0 && V_ALIQUOT > 0) ? V_ALIQUOT / V_SOLUTION : 1.0;
 const E_AB_G = {% if is_standardization %}{{ batch.analysis.method.e_ab_ps_g if batch.analysis.method and batch.analysis.method.e_ab_ps_g is not none else 'null' }}{% else %}{{ batch.analysis.e_ab_g if batch.analysis.e_ab_g is not none else 'null' }}{% endif %};
+const MW_PS = {% if is_standardization %}{{ batch.analysis.method.primary_standard.molar_mass_gmol | tojson if batch.analysis.method and batch.analysis.method.primary_standard and batch.analysis.method.primary_standard.molar_mass_gmol else 'null' }}{% else %}null{% endif %};
 {% if not is_standardization %}
 const P_MIN = {{ batch.gehalt_min_pct | tojson }};
 {% endif %}
@@ -387,22 +388,13 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       } else if (factorCell && (isNaN(mges) || mges === 0)) {
         factorCell.textContent = '';
       }
-      // V_erw from fixed PS mass (analysis.e_ab_g), g_wahr = P_EFF
+      // V_erw from fixed PS mass: n_PS = (e_ab_ps_g × 1000 × P_EFF/100) / MW_PS
+      // Use PS molar mass, NOT analyte substance MW
       const vexpCell = document.getElementById('vexp-' + sid);
-      if (vexpCell && E_AB_G !== null && E_AB_G > 0 && C_TITRANT !== null && C_TITRANT > 0 && MW_EFFECTIVE !== null && MW_EFFECTIVE > 0) {
-        const msMg = E_AB_G * 1000;
-        const nAnalyte = (msMg * P_EFF / 100) / MW_EFFECTIVE;
+      if (vexpCell && E_AB_G !== null && E_AB_G > 0 && C_TITRANT !== null && C_TITRANT > 0 && MW_PS !== null && MW_PS > 0) {
+        const nPs = (E_AB_G * 1000 * P_EFF / 100) / MW_PS;
         const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
-        let vExp = null;
-        if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
-          vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
-        } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
-          const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
-          const nVorTotal = V_VORLAGE * C_VORLAGE;
-          const nVorExcess = nVorTotal - nVorConsumed;
-          vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
-        }
-        if (vExp !== null) vexpCell.textContent = vExp.toFixed(3);
+        vexpCell.textContent = (nPs * nEqT / C_TITRANT).toFixed(3);
       }
     }
   });

@@ -269,16 +269,17 @@ class TitrantStandardizationEvaluator:
             else None
         )
 
-        # V_erw: fixed PS mass from method.e_ab_ps_g, g_wahr = p_effective
+        # V_erw: PS mass (e_ab_ps_g) titrated by HCl — use PS molar mass, not analyte MW
         v_expected_ml = None
-        e_ab_g = method.e_ab_ps_g if method else None
-        if e_ab_g is not None:
-            _mb = MassBasedEvaluator()
-            g_wahr = sample.batch.p_effective or 100.0
-            aliquot_fraction = _mb._aliquot_fraction(sample)
-            v_expected_ml = _mb._v_expected_explicit(sample, g_wahr, aliquot_fraction, e_ab_g)
-            if v_expected_ml is None:
-                v_expected_ml = _mb._v_expected_legacy(sample, g_wahr, aliquot_fraction, e_ab_g)
+        ps = method.primary_standard if method else None
+        if (method and method.e_ab_ps_g and method.e_ab_ps_g > 0
+                and ps and ps.molar_mass_gmol and ps.molar_mass_gmol > 0
+                and method.c_titrant_mol_l and method.c_titrant_mol_l > 0):
+            mw_ps = ps.molar_mass_gmol
+            n_eq = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
+            g_wahr_ps = sample.batch.p_effective or 100.0
+            n_ps_mmol = (method.e_ab_ps_g * 1000.0 * g_wahr_ps / 100.0) / mw_ps
+            v_expected_ml = round(n_ps_mmol * n_eq / method.c_titrant_mol_l, 3)
 
         return SampleCalculation(
             titer_expected=titer_expected,
