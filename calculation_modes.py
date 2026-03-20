@@ -269,9 +269,9 @@ class TitrantStandardizationEvaluator:
             else None
         )
 
-        # V_erw: fixed PS mass from analysis.e_ab_g, g_wahr = p_effective
+        # V_erw: fixed PS mass from method.e_ab_ps_g, g_wahr = p_effective
         v_expected_ml = None
-        e_ab_g = analysis.e_ab_g
+        e_ab_g = method.e_ab_ps_g if method else None
         if e_ab_g is not None:
             _mb = MassBasedEvaluator()
             g_wahr = sample.batch.p_effective or 100.0

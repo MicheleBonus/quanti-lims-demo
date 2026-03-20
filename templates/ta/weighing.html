@@ -209,7 +209,7 @@ const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.method and batch.analysis.method.v_solution_ml else 0 }};
 const V_ALIQUOT = {{ batch.analysis.method.v_aliquot_ml if batch.analysis.method and batch.analysis.method.v_aliquot_ml else 0 }};
 const ALIQUOT_FRAC = (V_SOLUTION > 0 && V_ALIQUOT > 0) ? V_ALIQUOT / V_SOLUTION : 1.0;
-const E_AB_G = {{ batch.analysis.e_ab_g if batch.analysis.e_ab_g is not none else 'null' }};
+const E_AB_G = {% if is_standardization %}{{ batch.analysis.method.e_ab_ps_g if batch.analysis.method and batch.analysis.method.e_ab_ps_g is not none else 'null' }}{% else %}{{ batch.analysis.e_ab_g if batch.analysis.e_ab_g is not none else 'null' }}{% endif %};
 {% if not is_standardization %}
 const P_MIN = {{ batch.gehalt_min_pct | tojson }};
 {% endif %}
