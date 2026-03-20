@@ -1,10 +1,16 @@
 {% extends "base.html" %}
+{% set is_mass_det = batch.analysis.calculation_mode == 'mass_determination' %}
 {% block title %}Proben: {{ batch.analysis.code }}{% endblock %}
 {% block content %}
 <h4 class="mb-1">Probenübersicht: {{ batch.analysis.code }} – {{ batch.analysis.name }}</h4>
 <p class="text-body-secondary mb-4">
+  {% if is_mass_det %}
+  Einwaagebereich: {{ batch.analysis.m_einwaage_min_mg }} – {{ batch.analysis.m_einwaage_max_mg }} mg |
+  Toleranz: ±{{ batch.analysis.g_ab_min_pct|fmt(1) }} / {{ batch.analysis.g_ab_max_pct|fmt(1) }}%
+  {% else %}
   p = {{ batch.p_effective|fmt(1) }}% ({{ batch.p_source }}) | {{ titer_label }} = {{ batch.titer|fmt(3) }} ({{ batch.titer_source_label }}) |
   Toleranz: {{ batch.analysis.tol_min|fmt(1) }}% – {{ batch.analysis.tol_max|fmt(1) }}%
+  {% endif %}
 </p>
 
 <div class="card">
@@ -13,8 +19,11 @@
 <thead class="table-light">
 <tr>
   <th>#</th><th>Typ</th>
-  <th>m_S,ist (g)</th><th>m_ges,ist (g)</th>
-  <th>G_wahr (%)</th><th>A_min</th><th>A_max</th>
+  <th>m_S,ist (g)</th>
+  {% if not is_mass_det %}<th>m_ges,ist (g)</th>{% endif %}
+  <th>{{ 'Einwaage (mg)' if is_mass_det else 'G_wahr (%)' }}</th>
+  <th>A_min{% if is_mass_det %} (mg){% endif %}</th>
+  <th>A_max{% if is_mass_det %} (mg){% endif %}</th>
   <th>V_erw. (mL)</th><th>Zugewiesen an</th>
 </tr>
 </thead>
@@ -24,10 +33,10 @@
   <td><strong>{{ s.running_number }}</strong></td>
   <td>{% if s.is_buffer %}<span class="badge bg-secondary">Puffer</span>{% else %}<span class="badge bg-primary">Erst</span>{% endif %}</td>
   <td>{{ s.m_s_actual_g|fmt(4) }}</td>
-  <td>{{ s.m_ges_actual_g|fmt(4) }}</td>
-  <td><strong>{{ s.g_wahr|fmt(4) }}</strong></td>
-  <td>{{ s.a_min|fmt(4) }}</td>
-  <td>{{ s.a_max|fmt(4) }}</td>
+  {% if not is_mass_det %}<td>{{ s.m_ges_actual_g|fmt(4) }}</td>{% endif %}
+  <td><strong>{{ (s.m_s_actual_g * 1000)|round(4)|fmt(4) if is_mass_det and s.m_s_actual_g else s.g_wahr|fmt(4) }}</strong></td>
+  <td>{{ s.a_min|fmt(4) if not is_mass_det else s.a_min|fmt(3) }}</td>
+  <td>{{ s.a_max|fmt(4) if not is_mass_det else s.a_max|fmt(3) }}</td>
   <td>{{ s.v_expected|fmt(3) }}</td>
   <td>
     {% if s.active_assignment %}
