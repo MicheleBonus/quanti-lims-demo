@@ -305,7 +305,7 @@ class MassDeterminationEvaluator:
 
     g_wahr stores the actual weighed mass in mg (reference for display).
     a_min/a_max are the tolerance bounds in mg.
-    v_expected_ml and titer_expected are always None.
+    v_expected_ml is computed treating the substance as pure (g_wahr=100%).
     """
 
     def calculate_sample(self, sample) -> SampleCalculation:
@@ -317,7 +317,15 @@ class MassDeterminationEvaluator:
         tol_max = sample.batch.analysis.tol_max
         a_min = round(m_s_mg * tol_min / 100.0, 3) if tol_min is not None else None
         a_max = round(m_s_mg * tol_max / 100.0, 3) if tol_max is not None else None
-        return SampleCalculation(g_wahr=round(m_s_mg, 3), a_min=a_min, a_max=a_max)
+
+        # V_erw: pure substance → g_wahr = 100%, e_ab = m_s_actual_g
+        _mb = MassBasedEvaluator()
+        aliquot_fraction = _mb._aliquot_fraction(sample)
+        v_expected_ml = _mb._v_expected_explicit(sample, 100.0, aliquot_fraction, m_s_g)
+        if v_expected_ml is None:
+            v_expected_ml = _mb._v_expected_legacy(sample, 100.0, aliquot_fraction, m_s_g)
+
+        return SampleCalculation(g_wahr=round(m_s_mg, 3), a_min=a_min, a_max=a_max, v_expected_ml=v_expected_ml)
 
     def evaluate_result(self, result) -> EvaluationResult:
         calc = self.calculate_sample(result.assignment.sample)
