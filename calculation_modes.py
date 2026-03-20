@@ -269,7 +269,8 @@ class TitrantStandardizationEvaluator:
             else None
         )
 
-        # V_erw: PS mass (e_ab_ps_g) titrated by HCl — use PS molar mass, not analyte MW
+        # V_erw: PS mass titrated by HCl — per-sample factor from V_disp
+        # V_erw = V_erw_nominal / factor, factor = V_disp / V_theoretical
         v_expected_ml = None
         ps = method.primary_standard if method else None
         if (method and method.e_ab_ps_g and method.e_ab_ps_g > 0
@@ -279,7 +280,14 @@ class TitrantStandardizationEvaluator:
             n_eq = method.n_eq_titrant if method.n_eq_titrant is not None else 1.0
             g_wahr_ps = sample.batch.p_effective or 100.0
             n_ps_mmol = (method.e_ab_ps_g * 1000.0 * g_wahr_ps / 100.0) / mw_ps
-            v_expected_ml = round(n_ps_mmol * n_eq / method.c_titrant_mol_l, 3)
+            v_erw_nominal = n_ps_mmol * n_eq / method.c_titrant_mol_l
+            v_disp = sample.m_ges_actual_g  # V_disp stored in m_ges_actual_g
+            if v_disp and v_theoretical_ml and v_theoretical_ml > 0:
+                factor = v_disp / v_theoretical_ml
+                if factor > 0:
+                    v_expected_ml = round(v_erw_nominal / factor, 3)
+            else:
+                v_expected_ml = round(v_erw_nominal, 3)
 
         return SampleCalculation(
             titer_expected=titer_expected,

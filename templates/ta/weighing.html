@@ -388,13 +388,20 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       } else if (factorCell && (isNaN(mges) || mges === 0)) {
         factorCell.textContent = '';
       }
-      // V_erw from fixed PS mass: n_PS = (e_ab_ps_g × 1000 × P_EFF/100) / MW_PS
-      // Use PS molar mass, NOT analyte substance MW
+      // V_erw per Probe: V_erw_nominal / Zielfaktor
+      // V_erw_nominal = (e_ab_ps_g × 1000 × P_EFF/100 / MW_PS) × n_eq / c_nominal
+      // factor = V_disp / V_theoretical
       const vexpCell = document.getElementById('vexp-' + sid);
       if (vexpCell && E_AB_G !== null && E_AB_G > 0 && C_TITRANT !== null && C_TITRANT > 0 && MW_PS !== null && MW_PS > 0) {
         const nPs = (E_AB_G * 1000 * P_EFF / 100) / MW_PS;
         const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
-        vexpCell.textContent = (nPs * nEqT / C_TITRANT).toFixed(3);
+        const vErwNominal = nPs * nEqT / C_TITRANT;
+        if (!isNaN(mges) && mges > 0 && V_THEORETICAL_ML !== null && V_THEORETICAL_ML > 0) {
+          const factor = mges / V_THEORETICAL_ML;
+          vexpCell.textContent = (vErwNominal / factor).toFixed(3);
+        } else {
+          vexpCell.textContent = vErwNominal.toFixed(3);
+        }
       }
     }
   });
