@@ -144,6 +144,29 @@ def resolve_standardization_titer(semester_id: int) -> dict | None:
     }
 
 
+def apply_legacy_sql_migrations(app):
+    """Apply legacy SQL migrations from migrations/legacy_sql/ in filename order."""
+    import glob
+    legacy_dir = os.path.join(os.path.dirname(__file__), "migrations", "legacy_sql")
+    if not os.path.isdir(legacy_dir):
+        return
+
+    migration_files = sorted(glob.glob(os.path.join(legacy_dir, "*.sql")))
+    for migration_file in migration_files:
+        with open(migration_file, "r", encoding='utf-8') as f:
+            sql_content = f.read()
+        if sql_content.strip():
+            try:
+                # Split by semicolon and execute each statement separately
+                statements = [s.strip() for s in sql_content.split(';') if s.strip()]
+                for stmt in statements:
+                    db.session.execute(db.text(stmt))
+                db.session.commit()
+            except Exception as e:
+                # Log but don't fail — migration may have already been applied
+                app.logger.warning(f"Legacy migration {os.path.basename(migration_file)} issue: {e}")
+
+
 def create_app(test_config: dict | None = None):
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -156,6 +179,7 @@ def create_app(test_config: dict | None = None):
     with app.app_context():
         if app.config.get("TESTING"):
             db.create_all()   # tests: create schema directly (SQLite in-memory)
+        apply_legacy_sql_migrations(app)
         from sqlalchemy import inspect as sa_inspect
         from init_db import seed_database
         if sa_inspect(db.engine).has_table("block"):
