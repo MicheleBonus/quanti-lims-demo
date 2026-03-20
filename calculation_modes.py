@@ -322,7 +322,7 @@ class MassDeterminationEvaluator:
     def evaluate_result(self, result) -> EvaluationResult:
         calc = self.calculate_sample(result.assignment.sample)
         passed = None
-        if calc.a_min is not None and calc.a_max is not None:
+        if calc.a_min is not None and calc.a_max is not None and result.ansage_value is not None:
             passed = calc.a_min <= result.ansage_value <= calc.a_max
         return EvaluationResult(
             g_wahr=calc.g_wahr,

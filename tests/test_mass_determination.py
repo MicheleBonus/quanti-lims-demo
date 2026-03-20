@@ -90,3 +90,10 @@ def test_evaluate_result_no_mass_passed_is_none():
     result = _make_result(m_s_actual_g=None, ansage_mg=150.0)
     er = ev.evaluate_result(result)
     assert er.passed is None
+
+
+def test_evaluate_result_no_ansage_passed_is_none():
+    ev = MassDeterminationEvaluator()
+    result = _make_result(m_s_actual_g=0.1500, ansage_mg=None)
+    er = ev.evaluate_result(result)
+    assert er.passed is None
