@@ -582,6 +582,8 @@ def register_routes(app):
             item.tolerance_override_min_pct = _float(request.form.get("tolerance_override_min_pct"))
             item.tolerance_override_max_pct = _float(request.form.get("tolerance_override_max_pct"))
             item.notes = request.form.get("notes") or None
+            item.reported_molar_mass_gmol = _float(request.form.get("reported_molar_mass_gmol"))
+            item.reported_stoichiometry = _float(request.form.get("reported_stoichiometry"))
             duplicate = Analysis.query.filter(
                 Analysis.code == item.code,
                 Analysis.id != (item.id or 0),
