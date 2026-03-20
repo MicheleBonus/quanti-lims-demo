@@ -71,6 +71,7 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
     checks: list[str] = []
     details: dict[str, bool] = {
         "m_s_min_violation": False,
+        "m_s_max_violation": False,
         "m_ges_max_violation": False,
         "volume_range_violation": False,
     }
@@ -104,6 +105,16 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
                     f"(bei m_S={m_s_actual_g:.3f} g, p_eff={p_eff:.1f}%, p_min={p_min:.1f}%,"
                     f" hydrate_factor={hydrate_factor:.4f})"
                 )
+    elif mode == MODE_MASS_DETERMINATION:
+        analysis = batch.analysis
+        min_mg = getattr(analysis, "m_einwaage_min_mg", None)
+        max_mg = getattr(analysis, "m_einwaage_max_mg", None)
+        if m_s_actual_g is not None and min_mg is not None and m_s_actual_g * 1000 < min_mg:
+            details["m_s_min_violation"] = True
+            checks.append(f"Einwaage {m_s_actual_g*1000:.1f} mg < Mindest {min_mg:.1f} mg")
+        if m_s_actual_g is not None and max_mg is not None and m_s_actual_g * 1000 > max_mg:
+            details["m_s_max_violation"] = True
+            checks.append(f"Einwaage {m_s_actual_g*1000:.1f} mg > Maximum {max_mg:.1f} mg")
     else:
         if (m_ges_actual_g is not None
                 and batch.target_v_min_ml is not None

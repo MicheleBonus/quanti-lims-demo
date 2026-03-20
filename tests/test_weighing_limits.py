@@ -119,3 +119,45 @@ def test_old_m_ges_minimum_check_removed(app):
         result = evaluate_weighing_limits(batch, 2.2, 3.0)
         assert not result.get("m_ges_target_violation", False), \
             "Old minimum check must be removed"
+
+
+def test_mass_determination_within_range(app):
+    """Mass determination: m_s within [min_mg/1000, max_mg/1000] → no violation."""
+    from unittest.mock import MagicMock
+    from app import evaluate_weighing_limits
+    from calculation_modes import MODE_MASS_DETERMINATION
+    batch = MagicMock()
+    batch.analysis.calculation_mode = MODE_MASS_DETERMINATION
+    batch.analysis.m_einwaage_min_mg = 120.0
+    batch.analysis.m_einwaage_max_mg = 180.0
+    with app.app_context():
+        result = evaluate_weighing_limits(batch, m_s_actual_g=0.1500, m_ges_actual_g=None)
+    assert result["messages"] == []
+
+
+def test_mass_determination_below_min(app):
+    """Mass determination: m_s below min → violation flagged."""
+    from unittest.mock import MagicMock
+    from app import evaluate_weighing_limits
+    from calculation_modes import MODE_MASS_DETERMINATION
+    batch = MagicMock()
+    batch.analysis.calculation_mode = MODE_MASS_DETERMINATION
+    batch.analysis.m_einwaage_min_mg = 120.0
+    batch.analysis.m_einwaage_max_mg = 180.0
+    with app.app_context():
+        result = evaluate_weighing_limits(batch, m_s_actual_g=0.1000, m_ges_actual_g=None)
+    assert result["m_s_min_violation"] is True
+
+
+def test_mass_determination_above_max(app):
+    """Mass determination: m_s above max → violation flagged."""
+    from unittest.mock import MagicMock
+    from app import evaluate_weighing_limits
+    from calculation_modes import MODE_MASS_DETERMINATION
+    batch = MagicMock()
+    batch.analysis.calculation_mode = MODE_MASS_DETERMINATION
+    batch.analysis.m_einwaage_min_mg = 120.0
+    batch.analysis.m_einwaage_max_mg = 180.0
+    with app.app_context():
+        result = evaluate_weighing_limits(batch, m_s_actual_g=0.2000, m_ges_actual_g=None)
+    assert result["m_s_max_violation"] is True
