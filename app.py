@@ -1926,6 +1926,127 @@ def register_routes(app):
         has_non_volume_units = any(get_amount_unit_type(d["unit"]) != AMOUNT_UNIT_VOLUME for d in demand)
         return render_template("reports/reagents.html", semester=sem, demand=demand, has_non_volume_units=has_non_volume_units)
 
+    @app.route("/reports/reagents/order-list")
+    def reports_order_list():
+        sem = active_semester()
+        if not sem:
+            return render_template("reports/order_list.html", semester=None, items=[], generated=None)
+        from collections import defaultdict
+        from datetime import date as _date
+        aggregated: dict[int, dict] = defaultdict(lambda: {"name": "", "cas": "", "total": 0.0, "unit": "", "for_reagents": set()})
+        batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
+        for batch in batches:
+            analysis = batch.analysis
+            method = analysis.method
+            if not method:
+                continue
+            k = 1
+            b = method.b_blind_determinations if method.blind_required else 0
+            n = batch.total_samples_prepared
+            safety = getattr(batch, "safety_factor", 1.2) or 1.2
+            for mr in method.reagent_usages:
+                total_amount = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
+                reagent = mr.reagent
+                if not reagent:
+                    continue
+                if not reagent.is_composite:
+                    entry = aggregated[reagent.id]
+                    entry["name"] = reagent.name
+                    entry["cas"] = reagent.cas_number or "–"
+                    entry["total"] += total_amount
+                    entry["unit"] = canonical_unit_label(mr.amount_unit)
+                    entry["for_reagents"].add(None)  # used directly
+                else:
+                    for comp in reagent.components:
+                        if not comp.child or not comp.per_parent_volume_ml or comp.per_parent_volume_ml <= 0:
+                            continue
+                        comp_total = total_amount / comp.per_parent_volume_ml * comp.quantity
+                        entry = aggregated[comp.child_reagent_id]
+                        entry["name"] = comp.child.name
+                        entry["cas"] = comp.child.cas_number or "–"
+                        entry["total"] += comp_total
+                        entry["unit"] = canonical_unit_label(comp.quantity_unit)
+                        entry["for_reagents"].add(reagent.name)
+        items = []
+        for rid, data in aggregated.items():
+            items.append({
+                "name": data["name"],
+                "cas": data["cas"],
+                "total": round(data["total"], 1),
+                "unit": data["unit"],
+                "for_reagents": sorted(r for r in data["for_reagents"] if r),
+            })
+        items.sort(key=lambda x: x["name"])
+        return render_template("reports/order_list.html", semester=sem, items=items,
+                               generated=_date.today().isoformat())
+
+    @app.route("/reports/reagents/prep-list")
+    def reports_prep_list():
+        sem = active_semester()
+        if not sem:
+            return render_template("reports/prep_list.html", semester=None, blocks=[], generated=None)
+        from collections import defaultdict
+        from datetime import date as _date
+        # (block_id, reagent_id) → accumulated total
+        block_reagent_totals: dict[tuple, float] = defaultdict(float)
+        block_reagent_meta: dict[tuple, dict] = {}
+        block_names: dict[int, str] = {}
+        batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
+        for batch in batches:
+            analysis = batch.analysis
+            method = analysis.method
+            if not method:
+                continue
+            block = analysis.block
+            if not block:
+                continue
+            block_names[block.id] = f"{block.code} – {block.name}"
+            k = 1
+            b = method.b_blind_determinations if method.blind_required else 0
+            n = batch.total_samples_prepared
+            safety = getattr(batch, "safety_factor", 1.2) or 1.2
+            for mr in method.reagent_usages:
+                reagent = mr.reagent
+                if not reagent or not reagent.is_composite:
+                    continue
+                key = (block.id, reagent.id)
+                total_amount = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
+                block_reagent_totals[key] += total_amount
+                if key not in block_reagent_meta:
+                    block_reagent_meta[key] = {
+                        "name": reagent.name,
+                        "unit": canonical_unit_label(mr.amount_unit),
+                        "reagent": reagent,
+                        "prep_notes": reagent.notes or "",
+                    }
+        # Build block_reagents from accumulated totals
+        block_reagents: dict[int, list] = defaultdict(list)
+        for (block_id, reagent_id), total_amount in block_reagent_totals.items():
+            meta = block_reagent_meta[(block_id, reagent_id)]
+            reagent = meta["reagent"]
+            components = []
+            for comp in reagent.components:
+                if comp.child and comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0:
+                    comp_total = round(total_amount / comp.per_parent_volume_ml * comp.quantity, 2)
+                    components.append({
+                        "name": comp.child.name,
+                        "amount": comp_total,
+                        "unit": canonical_unit_label(comp.quantity_unit),
+                    })
+            block_reagents[block_id].append({
+                "name": meta["name"],
+                "total": round(total_amount, 1),
+                "unit": meta["unit"],
+                "components": components,
+                "prep_notes": meta["prep_notes"],
+            })
+        blocks = [
+            {"id": bid, "name": block_names[bid], "reagents": block_reagents[bid]}
+            for bid in sorted(block_reagents.keys())
+        ]
+        return render_template("reports/prep_list.html", semester=sem, blocks=blocks,
+                               generated=_date.today().isoformat())
+
     @app.route("/admin/system")
     def admin_system():
         return render_template("admin/system.html", db_uri=app.config.get("SQLALCHEMY_DATABASE_URI", ""), is_admin=_is_admin_request())

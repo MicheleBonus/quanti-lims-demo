@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Bestellliste{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0"><i class="bi bi-list-check"></i> Bestellliste – Grundsubstanzen
+    {% if semester %}<span class="text-muted small ms-2">{{ semester.code }}</span>{% endif %}
+  </h4>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('reports_reagents') }}">← Reagenzienbedarf</a>
+    <button class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Drucken</button>
+  </div>
+</div>
+
+{% if not semester %}
+<div class="alert alert-warning">Kein aktives Semester.</div>
+{% elif not items %}
+<div class="alert alert-info">Keine Reagenzien-Daten vorhanden.</div>
+{% else %}
+<p class="text-body-secondary small mb-3">
+  Alle bestellbaren Grundsubstanzen — inkl. Komponenten zusammengesetzter Reagenzien.
+  Mengen inkl. Sicherheitsfaktor, Grundbedarf (Erstanalysen). Stand: {{ generated }}.
+</p>
+
+<div class="card">
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle" id="order-table">
+<thead class="table-light">
+<tr><th>Substanz</th><th>CAS-Nr.</th><th class="text-end">Menge</th><th>Einheit</th><th>Verwendung</th></tr>
+</thead>
+<tbody>
+{% for item in items %}
+<tr>
+  <td>{{ item.name }}</td>
+  <td class="text-muted small">{{ item.cas }}</td>
+  <td class="text-end"><strong>{{ item.total }}</strong></td>
+  <td>{{ item.unit }}</td>
+  <td>
+    {% if item.for_reagents %}
+      <span class="text-muted small">→ für {% for r in item.for_reagents %}<em>{{ r }}</em>{% if not loop.last %}, {% endif %}{% endfor %}</span>
+    {% else %}
+      <span class="text-muted small">Direkteinsatz</span>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+{% endif %}
+
+<style>
+@media print {
+  .btn, nav, footer { display: none !important; }
+  .card { border: 1px solid #ccc !important; box-shadow: none !important; }
+}
+</style>
+{% endblock %}

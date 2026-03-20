@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Herstellliste{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0"><i class="bi bi-flask"></i> Herstellliste – zusammengesetzte Reagenzien
+    {% if semester %}<span class="text-muted small ms-2">{{ semester.code }}</span>{% endif %}
+  </h4>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('reports_reagents') }}">← Reagenzienbedarf</a>
+    <button class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Drucken</button>
+  </div>
+</div>
+
+{% if not semester %}
+<div class="alert alert-warning">Kein aktives Semester.</div>
+{% elif not blocks %}
+<div class="alert alert-info">Keine zusammengesetzten Reagenzien definiert.</div>
+{% else %}
+<p class="text-body-secondary small mb-3">
+  Am Herstellungstag vor Praktikumsbeginn herzustellen. Stand: {{ generated }}.
+</p>
+
+{% for block in blocks %}
+<div class="card mb-4">
+  <div class="card-header bg-dark text-white">
+    <strong>{{ block.name }}</strong>
+  </div>
+  <div class="card-body p-3">
+    <div class="row row-cols-1 row-cols-md-2 g-3">
+    {% for rg in block.reagents %}
+    <div class="col">
+      <div class="border rounded p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <strong>{{ rg.name }}</strong>
+          <span class="badge bg-primary ms-2">{{ rg.total }} {{ rg.unit }}</span>
+        </div>
+        {% if rg.components %}
+        <p class="text-muted small mb-1 text-uppercase fw-bold" style="font-size:0.65rem;letter-spacing:.05em">Zusammensetzung</p>
+        <table class="table table-sm table-borderless mb-2">
+          {% for comp in rg.components %}
+          <tr>
+            <td class="py-0 fw-bold text-end pe-2" style="width:80px">{{ comp.amount }} {{ comp.unit }}</td>
+            <td class="py-0">{{ comp.name }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+        {% if rg.prep_notes %}
+        <div class="alert alert-warning py-1 px-2 mb-0 small">
+          <i class="bi bi-exclamation-triangle"></i> {{ rg.prep_notes }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<style>
+@media print {
+  .btn, nav, footer { display: none !important; }
+  .card { break-inside: avoid; }
+  .card-header { background: #333 !important; color: #fff !important; -webkit-print-color-adjust: exact; }
+  .badge { border: 1px solid #000; }
+}
+</style>
+{% endblock %}
