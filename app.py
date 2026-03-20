@@ -1900,11 +1900,11 @@ def register_routes(app):
             method = analysis.method
             if not method:
                 continue
+            k = analysis.k_determinations or 1
+            b = method.b_blind_determinations if method.blind_required else 0
+            n = sum(1 for s in batch.samples if not s.is_buffer)
+            safety = getattr(batch, 'safety_factor', 1.2) or 1.2
             for mr in method.reagent_usages:
-                k = 1  # Grundbedarf: only Erstanalysen
-                b = method.b_blind_determinations if method.blind_required else 0
-                n = sum(1 for s in batch.samples if not s.is_buffer)
-                safety = getattr(batch, 'safety_factor', 1.2) or 1.2
                 formula_kind = "volumetric" if mr.amount_unit_type == AMOUNT_UNIT_VOLUME else "generic"
                 total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
                 demand.append({
@@ -1943,7 +1943,7 @@ def register_routes(app):
             method = analysis.method
             if not method:
                 continue
-            k = 1
+            k = analysis.k_determinations or 1
             b = method.b_blind_determinations if method.blind_required else 0
             n = sum(1 for s in batch.samples if not s.is_buffer)
             safety = getattr(batch, "safety_factor", 1.2) or 1.2
@@ -2006,7 +2006,7 @@ def register_routes(app):
             if not block:
                 continue
             block_names[block.id] = f"{block.code} – {block.name}"
-            k = 1
+            k = analysis.k_determinations or 1
             b = method.b_blind_determinations if method.blind_required else 0
             n = sum(1 for s in batch.samples if not s.is_buffer)
             safety = getattr(batch, "safety_factor", 1.2) or 1.2
@@ -2135,11 +2135,11 @@ def register_routes(app):
             method = analysis.method
             if not method:
                 continue
+            k = analysis.k_determinations or 1
+            b = method.b_blind_determinations if method.blind_required else 0
+            n = sum(1 for s in batch.samples if not s.is_buffer)
+            safety = getattr(batch, 'safety_factor', 1.2) or 1.2
             for mr in method.reagent_usages:
-                k = 1
-                b = method.b_blind_determinations if method.blind_required else 0
-                n = sum(1 for s in batch.samples if not s.is_buffer)
-                safety = getattr(batch, 'safety_factor', 1.2) or 1.2
                 total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
                 rows.append({
                     "semester_code": sem.code, "analysis_code": analysis.code, "analysis_name": analysis.name,

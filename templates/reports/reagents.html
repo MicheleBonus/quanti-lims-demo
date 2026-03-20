@@ -18,22 +18,22 @@
 {% else %}
 
 <p class="text-body-secondary small">
-  Grundbedarf = n × (Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor
-  &nbsp;—&nbsp; <em>n = Erstproben (ohne Pufferproben); k = 1 (keine Wiederholungen)</em>
+  Grundbedarf = n × (k × Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor
+  &nbsp;—&nbsp; <em>n = Erstproben (ohne Pufferproben); k = Anzahl Bestimmungen pro Probe</em>
 </p>
 
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light">
-<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>b</th><th>n <small class="text-muted fw-normal">(ohne Puffer)</small></th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
+<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>k</th><th>b</th><th>n <small class="text-muted fw-normal">(ohne Puffer)</small></th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
 </thead>
 <tbody>
 {% set ns = namespace(current_analysis='') %}
 {% for d in demand|sort(attribute='analysis') %}
 {% if d.analysis != ns.current_analysis %}
 {% set ns.current_analysis = d.analysis %}
-<tr class="table-light"><td colspan="10"><strong>{{ d.analysis }} – {{ d.analysis_name }}</strong></td></tr>
+<tr class="table-light"><td colspan="11"><strong>{{ d.analysis }} – {{ d.analysis_name }}</strong></td></tr>
 {% endif %}
 <tr>
   <td></td>
@@ -49,6 +49,7 @@
   </td>
   <td>{{ d.per_det }}</td>
   <td>{{ d.per_blind }}</td>
+  <td>{{ d.k }}</td>
   <td>{{ d.b }}</td>
   <td>{{ d.n }}</td>
   <td class="text-muted small">×{{ d.safety }}</td>
@@ -60,7 +61,7 @@
 {% if d.is_composite and d.components %}
 <tr class="collapse" id="comp-{{ loop.index }}">
   <td colspan="2"></td>
-  <td colspan="8" class="bg-light">
+  <td colspan="9" class="bg-light">
     <small class="text-muted d-block mb-1">Zusammensetzung (skaliert auf {{ d.total }} {{ d.unit|unit }} Gesamtbedarf):</small>
     <table class="table table-sm table-borderless mb-0 ms-2">
     {% for comp in d.components %}
