@@ -1211,6 +1211,9 @@ def register_routes(app):
             analysis = Analysis.query.get(item.analysis_id)
             mode = resolve_mode(analysis.calculation_mode if analysis else None)
             _sf = _float(request.form.get("safety_factor"))
+            if _sf is not None and _sf <= 0:
+                flash("Sicherheitsfaktor muss größer als 0 sein.", "danger")
+                return _render_form()
             item.safety_factor = _sf if _sf is not None else 1.2
             prepared_by = request.form.get("prepared_by") or None
 
