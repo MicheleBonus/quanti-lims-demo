@@ -475,18 +475,22 @@ function fillRows(parsed, startIndex) {
 
     if (!msInput && !mgesInput) break; // past end of table
 
+    // In standardization mode msInputs is empty — single-column paste puts the
+    // value in m_s, so fall back to using it for the mges (V_disp) field.
+    const effectiveMges = m_ges !== null ? m_ges : (!msInput && m_s !== null ? m_s : null);
+
     if (msInput && m_s !== null) msInput.value = String(m_s);
-    if (mgesInput && m_ges !== null) mgesInput.value = String(m_ges);
+    if (mgesInput && effectiveMges !== null) mgesInput.value = String(effectiveMges);
 
     // Fire a single input event after both values are written so the existing
     // live-calculation listener sees a consistent row state (not an intermediate one).
-    const triggerInput = (mgesInput && m_ges !== null) ? mgesInput
-                       : (msInput && m_s !== null)     ? msInput
+    const triggerInput = (mgesInput && effectiveMges !== null) ? mgesInput
+                       : (msInput && m_s !== null)             ? msInput
                        : null;
     if (triggerInput) triggerInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
     // Count as filled if at least one value was written
-    if ((msInput && m_s !== null) || (mgesInput && m_ges !== null)) {
+    if ((msInput && m_s !== null) || (mgesInput && effectiveMges !== null)) {
       filled++;
       if (firstFilledRow === null) firstFilledRow = rowIdx;
       lastFilledRow = rowIdx;
