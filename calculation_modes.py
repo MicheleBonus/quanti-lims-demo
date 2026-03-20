@@ -269,15 +269,16 @@ class TitrantStandardizationEvaluator:
             else None
         )
 
-        # V_erw: primary standard weighed directly → g_wahr = p_effective
+        # V_erw: fixed PS mass from analysis.e_ab_g, g_wahr = p_effective
         v_expected_ml = None
-        if sample.m_s_actual_g is not None:
+        e_ab_g = analysis.e_ab_g
+        if e_ab_g is not None:
             _mb = MassBasedEvaluator()
             g_wahr = sample.batch.p_effective or 100.0
             aliquot_fraction = _mb._aliquot_fraction(sample)
-            v_expected_ml = _mb._v_expected_explicit(sample, g_wahr, aliquot_fraction, sample.m_s_actual_g)
+            v_expected_ml = _mb._v_expected_explicit(sample, g_wahr, aliquot_fraction, e_ab_g)
             if v_expected_ml is None:
-                v_expected_ml = _mb._v_expected_legacy(sample, g_wahr, aliquot_fraction, sample.m_s_actual_g)
+                v_expected_ml = _mb._v_expected_legacy(sample, g_wahr, aliquot_fraction, e_ab_g)
 
         return SampleCalculation(
             titer_expected=titer_expected,

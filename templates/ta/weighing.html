@@ -61,9 +61,8 @@
         <th style="width:120px">V_erw. (mL)</th>
           {% endif %}
         {% else %}
-        <th style="width:140px">m_S,ist (g)</th>
-        <th style="width:160px">V_disp (mL)</th>
-        <th style="width:110px">Zielfaktor</th>
+        <th style="width:180px">V_disp (mL)</th>
+        <th style="width:120px">Zielfaktor</th>
         <th style="width:110px">V_erw. (mL)</th>
         {% endif %}
         <th>Status</th>
@@ -113,12 +112,6 @@
         <td class="text-end" id="vexp-{{ s.id }}">{{ s.v_expected|fmt(3) if s.v_expected else '' }}</td>
           {% endif %}
         {% else %}
-        <td>
-          <input type="text" class="form-control form-control-sm weighing-input"
-                 name="m_s_{{ s.id }}" value="{{ s.m_s_actual_g if s.m_s_actual_g else '' }}"
-                 data-sample-id="{{ s.id }}" data-field="m_s"
-                 placeholder="0.0000" inputmode="decimal">
-        </td>
         <td>
           <input type="text" class="form-control form-control-sm weighing-input {% if flags.volume_range_violation %}is-invalid{% endif %}"
                  name="m_ges_{{ s.id }}" value="{{ s.m_ges_actual_g if s.m_ges_actual_g else '' }}"
@@ -216,8 +209,8 @@ const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.method and batch.analysis.method.v_solution_ml else 0 }};
 const V_ALIQUOT = {{ batch.analysis.method.v_aliquot_ml if batch.analysis.method and batch.analysis.method.v_aliquot_ml else 0 }};
 const ALIQUOT_FRAC = (V_SOLUTION > 0 && V_ALIQUOT > 0) ? V_ALIQUOT / V_SOLUTION : 1.0;
-{% if not is_standardization %}
 const E_AB_G = {{ batch.analysis.e_ab_g if batch.analysis.e_ab_g is not none else 'null' }};
+{% if not is_standardization %}
 const P_MIN = {{ batch.gehalt_min_pct | tojson }};
 {% endif %}
 
@@ -394,25 +387,22 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       } else if (factorCell && (isNaN(mges) || mges === 0)) {
         factorCell.textContent = '';
       }
-      // V_erw from primary standard mass (g_wahr = P_EFF, pure primary standard)
+      // V_erw from fixed PS mass (analysis.e_ab_g), g_wahr = P_EFF
       const vexpCell = document.getElementById('vexp-' + sid);
-      if (vexpCell) {
+      if (vexpCell && E_AB_G !== null && E_AB_G > 0 && C_TITRANT !== null && C_TITRANT > 0 && MW_EFFECTIVE !== null && MW_EFFECTIVE > 0) {
+        const msMg = E_AB_G * 1000;
+        const nAnalyte = (msMg * P_EFF / 100) / MW_EFFECTIVE;
+        const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
         let vExp = null;
-        if (!isNaN(ms) && ms > 0 && C_TITRANT !== null && C_TITRANT > 0 && MW_EFFECTIVE !== null && MW_EFFECTIVE > 0) {
-          const msMg = ms * 1000;
-          const nAnalyte = (msMg * P_EFF / 100) / MW_EFFECTIVE;
-          const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
-          if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
-            vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
-          } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
-            const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
-            const nVorTotal = V_VORLAGE * C_VORLAGE;
-            const nVorExcess = nVorTotal - nVorConsumed;
-            vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
-          }
+        if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
+          vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
+        } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
+          const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
+          const nVorTotal = V_VORLAGE * C_VORLAGE;
+          const nVorExcess = nVorTotal - nVorConsumed;
+          vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
         }
         if (vExp !== null) vexpCell.textContent = vExp.toFixed(3);
-        else if (isNaN(ms) || ms === 0) vexpCell.textContent = '';
       }
     }
   });
