@@ -17,17 +17,16 @@
 <div class="alert alert-info">Keine Reagenzien-Zuordnungen vorhanden. Bitte Methoden-Reagenzien pflegen.</div>
 {% else %}
 
-{% if has_non_volume_units %}
-<p class="text-body-secondary small">Grundbedarf = n × (1 × Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor &nbsp;<span class="badge bg-secondary">k=1: nur Erstanalysen</span></p>
-{% else %}
-<p class="text-body-secondary small">V<sub>Grundbedarf</sub> = n × (1 × V<sub>Einzel</sub> + b × V<sub>Blind</sub>) × Sicherheitsfaktor &nbsp;<span class="badge bg-secondary">k=1: nur Erstanalysen</span></p>
-{% endif %}
+<p class="text-body-secondary small">
+  Grundbedarf = n × (Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor
+  &nbsp;—&nbsp; <em>n = vorbereitete Erstproben; Wiederholungsanalysen nicht einkalkuliert (k = 1)</em>
+</p>
 
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light">
-<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>b</th><th>n</th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
+<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>b</th><th>n <small class="text-muted fw-normal">(Erst)</small></th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
 </thead>
 <tbody>
 {% set ns = namespace(current_analysis='') %}
@@ -53,7 +52,7 @@
   <td>{{ d.b }}</td>
   <td>{{ d.n }}</td>
   <td class="text-muted small">×{{ d.safety }}</td>
-  <td class="text-end"><strong>{{ d.total }}</strong></td>
+  <td class="text-end"><strong>{{ "%.4g"|format(d.total) }}</strong></td>
   <td>{{ d.unit|unit }}</td>
   <td>{% if d.is_titrant %}<span class="badge bg-info">Titrant</span>{% endif %}
       {% if d.is_composite %}<span class="badge bg-secondary">zusammengesetzt</span>{% endif %}</td>

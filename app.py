@@ -1920,7 +1920,7 @@ def register_routes(app):
                     "b": b,
                     "n": n,
                     "safety": safety,
-                    "total": round(total, 1),
+                    "total": round(total, 4),
                     "is_titrant": mr.is_titrant,
                     "is_composite": mr.reagent.is_composite,
                     "components": mr.reagent.components if mr.reagent.is_composite else [],
@@ -1977,7 +1977,7 @@ def register_routes(app):
             items.append({
                 "name": data["name"],
                 "cas": data["cas"],
-                "total": round(data["total"], 1),
+                "total": data["total"],
                 "unit": data["unit"],
                 "for_reagents": sorted(r for r in data["for_reagents"] if r),
             })

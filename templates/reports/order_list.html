@@ -32,7 +32,7 @@
 <tr>
   <td>{{ item.name }}</td>
   <td class="text-muted small">{{ item.cas }}</td>
-  <td class="text-end"><strong>{{ item.total }}</strong></td>
+  <td class="text-end"><strong>{{ "%.4g"|format(item.total) }}</strong></td>
   <td>{{ item.unit }}</td>
   <td>
     {% if item.for_reagents %}
