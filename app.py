@@ -1896,16 +1896,17 @@ def register_routes(app):
             if not method:
                 continue
             for mr in method.reagent_usages:
-                k = analysis.k_determinations
+                k = 1  # Grundbedarf: only Erstanalysen
                 b = method.b_blind_determinations if method.blind_required else 0
                 n = batch.total_samples_prepared
-                safety = 1.2
+                safety = getattr(batch, 'safety_factor', 1.2) or 1.2
                 formula_kind = "volumetric" if mr.amount_unit_type == AMOUNT_UNIT_VOLUME else "generic"
                 total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
                 demand.append({
                     "analysis": analysis.code,
                     "analysis_name": analysis.name,
                     "reagent": mr.reagent.name,
+                    "reagent_obj": mr.reagent,
                     "unit": canonical_unit_label(mr.amount_unit),
                     "per_det": mr.amount_per_determination,
                     "per_blind": mr.amount_per_blind,
@@ -1913,8 +1914,11 @@ def register_routes(app):
                     "k": k,
                     "b": b,
                     "n": n,
+                    "safety": safety,
                     "total": round(total, 1),
                     "is_titrant": mr.is_titrant,
+                    "is_composite": mr.reagent.is_composite,
+                    "components": mr.reagent.components if mr.reagent.is_composite else [],
                 })
         has_non_volume_units = any(get_amount_unit_type(d["unit"]) != AMOUNT_UNIT_VOLUME for d in demand)
         return render_template("reports/reagents.html", semester=sem, demand=demand, has_non_volume_units=has_non_volume_units)
@@ -2003,14 +2007,17 @@ def register_routes(app):
             if not method:
                 continue
             for mr in method.reagent_usages:
-                k = analysis.k_determinations
+                k = 1
                 b = method.b_blind_determinations if method.blind_required else 0
                 n = batch.total_samples_prepared
-                total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * 1.2
+                safety = getattr(batch, 'safety_factor', 1.2) or 1.2
+                total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
                 rows.append({
                     "semester_code": sem.code, "analysis_code": analysis.code, "analysis_name": analysis.name,
-                    "reagent": mr.reagent.name if mr.reagent else None, "amount_per_determination": mr.amount_per_determination,
+                    "reagent": mr.reagent.name if mr.reagent else None,
+                    "amount_per_determination": mr.amount_per_determination,
                     "amount_per_blind": mr.amount_per_blind, "k": k, "b": b, "n": n,
+                    "safety_factor": safety,
                     "total_with_safety": round(total, 1), "unit": canonical_unit_label(mr.amount_unit), "is_titrant": mr.is_titrant,
                 })
         return _dict_rows(rows, "reagents_demand", fmt)
