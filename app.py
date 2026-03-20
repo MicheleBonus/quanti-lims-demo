@@ -1184,7 +1184,7 @@ def register_routes(app):
         item = SampleBatch.query.get(id) if id else SampleBatch()
         sem = active_semester()
         analyses = Analysis.query.order_by(Analysis.ordinal).all()
-        analysis_modes = {a.id: (a.calculation_mode or MODE_ASSAY_MASS_BASED) for a in analyses}
+        analysis_modes = {a.id: resolve_mode(a.calculation_mode) for a in analyses}
         lots = SubstanceLot.query.order_by(SubstanceLot.id.desc()).all()
         n_students = Student.query.filter_by(semester_id=sem.id).count() if sem else 0
 
@@ -1199,7 +1199,8 @@ def register_routes(app):
             item.analysis_id = int(request.form["analysis_id"])
             analysis = Analysis.query.get(item.analysis_id)
             mode = resolve_mode(analysis.calculation_mode if analysis else None)
-            item.safety_factor = _float(request.form.get("safety_factor")) or 1.2
+            _sf = _float(request.form.get("safety_factor"))
+            item.safety_factor = _sf if _sf is not None else 1.2
             prepared_by = request.form.get("prepared_by") or None
 
             item.substance_lot_id = _int(request.form.get("substance_lot_id"))
