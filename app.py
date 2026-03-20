@@ -1933,7 +1933,8 @@ def register_routes(app):
             return render_template("reports/order_list.html", semester=None, items=[], generated=None)
         from collections import defaultdict
         from datetime import date as _date
-        aggregated: dict[int, dict] = defaultdict(lambda: {"name": "", "cas": "", "total": 0.0, "unit": "", "for_reagents": set()})
+        # Key: (reagent_id, unit) — prevents totals from different units being merged
+        aggregated: dict[tuple, dict] = defaultdict(lambda: {"name": "", "cas": "", "total": 0.0, "unit": "", "for_reagents": set()})
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
         for batch in batches:
             analysis = batch.analysis
@@ -1950,25 +1951,27 @@ def register_routes(app):
                 if not reagent:
                     continue
                 if not reagent.is_composite:
-                    entry = aggregated[reagent.id]
+                    unit_label = canonical_unit_label(mr.amount_unit)
+                    entry = aggregated[(reagent.id, unit_label)]
                     entry["name"] = reagent.name
                     entry["cas"] = reagent.cas_number or "–"
                     entry["total"] += total_amount
-                    entry["unit"] = canonical_unit_label(mr.amount_unit)
+                    entry["unit"] = unit_label
                     entry["for_reagents"].add(None)  # used directly
                 else:
                     for comp in reagent.components:
                         if not comp.child or not comp.per_parent_volume_ml or comp.per_parent_volume_ml <= 0:
                             continue
                         comp_total = total_amount / comp.per_parent_volume_ml * comp.quantity
-                        entry = aggregated[comp.child_reagent_id]
+                        unit_label = canonical_unit_label(comp.quantity_unit)
+                        entry = aggregated[(comp.child_reagent_id, unit_label)]
                         entry["name"] = comp.child.name
                         entry["cas"] = comp.child.cas_number or "–"
                         entry["total"] += comp_total
-                        entry["unit"] = canonical_unit_label(comp.quantity_unit)
+                        entry["unit"] = unit_label
                         entry["for_reagents"].add(reagent.name)
         items = []
-        for rid, data in aggregated.items():
+        for _key, data in aggregated.items():
             items.append({
                 "name": data["name"],
                 "cas": data["cas"],
