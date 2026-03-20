@@ -203,7 +203,13 @@ const N_EQ_VORLAGE = {{ batch.analysis.method.n_eq_vorlage if batch.analysis.met
 const MW_ANALYTE = {{ batch.analysis.substance.molar_mass_gmol if batch.analysis.substance and batch.analysis.substance.molar_mass_gmol else 'null' }};
 const MW_ANHYDROUS = {{ batch.analysis.substance.anhydrous_molar_mass_gmol | tojson if batch.analysis.substance and batch.analysis.substance.anhydrous_molar_mass_gmol else 'null' }};
 const HYDRATE_FACTOR = (MW_ANHYDROUS !== null && MW_ANALYTE !== null && MW_ANALYTE > 0) ? MW_ANHYDROUS / MW_ANALYTE : 1.0;
-const MW_EFFECTIVE = (MW_ANHYDROUS !== null && MW_ANHYDROUS > 0) ? MW_ANHYDROUS : MW_ANALYTE;
+const REPORTED_MW = {{ batch.analysis.reported_molar_mass_gmol | tojson }};
+const REPORTED_STOICH = {{ (batch.analysis.reported_stoichiometry or 1.0) | tojson }};
+const CONTENT_FACTOR = (REPORTED_MW !== null && MW_ANALYTE !== null && MW_ANALYTE > 0)
+  ? (REPORTED_STOICH * REPORTED_MW) / MW_ANALYTE : HYDRATE_FACTOR;
+const MW_EFFECTIVE = (REPORTED_MW !== null && REPORTED_MW > 0)
+  ? REPORTED_STOICH * REPORTED_MW
+  : (MW_ANHYDROUS !== null && MW_ANHYDROUS > 0) ? MW_ANHYDROUS : MW_ANALYTE;
 const TOL_MIN = {{ batch.analysis.tol_min or 'null' }};
 const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.method and batch.analysis.method.v_solution_ml else 0 }};
@@ -241,7 +247,7 @@ function evaluateLimits(ms, mges) {
     if (!Number.isNaN(mges) && !Number.isNaN(ms) && ms > 0
         && typeof P_MIN !== 'undefined' && P_MIN > 0
         && typeof P_EFF !== 'undefined' && P_EFF > 0) {
-      const mGesMax = ms * P_EFF * HYDRATE_FACTOR / P_MIN;
+      const mGesMax = ms * P_EFF * CONTENT_FACTOR / P_MIN;
       flags.mGesMax = mges > mGesMax + 0.0001;
     }
   }
@@ -315,7 +321,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       }
     } else {
     if (!isNaN(ms) && !isNaN(mges) && mges > 0) {
-      const gw = (ms / mges) * P_EFF * HYDRATE_FACTOR;
+      const gw = (ms / mges) * P_EFF * CONTENT_FACTOR;
       document.getElementById('gw-' + sid).textContent = gw.toFixed(4);
 
       if (TOL_MIN !== null && TOL_MAX !== null) {
@@ -364,7 +370,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       const maxSpan = document.getElementById('max_mges_' + sid);
       if (maxSpan) {
         const maxMges = (P_MIN && P_MIN > 0 && P_EFF && P_EFF > 0 && !isNaN(ms) && ms > 0)
-          ? ms * P_EFF * HYDRATE_FACTOR / P_MIN : null;
+          ? ms * P_EFF * CONTENT_FACTOR / P_MIN : null;
         if (maxMges !== null) {
           maxSpan.textContent = maxMges.toFixed(3).replace('.', ',') + ' g';
           if (!isNaN(mges) && mges > maxMges + 0.0001) {
