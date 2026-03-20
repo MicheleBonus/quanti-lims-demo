@@ -268,10 +268,22 @@ class TitrantStandardizationEvaluator:
             if titer_expected is not None and analysis.tol_max is not None
             else None
         )
+
+        # V_erw: primary standard weighed directly → g_wahr = p_effective
+        v_expected_ml = None
+        if sample.m_s_actual_g is not None:
+            _mb = MassBasedEvaluator()
+            g_wahr = sample.batch.p_effective or 100.0
+            aliquot_fraction = _mb._aliquot_fraction(sample)
+            v_expected_ml = _mb._v_expected_explicit(sample, g_wahr, aliquot_fraction, sample.m_s_actual_g)
+            if v_expected_ml is None:
+                v_expected_ml = _mb._v_expected_legacy(sample, g_wahr, aliquot_fraction, sample.m_s_actual_g)
+
         return SampleCalculation(
             titer_expected=titer_expected,
             a_min=titer_min,
             a_max=titer_max,
+            v_expected_ml=v_expected_ml,
         )
 
     def evaluate_result(self, result) -> EvaluationResult:
