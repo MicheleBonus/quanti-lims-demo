@@ -50,6 +50,7 @@
         <th style="width:140px">Einwaage (mg)</th>
         <th style="width:120px">A_min (mg)</th>
         <th style="width:120px">A_max (mg)</th>
+        <th style="width:120px">V_erw. (mL)</th>
           {% else %}
         <th style="width:160px">m_S,ist (g)</th>
         <th style="width:160px">m_ges,ist (g)</th>
@@ -85,6 +86,7 @@
         <td class="text-end" id="gw-{{ s.id }}">{% if s.m_s_actual_g %}{{ (s.m_s_actual_g * 1000) | round(3) | fmt(3) }}{% endif %}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(3) if s.a_min else '' }}</td>
         <td class="text-end" id="amax-{{ s.id }}">{{ s.a_max|fmt(3) if s.a_max else '' }}</td>
+        <td class="text-end" id="vexp-{{ s.id }}">{{ s.v_expected|fmt(3) if s.v_expected else '' }}</td>
           {% else %}
         <td>
           <input type="text" class="form-control form-control-sm weighing-input {% if flags.m_s_min_violation %}is-invalid{% endif %}"
@@ -289,6 +291,23 @@ document.querySelectorAll('.weighing-input').forEach(input => {
         if (TOL_MIN !== null && TOL_MAX !== null) {
           document.getElementById('amin-' + sid).textContent = (msMg * TOL_MIN / 100).toFixed(3);
           document.getElementById('amax-' + sid).textContent = (msMg * TOL_MAX / 100).toFixed(3);
+        }
+        // V_erw for mass_determination: pure substance → gw = 100%
+        let vExp = null;
+        if (C_TITRANT !== null && C_TITRANT > 0 && MW_EFFECTIVE !== null && MW_EFFECTIVE > 0) {
+          const nAnalyte = msMg / MW_EFFECTIVE;
+          const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
+          if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
+            vExp = (nAnalyte * nEqT / C_TITRANT) * ALIQUOT_FRAC;
+          } else if (METHOD === 'back' && V_VORLAGE !== null && C_VORLAGE !== null && N_EQ_VORLAGE !== null) {
+            const nVorConsumed = nAnalyte * N_EQ_VORLAGE;
+            const nVorTotal = V_VORLAGE * C_VORLAGE;
+            const nVorExcess = nVorTotal - nVorConsumed;
+            vExp = (nVorExcess * nEqT / C_TITRANT) * ALIQUOT_FRAC;
+          }
+        }
+        if (vExp !== null) {
+          document.getElementById('vexp-' + sid).textContent = vExp.toFixed(3);
         }
       }
     } else {
