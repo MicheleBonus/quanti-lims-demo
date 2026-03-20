@@ -438,5 +438,65 @@ document.querySelectorAll('.weighing-input').forEach(input => {
     if (idx >= 0) setAnchorRow(idx);
   });
 });
+
+// ── Toast feedback ────────────────────────────────────────────────────────
+
+function showPasteToast(count, firstNum, lastNum) {
+  const label = MODE === 'titrant_standardization' ? 'Dispensierungen' : 'Einwaagen';
+  const rangeText = firstNum === lastNum ? `Probe ${firstNum}` : `Proben ${firstNum}–${lastNum}`;
+  const div = document.createElement('div');
+  div.className = 'paste-toast';
+  div.textContent = `${count} ${label} eingefügt (${rangeText})`;
+  div.addEventListener('animationend', () => div.remove());
+  document.body.appendChild(div);
+}
+
+// ── Fill rows from parsed clipboard data ──────────────────────────────────
+
+/**
+ * Fill sample input fields starting at startIndex (row index, 0-based).
+ * @param {{m_s: number|null, m_ges: number|null}[]} parsed
+ * @param {number} startIndex - row index of first row to fill
+ */
+function fillRows(parsed, startIndex) {
+  const msInputs  = [...document.querySelectorAll('[data-field="m_s"]')];
+  const mgesInputs = [...document.querySelectorAll('[data-field="m_ges"]')];
+
+  let filled = 0;
+  let firstFilledRow = null;
+  let lastFilledRow = null;
+
+  for (let i = 0; i < parsed.length; i++) {
+    const rowIdx = startIndex + i;
+    const { m_s, m_ges } = parsed[i];
+
+    const msInput  = msInputs[rowIdx];
+    const mgesInput = mgesInputs[rowIdx];
+
+    if (!msInput && !mgesInput) break; // past end of table
+
+    if (msInput && m_s !== null) {
+      msInput.value = String(m_s);
+      msInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    }
+    if (mgesInput && m_ges !== null) {
+      mgesInput.value = String(m_ges);
+      mgesInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    }
+
+    // Count as filled if at least one value was written
+    if ((msInput && m_s !== null) || (mgesInput && m_ges !== null)) {
+      filled++;
+      if (firstFilledRow === null) firstFilledRow = rowIdx;
+      lastFilledRow = rowIdx;
+    }
+  }
+
+  if (filled > 0) {
+    const firstNum = probeNumberByRowIndex[firstFilledRow] ?? (firstFilledRow + 1);
+    const lastNum  = probeNumberByRowIndex[lastFilledRow]  ?? (lastFilledRow  + 1);
+    showPasteToast(filled, firstNum, lastNum);
+  }
+}
 </script>
 {% endblock %}
