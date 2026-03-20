@@ -1457,6 +1457,7 @@ def register_routes(app):
             for s in samples
         }
         if request.method == "POST":
+            batch_mode = resolve_mode(batch.analysis.calculation_mode if batch.analysis else None)
             ignored_empty_fields = 0
             for s in samples:
                 m_s_raw = request.form.get(f"m_s_{s.id}")
@@ -1471,14 +1472,15 @@ def register_routes(app):
                         flash(f"Ungültiger Wert für m_S bei Probe {s.running_number}.", "danger")
                 elif m_s_raw is not None and s.m_s_actual_g is not None:
                     ignored_empty_fields += 1
-                if m_ges:
-                    parsed = _float(m_ges)
-                    if parsed is not None:
-                        s.m_ges_actual_g = parsed
-                    else:
-                        flash(f"Ungültiger Wert für m_ges bei Probe {s.running_number}.", "danger")
-                elif m_ges_raw is not None and s.m_ges_actual_g is not None:
-                    ignored_empty_fields += 1
+                if batch_mode != MODE_MASS_DETERMINATION:
+                    if m_ges:
+                        parsed = _float(m_ges)
+                        if parsed is not None:
+                            s.m_ges_actual_g = parsed
+                        else:
+                            flash(f"Ungültiger Wert für m_ges bei Probe {s.running_number}.", "danger")
+                    elif m_ges_raw is not None and s.m_ges_actual_g is not None:
+                        ignored_empty_fields += 1
                 s.weighed_by = request.form.get("weighed_by") or s.weighed_by
                 s.weighed_date = date.today().isoformat()
 
