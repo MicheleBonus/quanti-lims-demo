@@ -19,14 +19,14 @@
 
 <p class="text-body-secondary small">
   Grundbedarf = n × (Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor
-  &nbsp;—&nbsp; <em>n = vorbereitete Erstproben; Wiederholungsanalysen nicht einkalkuliert (k = 1)</em>
+  &nbsp;—&nbsp; <em>n = Erstproben (ohne Pufferproben); k = 1 (keine Wiederholungen)</em>
 </p>
 
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
 <thead class="table-light">
-<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>b</th><th>n <small class="text-muted fw-normal">(Erst)</small></th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
+<tr><th>Analyse</th><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>b</th><th>n <small class="text-muted fw-normal">(ohne Puffer)</small></th><th>Faktor</th><th class="text-end">Gesamt</th><th>Einheit</th><th></th></tr>
 </thead>
 <tbody>
 {% set ns = namespace(current_analysis='') %}
