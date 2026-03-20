@@ -82,21 +82,26 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
             details["m_s_min_violation"] = True
             checks.append(f"m_S {m_s_actual_g:.3f} g < Mindest {batch.target_m_s_min_g:.3f} g")
 
-        # Check maximum total mass: m_ges must not exceed m_s * p_eff / p_min
+        # Check maximum total mass: m_ges must not exceed m_s * p_eff * hydrate_factor / p_min
         # (target_m_ges_g is orientation only — not a hard minimum)
         p_min = batch.gehalt_min_pct
         p_eff = batch.p_effective
+        substance = batch.analysis.substance if batch.analysis else None
+        mw = substance.molar_mass_gmol if substance else None
+        mw_a = substance.anhydrous_molar_mass_gmol if substance else None
+        hydrate_factor = (mw_a / mw) if (mw_a and mw and mw > 0) else 1.0
         if (m_s_actual_g is not None
                 and m_ges_actual_g is not None
                 and p_min is not None
                 and p_min > 0
                 and p_eff > 0):
-            m_ges_max = m_s_actual_g * p_eff / p_min
+            m_ges_max = m_s_actual_g * p_eff * hydrate_factor / p_min
             if m_ges_actual_g > m_ges_max + 1e-9:  # small epsilon for float precision
                 details["m_ges_max_violation"] = True
                 checks.append(
                     f"m_ges {m_ges_actual_g:.3f} g > Max {m_ges_max:.3f} g "
-                    f"(bei m_S={m_s_actual_g:.3f} g, p_eff={p_eff:.1f}%, p_min={p_min:.1f}%)"
+                    f"(bei m_S={m_s_actual_g:.3f} g, p_eff={p_eff:.1f}%, p_min={p_min:.1f}%,"
+                    f" hydrate_factor={hydrate_factor:.4f})"
                 )
     else:
         if (m_ges_actual_g is not None

@@ -178,7 +178,7 @@ function evaluateLimits(ms, mges) {
     if (!Number.isNaN(mges) && !Number.isNaN(ms) && ms > 0
         && typeof P_MIN !== 'undefined' && P_MIN > 0
         && typeof P_EFF !== 'undefined' && P_EFF > 0) {
-      const mGesMax = ms * P_EFF / P_MIN;
+      const mGesMax = ms * P_EFF * HYDRATE_FACTOR / P_MIN;
       flags.mGesMax = mges > mGesMax + 0.0001;
     }
   }
@@ -273,7 +273,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       const maxSpan = document.getElementById('max_mges_' + sid);
       if (maxSpan) {
         const maxMges = (P_MIN && P_MIN > 0 && P_EFF && P_EFF > 0 && !isNaN(ms) && ms > 0)
-          ? ms * P_EFF / P_MIN : null;
+          ? ms * P_EFF * HYDRATE_FACTOR / P_MIN : null;
         if (maxMges !== null) {
           maxSpan.textContent = maxMges.toFixed(3).replace('.', ',') + ' g';
           if (!isNaN(mges) && mges > maxMges + 0.0001) {
@@ -310,7 +310,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
   if (orientText) {
     const mSMin = {{ batch.target_m_s_min_g | tojson }};
     const maxAtMin = (P_MIN && P_MIN > 0 && P_EFF && P_EFF > 0 && mSMin > 0)
-      ? mSMin * P_EFF / P_MIN : null;
+      ? mSMin * P_EFF * HYDRATE_FACTOR / P_MIN : null;
     orientText.textContent =
       'Orientierung: m_S,min = {{ "%.3f"|format(batch.target_m_s_min_g) }} g · ' +
       'm_ges Richtwert = {{ "%.3f"|format(batch.target_m_ges_g) }} g · ' +
