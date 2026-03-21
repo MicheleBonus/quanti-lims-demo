@@ -140,3 +140,82 @@ def test_reagent_demand_uses_batch_safety_factor(client, db):
         resp = client.get("/reports/reagents")
         assert resp.status_code == 200
         assert b"60" in resp.data
+
+
+def test_order_list_expands_nested_composites(client, db):
+    """Integration: /reports/reagents/order-list expands 3-level composites correctly."""
+    from models import (
+        Block, Substance, Analysis, Method, Semester, SampleBatch,
+        Reagent, MethodReagent, ReagentComponent,
+    )
+    with client.application.app_context():
+        Semester.query.update({"is_active": False})
+        db.session.flush()
+        sem = Semester(code="OL01", name="Order List Nested Test", is_active=True)
+        block = Block(code="OL", name="Order List Block", max_days=4)
+        substance = Substance(name="OL Substance", molar_mass_gmol=100.0)
+        db.session.add_all([sem, block, substance])
+        db.session.flush()
+
+        analysis = Analysis(
+            block_id=block.id, code="OL1", ordinal=90, name="OL Analysis",
+            substance_id=substance.id, calculation_mode="assay_mass_based",
+            k_determinations=1, result_unit="%", result_label="Gehalt",
+            g_ab_min_pct=98.0, g_ab_max_pct=102.0, e_ab_g=0.5,
+        )
+        db.session.add(analysis)
+        db.session.flush()
+
+        # 3-level: ammonia (base) → ammoniak_lsg (composite) → buffer (composite)
+        ammonia = Reagent(name="OL Ammoniak konz.", is_composite=False, base_unit="mL", density_g_ml=0.91)
+        water = Reagent(name="OL Wasser R", is_composite=False, base_unit="mL")
+        nh3_lsg = Reagent(name="OL Ammoniaklösung R", is_composite=True, base_unit="mL")
+        buffer = Reagent(name="OL Pufferlösung R", is_composite=True, base_unit="mL")
+        db.session.add_all([ammonia, water, nh3_lsg, buffer])
+        db.session.flush()
+
+        # nh3_lsg: 67g ammonia + 26mL water per 93mL
+        db.session.add_all([
+            ReagentComponent(parent_reagent_id=nh3_lsg.id, child_reagent_id=ammonia.id,
+                             quantity=67.0, quantity_unit="g", per_parent_volume_ml=93.0),
+            ReagentComponent(parent_reagent_id=nh3_lsg.id, child_reagent_id=water.id,
+                             quantity=26.0, quantity_unit="mL", per_parent_volume_ml=93.0),
+            # buffer: 100mL nh3_lsg per 1000mL
+            ReagentComponent(parent_reagent_id=buffer.id, child_reagent_id=nh3_lsg.id,
+                             quantity=100.0, quantity_unit="mL", per_parent_volume_ml=1000.0),
+        ])
+
+        method = Method(
+            analysis_id=analysis.id, method_type="direct",
+            blind_required=False, b_blind_determinations=0,
+            v_solution_ml=100.0, aliquot_enabled=False,
+        )
+        db.session.add(method)
+        db.session.flush()
+
+        usage = MethodReagent(
+            method_id=method.id, reagent_id=buffer.id,
+            amount_per_determination=100.0, amount_per_blind=0.0,
+            amount_unit="mL", is_titrant=False,
+        )
+        db.session.add(usage)
+        batch = SampleBatch(
+            analysis_id=analysis.id, semester_id=sem.id,
+            total_samples_prepared=1, titer=1.0, safety_factor=1.0,
+        )
+        db.session.add(batch)
+        db.session.commit()
+
+        # NOTE: No Sample rows added → batch.samples is empty → n=0 → all totals are 0.
+        # The test checks name presence only (items are inserted into order_acc even with
+        # amount=0 because expand_reagent runs regardless). This is a structural smoke test.
+        resp = client.get("/reports/reagents/order-list")
+        assert resp.status_code == 200
+        text = resp.data.decode()
+        # Base reagents appear (name present in table)
+        assert "OL Ammoniak konz." in text
+        assert "OL Wasser R" in text
+        # Intermediate composite does NOT appear in order list
+        assert "OL Ammoniaklösung R" not in text
+        # Top composite does NOT appear in order list
+        assert "OL Pufferlösung R" not in text

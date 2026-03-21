@@ -1950,58 +1950,21 @@ def register_routes(app):
     def reports_order_list():
         sem = active_semester()
         if not sem:
-            return render_template("reports/order_list.html", semester=None, items=[], generated=None)
-        from collections import defaultdict
+            return render_template(
+                "reports/order_list.html", semester=None, items=[], generated=None, warnings=[]
+            )
+        from reagent_expansion import build_expansion
         from datetime import date as _date
-        # Key: (reagent_id, unit) — prevents totals from different units being merged
-        aggregated: dict[tuple, dict] = defaultdict(lambda: {"name": "", "cas": "", "total": 0.0, "unit": "", "for_reagents": set()})
+
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
-        for batch in batches:
-            analysis = batch.analysis
-            method = analysis.method
-            if not method:
-                continue
-            k = analysis.k_determinations or 1
-            b = method.b_blind_determinations if method.blind_required else 0
-            n = sum(1 for s in batch.samples if not s.is_buffer)
-            safety = getattr(batch, "safety_factor", 1.2) or 1.2
-            for mr in method.reagent_usages:
-                total_amount = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
-                reagent = mr.reagent
-                if not reagent:
-                    continue
-                if not reagent.is_composite:
-                    unit_label = canonical_unit_label(mr.amount_unit)
-                    entry = aggregated[(reagent.id, unit_label)]
-                    entry["name"] = reagent.name
-                    entry["cas"] = reagent.cas_number or "–"
-                    entry["total"] += total_amount
-                    entry["unit"] = unit_label
-                    entry["for_reagents"].add(None)  # used directly
-                else:
-                    for comp in reagent.components:
-                        if not comp.child or not comp.per_parent_volume_ml or comp.per_parent_volume_ml <= 0:
-                            continue
-                        comp_total = total_amount / comp.per_parent_volume_ml * comp.quantity
-                        unit_label = canonical_unit_label(comp.quantity_unit)
-                        entry = aggregated[(comp.child_reagent_id, unit_label)]
-                        entry["name"] = comp.child.name
-                        entry["cas"] = comp.child.cas_number or "–"
-                        entry["total"] += comp_total
-                        entry["unit"] = unit_label
-                        entry["for_reagents"].add(reagent.name)
-        items = []
-        for _key, data in aggregated.items():
-            items.append({
-                "name": data["name"],
-                "cas": data["cas"],
-                "total": data["total"],
-                "unit": data["unit"],
-                "for_reagents": sorted(r for r in data["for_reagents"] if r),
-            })
-        items.sort(key=lambda x: x["name"])
-        return render_template("reports/order_list.html", semester=sem, items=items,
-                               generated=_date.today().isoformat())
+        result = build_expansion(batches)
+        return render_template(
+            "reports/order_list.html",
+            semester=sem,
+            items=result["order_items"],
+            warnings=result["warnings"],
+            generated=_date.today().isoformat(),
+        )
 
     @app.route("/reports/reagents/prep-list")
     def reports_prep_list():
