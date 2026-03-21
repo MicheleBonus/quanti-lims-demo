@@ -2333,6 +2333,8 @@ def register_routes(app):
             "molar_mass_gmol": analysis.substance.molar_mass_gmol if analysis.substance else None,
             "m_einwaage_min_mg": analysis.m_einwaage_min_mg,
             "m_einwaage_max_mg": analysis.m_einwaage_max_mg,
+            "reported_molar_mass_gmol": analysis.reported_molar_mass_gmol,
+            "reported_stoichiometry":   analysis.reported_stoichiometry,
         }
         if method:
             result["has_aliquot"] = method.has_aliquot
