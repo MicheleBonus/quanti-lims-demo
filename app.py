@@ -25,7 +25,11 @@ from models import (
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
     PracticalDay, GroupRotation, DutyAssignment, Colloquium,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_MASS_DETERMINATION, MODE_TITRANT_STANDARDIZATION, resolve_mode, attempt_type_for, compute_evaluation_label
+from calculation_modes import (
+    MODE_ASSAY_MASS_BASED, MODE_LOSS_ON_DRYING, MODE_MASS_DETERMINATION,
+    MODE_TITRANT_STANDARDIZATION, MW_WATER,
+    resolve_mode, attempt_type_for, compute_evaluation_label,
+)
 
 
 # Legacy constant kept for reference; validation now uses minimum-only check.
@@ -76,7 +80,7 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
         "volume_range_violation": False,
     }
 
-    if mode == MODE_ASSAY_MASS_BASED:
+    if mode in (MODE_ASSAY_MASS_BASED, MODE_LOSS_ON_DRYING):
         # Check minimum substance mass
         if (m_s_actual_g is not None
                 and batch.target_m_s_min_g is not None
@@ -91,13 +95,19 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
         substance = batch.analysis.substance if batch.analysis else None
         mw = substance.molar_mass_gmol if substance else None
         analysis = batch.analysis
-        reported_mw = analysis.reported_molar_mass_gmol if analysis else None
-        if reported_mw is not None and mw is not None and mw > 0:
-            n = (analysis.reported_stoichiometry or 1.0)
-            content_factor = n * reported_mw / mw
+
+        if mode == MODE_LOSS_ON_DRYING:
+            n_water = (analysis.n_crystal_water or 0) if analysis else 0
+            content_factor = (n_water * MW_WATER / mw) if (n_water > 0 and mw and mw > 0) else 0.0
         else:
-            mw_a = substance.anhydrous_molar_mass_gmol if substance else None
-            content_factor = (mw_a / mw) if (mw_a and mw and mw > 0) else 1.0
+            reported_mw = analysis.reported_molar_mass_gmol if analysis else None
+            if reported_mw is not None and mw is not None and mw > 0:
+                n = (analysis.reported_stoichiometry or 1.0)
+                content_factor = n * reported_mw / mw
+            else:
+                mw_a = substance.anhydrous_molar_mass_gmol if substance else None
+                content_factor = (mw_a / mw) if (mw_a and mw and mw > 0) else 1.0
+
         if (m_s_actual_g is not None
                 and m_ges_actual_g is not None
                 and p_min is not None
@@ -590,6 +600,7 @@ def register_routes(app):
             item.notes = request.form.get("notes") or None
             item.reported_molar_mass_gmol = _float(request.form.get("reported_molar_mass_gmol"))
             item.reported_stoichiometry = _float(request.form.get("reported_stoichiometry"))
+            item.n_crystal_water = _int(request.form.get("n_crystal_water"))
             duplicate = Analysis.query.filter(
                 Analysis.code == item.code,
                 Analysis.id != (item.id or 0),
@@ -602,6 +613,7 @@ def register_routes(app):
                     (MODE_ASSAY_MASS_BASED, "assay_mass_based"),
                     (MODE_TITRANT_STANDARDIZATION, "titrant_standardization"),
                     (MODE_MASS_DETERMINATION, "mass_determination"),
+                    (MODE_LOSS_ON_DRYING, "loss_on_drying"),
                 ]
                 return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts, mode_opts=mode_opts)
             if not id:
@@ -2514,6 +2526,15 @@ def _float(val):
         return None
     try:
         return float(str(val).replace(",", "."))
+    except (ValueError, TypeError):
+        return None
+
+
+def _int(val):
+    if val is None or val == "":
+        return None
+    try:
+        return int(val)
     except (ValueError, TypeError):
         return None
 
