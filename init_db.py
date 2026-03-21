@@ -6,7 +6,10 @@ from models import (
     Reagent, ReagentComponent, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment,
 )
-from calculation_modes import MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, attempt_type_for
+from calculation_modes import (
+    MODE_ASSAY_MASS_BASED, MODE_LOSS_ON_DRYING, MODE_TITRANT_STANDARDIZATION,
+    attempt_type_for,
+)
 
 
 def seed_database():
@@ -63,7 +66,7 @@ def seed_database():
         ("III", "III.1", 9,  "Phosphorgehalt (Na₂HPO₄·2H₂O)",    "Dinatriumhydrogenphosphat-Dihydrat", 2, "%",     "Phosphorgehalt",   98.0, 102.0),
         ("III", "III.2", 10, "Kaliumbromid (nach Volhard)",        "Kaliumbromid",                      3, "%",      "Gehalt",           98.0, 102.0),
         ("III", "III.3", 11, "Theophyllin",                       "Theophyllin",                       3, "%",      "Gehalt",           98.0, 102.0),
-        ("III", "III.4", 12, "Trocknungsverlust (Glucose-MH)",    "Glucose-Monohydrat",                3, "%",      "Trocknungsverlust", 98.0, 102.0),
+        ("III", "III.4", 12, "Trocknungsverlust (Glucose-MH)",    "Glucose-Monohydrat",                3, "%",      "Trocknungsverlust", 98.0, 102.0, MODE_LOSS_ON_DRYING),
     ]
     for row in ana_data:
         if len(row) == 10:
@@ -146,6 +149,9 @@ def seed_database():
     # III.1: report Phosphorgehalt (% P) instead of substance content
     analyses["III.1"].reported_molar_mass_gmol = 30.974   # M(P)
     analyses["III.1"].reported_stoichiometry = 1.0        # 1 P per Na2HPO4 formula unit
+
+    # III.4: Glucose Monohydrate has 1 crystal water molecule
+    analyses["III.4"].n_crystal_water = 1
 
     # ── Reagenzien (Beispiel-Katalog) ──────────────────────────────
     reagents = {}
