@@ -44,10 +44,22 @@
   <td class="text-end"><strong>{{ "%.4g"|format(item.total) }}</strong></td>
   <td>{{ item.unit }}</td>
   <td>
-    {% if item.for_reagents %}
-      <span class="text-muted small">→ für {% for r in item.for_reagents %}<em>{{ r }}</em>{% if not loop.last %}, {% endif %}{% endfor %}</span>
-    {% else %}
-      <span class="text-muted small">Direkteinsatz</span>
+    {% if item.sources | length == 1 %}
+      <span class="text-muted small">
+        {{ item.sources[0].analysis }}
+        {% if item.sources[0].via %}<span class="text-muted">(über {{ item.sources[0].via }})</span>{% else %}(direkt){% endif %}
+      </span>
+    {% elif item.sources %}
+      <details>
+        <summary class="text-muted small" style="cursor:pointer">{{ item.sources | length }} Analysen</summary>
+        <ul class="small mb-0 mt-1 ps-3">
+          {% for s in item.sources %}
+          <li>{{ s.analysis }}: <strong>{{ "%.4g"|format(s.amount) }} {{ item.unit }}</strong>
+            {% if s.via %}<span class="text-muted">(über {{ s.via }})</span>{% else %}<span class="text-muted">(direkt)</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
     {% endif %}
   </td>
 </tr>

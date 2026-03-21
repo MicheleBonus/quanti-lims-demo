@@ -150,6 +150,7 @@ class TestExpandReagent:
         expand_reagent(r, 100.0, "mL", order_acc, prep_acc, dep_graph, warnings)
         assert (1, "mL") in order_acc
         assert abs(order_acc[(1, "mL")]["total"] - 100.0) < 1e-9
+        assert (None, None) in order_acc[(1, "mL")]["sources"]
         assert prep_acc == {}
 
     def test_composite_goes_to_prep_acc(self):
@@ -163,6 +164,7 @@ class TestExpandReagent:
         assert abs(prep_acc[1][None]["total"] - 200.0) < 1e-9
         assert (2, "mL") in order_acc
         assert abs(order_acc[(2, "mL")]["total"] - 180.0) < 1e-9  # 200/100 * 90
+        assert (None, "Buffer") in order_acc[(2, "mL")]["sources"]
 
     def test_three_level_expansion(self):
         from reagent_expansion import expand_reagent
@@ -264,6 +266,8 @@ class TestBuildExpansion:
         method.reagent_usages = [mr]
 
         analysis = MagicMock()
+        analysis.code = "BUF1"
+        analysis.name = "Buffer Test"
         analysis.k_determinations = 1
         analysis.method = method
         analysis.block = None
@@ -293,6 +297,12 @@ class TestBuildExpansion:
         prep_ids = result["sorted_prep_ids"]
         assert prep_ids.index(200) < prep_ids.index(201)
 
+        # Sources breakdown: base reagents have analysis + via info
+        ammonia_key = next(k for k in result["order_items"] if k["name"] == "Ammoniak konz.")
+        assert len(ammonia_key["sources"]) == 1
+        assert ammonia_key["sources"][0]["analysis"] == "BUF1 – Buffer Test"
+        assert ammonia_key["sources"][0]["via"] == "Ammoniaklösung R"
+
     def test_shared_composite_across_two_blocks(self):
         """Composite used by two blocks appears separately in each block's prep entry."""
         from reagent_expansion import build_expansion
@@ -321,6 +331,8 @@ class TestBuildExpansion:
             method.b_blind_determinations = 0
             method.reagent_usages = [make_mr(sol, amount)]
             analysis = MagicMock()
+            analysis.code = block.code
+            analysis.name = block.name
             analysis.k_determinations = 1
             analysis.method = method
             analysis.block = block

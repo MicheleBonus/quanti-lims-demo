@@ -90,15 +90,18 @@ def expand_reagent(
     visiting: frozenset | None = None,
     caller_name: str | None = None,
     block_info: tuple | None = None,
+    analysis_info: str | None = None,
 ) -> None:
     """Recursively expand reagent into order_acc (base) and prep_acc (composites).
 
-    order_acc key: (reagent_id, unit) → {name, cas, total, unit, for_composites}
+    order_acc key: (reagent_id, unit) → {name, cas, total, unit, sources}
     prep_acc key: reagent_id → {block_info: {name, unit, total, reagent}}
     dep_graph: {parent_id: {child_id, ...}} — used for topological sort of prep list.
     visiting: frozenset of reagent_ids on the current path (cycle detection).
     caller_name: name of the immediate parent composite (for for_composites tracking).
     block_info: (block_id, block_label) tuple from the root MethodReagent, or None.
+    analysis_info: "code – name" string of the root analysis (for sources breakdown).
+    sources key: (analysis_info, via_label) → float, where via_label is caller_name or None.
     """
     if visiting is None:
         visiting = frozenset()
@@ -116,11 +119,12 @@ def expand_reagent(
                 "cas": reagent.cas_number or "–",
                 "total": 0.0,
                 "unit": unit,
-                "for_composites": set(),
+                "sources": {},
             }
         order_acc[key]["total"] += amount
-        if caller_name:
-            order_acc[key]["for_composites"].add(caller_name)
+        src_key = (analysis_info, caller_name)
+        order_acc[key]["sources"].setdefault(src_key, 0.0)
+        order_acc[key]["sources"][src_key] += amount
         return
 
     if reagent.id not in prep_acc:
@@ -151,6 +155,7 @@ def expand_reagent(
             comp.child, comp_amount, comp_unit,
             order_acc, prep_acc, dep_graph, warnings,
             new_visiting, caller_name=reagent.name, block_info=block_info,
+            analysis_info=analysis_info,
         )
 
 
@@ -176,6 +181,7 @@ def build_expansion(batches) -> dict:
         block = getattr(analysis, "block", None)
         # block_info is (block.id, display_label) — int id used for sorting in app.py
         block_info = (block.id, f"{block.code} – {block.name}") if block else None
+        analysis_info = f"{analysis.code} – {analysis.name}" if (analysis.code and analysis.name) else None
         k = analysis.k_determinations or 1
         b = method.b_blind_determinations if method.blind_required else 0
         n = sum(1 for s in batch.samples if not s.is_buffer)
@@ -191,7 +197,8 @@ def build_expansion(batches) -> dict:
             amount, unit, warning = convert_to_base_unit(reagent, total_amount, mr.amount_unit)
             if warning:
                 warnings.append(warning)
-            expand_reagent(reagent, amount, unit, order_acc, prep_acc, dep_graph, warnings, block_info=block_info)
+            expand_reagent(reagent, amount, unit, order_acc, prep_acc, dep_graph, warnings,
+                           block_info=block_info, analysis_info=analysis_info)
 
     order_items = sorted(
         [
@@ -200,7 +207,13 @@ def build_expansion(batches) -> dict:
                 "cas": v["cas"],
                 "total": v["total"],
                 "unit": v["unit"],
-                "for_reagents": sorted(v["for_composites"]),
+                "sources": [
+                    {"analysis": k[0], "amount": amt, "via": k[1]}
+                    for k, amt in sorted(
+                        v["sources"].items(),
+                        key=lambda x: (x[0][0] or "", x[0][1] or ""),
+                    )
+                ],
             }
             for v in order_acc.values()
         ],
