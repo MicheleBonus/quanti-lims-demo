@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set is_standardization = batch.analysis.calculation_mode == 'titrant_standardization' %}
 {% set is_mass_det = batch.analysis.calculation_mode == 'mass_determination' %}
+{% set is_loss_on_drying = batch.analysis.calculation_mode == 'loss_on_drying' %}
 {% block title %}{{ 'Volumendispensierung' if is_standardization else 'Einwaage' }}: {{ batch.analysis.code }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -55,7 +56,7 @@
         <th style="width:160px">m_S,ist (g)</th>
         <th style="width:160px">m_ges,ist (g)</th>
         <th style="width:120px">Max. m_ges</th>
-        <th style="width:120px">G_wahr (%)</th>
+        <th style="width:120px">{% if is_loss_on_drying %}{{ batch.analysis.result_label }} (%){% else %}G_wahr (%){% endif %}</th>
         <th style="width:120px">A_min</th>
         <th style="width:120px">A_max</th>
         <th style="width:120px">V_erw. (mL)</th>
@@ -187,6 +188,14 @@
 <script>
 const MODE = '{{ batch.analysis.calculation_mode }}';
 const IS_MASS_DET = {{ 'true' if is_mass_det else 'false' }};
+const IS_LOSS_ON_DRYING = {{ 'true' if is_loss_on_drying else 'false' }};
+const N_CRYSTAL_WATER = {{ batch.analysis.n_crystal_water | tojson }};
+const MW_WATER_LOD = 18.015;
+const HYDRATE_FACTOR_LOD = (IS_LOSS_ON_DRYING && N_CRYSTAL_WATER !== null && N_CRYSTAL_WATER > 0
+    && MW_ANALYTE !== null && MW_ANALYTE > 0)
+  ? (N_CRYSTAL_WATER * MW_WATER_LOD) / MW_ANALYTE
+  : 0.0;
+const EFFECTIVE_CONTENT_FACTOR = IS_LOSS_ON_DRYING ? HYDRATE_FACTOR_LOD : CONTENT_FACTOR;
 const M_EINWAAGE_MIN_MG = {{ batch.analysis.m_einwaage_min_mg if batch.analysis.m_einwaage_min_mg is not none else 'null' }};
 const M_EINWAAGE_MAX_MG = {{ batch.analysis.m_einwaage_max_mg if batch.analysis.m_einwaage_max_mg is not none else 'null' }};
 // Method and substance parameters (used by all modes)
@@ -247,7 +256,7 @@ function evaluateLimits(ms, mges) {
     if (!Number.isNaN(mges) && !Number.isNaN(ms) && ms > 0
         && typeof P_MIN !== 'undefined' && P_MIN > 0
         && typeof P_EFF !== 'undefined' && P_EFF > 0) {
-      const mGesMax = ms * P_EFF * CONTENT_FACTOR / P_MIN;
+      const mGesMax = ms * P_EFF * EFFECTIVE_CONTENT_FACTOR / P_MIN;
       flags.mGesMax = mges > mGesMax + 0.0001;
     }
   }
@@ -321,7 +330,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       }
     } else {
     if (!isNaN(ms) && !isNaN(mges) && mges > 0) {
-      const gw = (ms / mges) * P_EFF * CONTENT_FACTOR;
+      const gw = (ms / mges) * P_EFF * EFFECTIVE_CONTENT_FACTOR;
       document.getElementById('gw-' + sid).textContent = gw.toFixed(4);
 
       if (TOL_MIN !== null && TOL_MAX !== null) {
@@ -370,7 +379,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       const maxSpan = document.getElementById('max_mges_' + sid);
       if (maxSpan) {
         const maxMges = (P_MIN && P_MIN > 0 && P_EFF && P_EFF > 0 && !isNaN(ms) && ms > 0)
-          ? ms * P_EFF * CONTENT_FACTOR / P_MIN : null;
+          ? ms * P_EFF * EFFECTIVE_CONTENT_FACTOR / P_MIN : null;
         if (maxMges !== null) {
           maxSpan.textContent = maxMges.toFixed(3).replace('.', ',') + ' g';
           if (!isNaN(mges) && mges > maxMges + 0.0001) {
@@ -435,7 +444,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
   if (orientText) {
     const mSMin = {{ batch.target_m_s_min_g | tojson }};
     const maxAtMin = (P_MIN && P_MIN > 0 && P_EFF && P_EFF > 0 && mSMin > 0)
-      ? mSMin * P_EFF * CONTENT_FACTOR / P_MIN : null;
+      ? mSMin * P_EFF * EFFECTIVE_CONTENT_FACTOR / P_MIN : null;
     orientText.textContent =
       'Orientierung: m_S,min = {{ "%.3f"|format(batch.target_m_s_min_g) }} g · ' +
       'm_ges Richtwert = {{ "%.3f"|format(batch.target_m_ges_g) }} g · ' +
