@@ -631,6 +631,7 @@ def register_routes(app):
             (MODE_ASSAY_MASS_BASED, "assay_mass_based"),
             (MODE_TITRANT_STANDARDIZATION, "titrant_standardization"),
             (MODE_MASS_DETERMINATION, "mass_determination"),
+            (MODE_LOSS_ON_DRYING, "loss_on_drying"),
         ]
         return render_template("admin/analysis_form.html", item=item, block_opts=block_opts, sub_opts=sub_opts, mode_opts=mode_opts)
 
