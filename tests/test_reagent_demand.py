@@ -282,3 +282,16 @@ def test_prep_list_includes_intermediate_composites(client, db):
         assert text.index("PL Ammoniaklösung R") < text.index("PL Pufferlösung R")
         # Intermediate composite is in "Vorabherstellungen" section
         assert "Vorabherstellungen" in text
+
+
+def test_order_list_renders_without_error(client, db):
+    """Smoke test: /reports/reagents/order-list renders with no active semester."""
+    # Deactivate all semesters to trigger the no-semester path (warnings=[] required)
+    from models import Semester
+    with client.application.app_context():
+        Semester.query.update({"is_active": False})
+        db.session.commit()
+    resp = client.get("/reports/reagents/order-list")
+    assert resp.status_code == 200
+    # "warnings" variable must be defined in template (no Jinja UndefinedError)
+    assert b"Kein aktives Semester" in resp.data

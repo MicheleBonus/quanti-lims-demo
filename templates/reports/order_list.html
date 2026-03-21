@@ -21,6 +21,15 @@
   Mengen inkl. Sicherheitsfaktor, Grundbedarf (Erstanalysen). Stand: {{ generated }}.
 </p>
 
+{% if warnings %}
+<div class="alert alert-warning mt-2 mb-3">
+  <strong><i class="bi bi-exclamation-triangle"></i> Einheiten-Hinweise:</strong>
+  <ul class="mb-0 mt-1 small">
+    {% for w in warnings %}<li>{{ w }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <div class="card">
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle" id="order-table">
