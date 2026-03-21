@@ -2,8 +2,6 @@
 """Recursive reagent requirement expansion for order list and prep list reports."""
 from __future__ import annotations
 
-from collections import defaultdict
-
 from models import AMOUNT_UNIT_TYPES, AMOUNT_UNIT_MASS, AMOUNT_UNIT_VOLUME
 
 _MASS_TO_G = {"mg": 0.001, "g": 1.0, "kg": 1000.0}
@@ -36,13 +34,13 @@ def convert_to_base_unit(
         return amount * _VOL_TO_ML[from_unit] / _VOL_TO_ML[target], target, None
 
     if fd == AMOUNT_UNIT_MASS and td == AMOUNT_UNIT_VOLUME:
-        if not reagent.density_g_ml:
+        if reagent.density_g_ml is None:
             return amount, from_unit, f"Dichte fehlt für '{reagent.name}' (g→mL)"
         ml = amount * _MASS_TO_G[from_unit] / reagent.density_g_ml
         return ml / _VOL_TO_ML[target], target, None
 
     if fd == AMOUNT_UNIT_VOLUME and td == AMOUNT_UNIT_MASS:
-        if not reagent.density_g_ml:
+        if reagent.density_g_ml is None:
             return amount, from_unit, f"Dichte fehlt für '{reagent.name}' (mL→g)"
         g = amount * _VOL_TO_ML[from_unit] * reagent.density_g_ml
         return g / _MASS_TO_G[target], target, None
