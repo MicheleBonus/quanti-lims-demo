@@ -166,13 +166,29 @@
     const gehaltMin = parseFloat(gehaltMinInput.value);
     const hasAliquot = !!currentDefaults.has_aliquot;
 
+    // Compute CONTENT_FACTOR for reported-component analyses (e.g. III.1 Phosphorgehalt).
+    // reported_molar_mass_gmol is set when the result is reported as an element % rather
+    // than a substance %. In that case gehalt_min_pct is an element %, not a substance %.
+    const reportedMw     = currentDefaults.reported_molar_mass_gmol;
+    const reportedStoich = currentDefaults.reported_stoichiometry ?? 1.0;
+    const molarMass      = currentDefaults.molar_mass_gmol;
+    const contentFactor  = (reportedMw && molarMass && molarMass > 0)
+      ? (reportedStoich * reportedMw) / molarMass
+      : null;
+
     if (eAb && !isNaN(gehaltMin) && gehaltMin > 0 && gehaltMin <= 100) {
       // With aliquoting, one dissolution (Stammlösung) serves all determinations —
       // only the mortar factor applies, not k_total.
       const mGesMin = hasAliquot
         ? +(eAb * mortarF).toFixed(3)
         : +(eAb * (kDet + nExtra) * mortarF).toFixed(3);
-      const mSMin = +(mGesMin * gehaltMin / 100).toFixed(3);
+
+      // For reported-component: gehaltMin is element %, must divide by CONTENT_FACTOR
+      // to convert back to substance mass fraction.
+      // For regular analyses: gehaltMin is substance % directly.
+      const mSMin = contentFactor
+        ? +(mGesMin * gehaltMin / (100 * contentFactor)).toFixed(3)
+        : +(mGesMin * gehaltMin / 100).toFixed(3);
 
       // Only auto-fill if field is empty or was auto-filled before
       if (!targetMGesInput.dataset.userEdited) {
@@ -183,9 +199,17 @@
       }
 
       massCalcInfo.style.display = "";
-      massCalcDetail.textContent = hasAliquot
-        ? `Berechnung (mit Aliquotierung): E_AB (${eAb} g) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`
-        : `Berechnung: E_AB (${eAb} g) × (${kDet} + ${nExtra} Zusatz) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`;
+      if (contentFactor) {
+        massCalcDetail.textContent =
+          `Berechnung (Elementgehalt): E_AB (${eAb} g) × (${kDet} + ${nExtra} Zusatz) × ` +
+          `${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; ` +
+          `${mGesMin} g × ${gehaltMin}% / (100 × ${contentFactor.toFixed(4)}) = ${mSMin} g Mindest-Substanz ` +
+          `[max. ${(contentFactor * 100).toFixed(2)}% Elementgehalt bei reiner Substanz]`;
+      } else {
+        massCalcDetail.textContent = hasAliquot
+          ? `Berechnung (mit Aliquotierung): E_AB (${eAb} g) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`
+          : `Berechnung: E_AB (${eAb} g) × (${kDet} + ${nExtra} Zusatz) × ${mortarF} Mörserfaktor = ${mGesMin} g Mindest-Gesamt; davon ${gehaltMin}% = ${mSMin} g Mindest-Substanz`;
+      }
     } else {
       massCalcInfo.style.display = "none";
     }
