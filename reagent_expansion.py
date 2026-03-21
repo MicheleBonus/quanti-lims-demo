@@ -8,6 +8,32 @@ _MASS_TO_G = {"mg": 0.001, "g": 1.0, "kg": 1000.0}
 _VOL_TO_ML = {"µL": 0.001, "mL": 1.0, "L": 1000.0}
 
 
+def _build_sources(raw: dict) -> list:
+    """Group raw sources dict {(analysis_info, via_label): amount} by analysis.
+
+    Returns list of:
+        {analysis: str, total: float, parts: [{amount: float, via: str|None}]}
+    sorted by analysis name.
+    """
+    from collections import defaultdict
+    by_analysis: dict = defaultdict(list)
+    for (analysis_info, via_label), amount in raw.items():
+        by_analysis[analysis_info or ""].append({"amount": amount, "via": via_label})
+
+    result = []
+    for analysis_name in sorted(by_analysis):
+        parts = sorted(
+            by_analysis[analysis_name],
+            key=lambda p: (p["via"] is not None, p["via"] or ""),
+        )
+        result.append({
+            "analysis": analysis_name or "–",
+            "total": sum(p["amount"] for p in parts),
+            "parts": parts,
+        })
+    return result
+
+
 def convert_to_base_unit(
     reagent, amount: float, from_unit: str
 ) -> tuple[float, str, str | None]:
@@ -207,13 +233,7 @@ def build_expansion(batches) -> dict:
                 "cas": v["cas"],
                 "total": v["total"],
                 "unit": v["unit"],
-                "sources": [
-                    {"analysis": k[0], "amount": amt, "via": k[1]}
-                    for k, amt in sorted(
-                        v["sources"].items(),
-                        key=lambda x: (x[0][0] or "", x[0][1] or ""),
-                    )
-                ],
+                "sources": _build_sources(v["sources"]),
             }
             for v in order_acc.values()
         ],

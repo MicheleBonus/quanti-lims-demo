@@ -298,10 +298,12 @@ class TestBuildExpansion:
         assert prep_ids.index(200) < prep_ids.index(201)
 
         # Sources breakdown: base reagents have analysis + via info
-        ammonia_key = next(k for k in result["order_items"] if k["name"] == "Ammoniak konz.")
-        assert len(ammonia_key["sources"]) == 1
-        assert ammonia_key["sources"][0]["analysis"] == "BUF1 – Buffer Test"
-        assert ammonia_key["sources"][0]["via"] == "Ammoniaklösung R"
+        ammonia_item = next(k for k in result["order_items"] if k["name"] == "Ammoniak konz.")
+        assert len(ammonia_item["sources"]) == 1  # 1 unique analysis
+        src = ammonia_item["sources"][0]
+        assert src["analysis"] == "BUF1 – Buffer Test"
+        assert len(src["parts"]) == 1
+        assert src["parts"][0]["via"] == "Ammoniaklösung R"
 
     def test_shared_composite_across_two_blocks(self):
         """Composite used by two blocks appears separately in each block's prep entry."""

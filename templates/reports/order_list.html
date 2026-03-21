@@ -45,17 +45,33 @@
   <td>{{ item.unit }}</td>
   <td>
     {% if item.sources | length == 1 %}
-      <span class="text-muted small">
-        {{ item.sources[0].analysis }}
-        {% if item.sources[0].via %}<span class="text-muted">(über {{ item.sources[0].via }})</span>{% else %}(direkt){% endif %}
+      {% set s = item.sources[0] %}
+      <span class="text-muted small">{{ s.analysis }}
+        {% if s.parts | length == 1 %}
+          {% if s.parts[0].via %} (über {{ s.parts[0].via }}){% else %} (direkt){% endif %}
+        {% else %}
+          <ul class="small mb-0 mt-1 ps-3">
+            {% for p in s.parts %}
+            <li>{{ "%.4g"|format(p.amount) }} {{ item.unit }}{% if p.via %} über {{ p.via }}{% else %} direkt{% endif %}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
       </span>
     {% elif item.sources %}
       <details>
         <summary class="text-muted small" style="cursor:pointer">{{ item.sources | length }} Analysen</summary>
         <ul class="small mb-0 mt-1 ps-3">
           {% for s in item.sources %}
-          <li>{{ s.analysis }}: <strong>{{ "%.4g"|format(s.amount) }} {{ item.unit }}</strong>
-            {% if s.via %}<span class="text-muted">(über {{ s.via }})</span>{% else %}<span class="text-muted">(direkt)</span>{% endif %}
+          <li>{{ s.analysis }}: <strong>{{ "%.4g"|format(s.total) }} {{ item.unit }}</strong>
+            {% if s.parts | length == 1 %}
+              {% if s.parts[0].via %}<span class="text-muted">(über {{ s.parts[0].via }})</span>{% else %}<span class="text-muted">(direkt)</span>{% endif %}
+            {% else %}
+              <ul class="small mb-0 ps-3">
+                {% for p in s.parts %}
+                <li>{{ "%.4g"|format(p.amount) }} {{ item.unit }}{% if p.via %} über {{ p.via }}{% else %} direkt{% endif %}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
           </li>
           {% endfor %}
         </ul>
