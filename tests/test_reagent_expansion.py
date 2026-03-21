@@ -159,7 +159,8 @@ class TestExpandReagent:
         order_acc, prep_acc, dep_graph, warnings = {}, {}, {}, []
         expand_reagent(comp, 200.0, "mL", order_acc, prep_acc, dep_graph, warnings)
         assert 1 in prep_acc
-        assert abs(prep_acc[1]["total"] - 200.0) < 1e-9
+        assert None in prep_acc[1]  # no block_info passed → None key
+        assert abs(prep_acc[1][None]["total"] - 200.0) < 1e-9
         assert (2, "mL") in order_acc
         assert abs(order_acc[(2, "mL")]["total"] - 180.0) < 1e-9  # 200/100 * 90
 
@@ -178,7 +179,9 @@ class TestExpandReagent:
         expand_reagent(buffer, 1000.0, "mL", order_acc, prep_acc, dep_graph, warnings)
         # Buffer and nh3_lsg both in prep_acc
         assert 1 in prep_acc
+        assert None in prep_acc[1]
         assert 2 in prep_acc
+        assert None in prep_acc[2]
         # Base reagents in order_acc (NOT nh3_lsg)
         assert 2 not in [k[0] for k in order_acc]
         assert (3, "mL") in order_acc or any(k[0] == 3 for k in order_acc)
@@ -280,9 +283,11 @@ class TestBuildExpansion:
         assert "Wasser R" in order_names
         assert "Ammoniaklösung R" not in order_names
 
-        # Both composites in prep_items
+        # Both composites in prep_items (analysis.block = None → None key)
         assert 200 in result["prep_items"]
+        assert None in result["prep_items"][200]
         assert 201 in result["prep_items"]
+        assert None in result["prep_items"][201]
 
         # Topo sort: nh3_lsg (200) before buffer (201)
         prep_ids = result["sorted_prep_ids"]

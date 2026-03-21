@@ -1980,33 +1980,31 @@ def register_routes(app):
 
         prep_items = result["prep_items"]
         sorted_prep_ids = result["sorted_prep_ids"]
-        block_assignments = result["block_assignments"]
 
-        # Group by block. Intermediate composites (not in block_assignments) → None key.
+        # Group by block. block_info=None → "Vorabherstellungen".
         block_reagents: dict = defaultdict(list)
         for rg_id in sorted_prep_ids:
             if rg_id not in prep_items:
                 continue
-            item = prep_items[rg_id]
-            reagent = item["reagent"]
-            total = item["total"]
-            components = []
-            for comp in reagent.components:
-                if comp.child and comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0:
-                    comp_total = round(total / comp.per_parent_volume_ml * comp.quantity, 2)
-                    components.append({
-                        "name": comp.child.name,
-                        "amount": comp_total,
-                        "unit": canonical_unit_label(comp.quantity_unit),
-                    })
-            block_key = block_assignments.get(rg_id)  # None for intermediate composites
-            block_reagents[block_key].append({
-                "name": item["name"],
-                "total": round(total, 1),
-                "unit": item["unit"],
-                "components": components,
-                "prep_notes": reagent.notes or "",
-            })
+            for block_key, item in prep_items[rg_id].items():
+                reagent = item["reagent"]
+                total = item["total"]
+                components = []
+                for comp in reagent.components:
+                    if comp.child and comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0:
+                        comp_total = round(total / comp.per_parent_volume_ml * comp.quantity, 2)
+                        components.append({
+                            "name": comp.child.name,
+                            "amount": comp_total,
+                            "unit": canonical_unit_label(comp.quantity_unit),
+                        })
+                block_reagents[block_key].append({
+                    "name": item["name"],
+                    "total": round(total, 1),
+                    "unit": item["unit"],
+                    "components": components,
+                    "prep_notes": reagent.notes or "",
+                })
 
         # Build blocks list: "Vorabherstellungen" (None key) first, then sorted by block id.
         blocks = []

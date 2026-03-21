@@ -89,14 +89,16 @@ def expand_reagent(
     warnings: list,
     visiting: frozenset | None = None,
     caller_name: str | None = None,
+    block_info=None,
 ) -> None:
     """Recursively expand reagent into order_acc (base) and prep_acc (composites).
 
     order_acc key: (reagent_id, unit) → {name, cas, total, unit, for_composites}
-    prep_acc key: reagent_id → {name, unit, total, reagent}
+    prep_acc key: reagent_id → {block_info: {name, unit, total, reagent}}
     dep_graph: {parent_id: {child_id, ...}} — used for topological sort of prep list.
     visiting: frozenset of reagent_ids on the current path (cycle detection).
     caller_name: name of the immediate parent composite (for for_composites tracking).
+    block_info: (block_id, block_label) tuple from the root MethodReagent, or None.
     """
     if visiting is None:
         visiting = frozenset()
@@ -122,13 +124,15 @@ def expand_reagent(
         return
 
     if reagent.id not in prep_acc:
-        prep_acc[reagent.id] = {
+        prep_acc[reagent.id] = {}
+    if block_info not in prep_acc[reagent.id]:
+        prep_acc[reagent.id][block_info] = {
             "name": reagent.name,
             "unit": unit,
             "total": 0.0,
             "reagent": reagent,
         }
-    prep_acc[reagent.id]["total"] += amount
+    prep_acc[reagent.id][block_info]["total"] += amount
     dep_graph.setdefault(reagent.id, set())
 
     new_visiting = visiting | {reagent.id}
@@ -146,7 +150,7 @@ def expand_reagent(
         expand_reagent(
             comp.child, comp_amount, comp_unit,
             order_acc, prep_acc, dep_graph, warnings,
-            new_visiting, caller_name=reagent.name,
+            new_visiting, caller_name=reagent.name, block_info=block_info,
         )
 
 
@@ -155,16 +159,14 @@ def build_expansion(batches) -> dict:
 
     Returns dict with:
       order_items: list of {name, cas, total, unit, for_reagents} sorted by name
-      prep_items: dict[reagent_id] → {name, unit, total, reagent}
+      prep_items: dict[reagent_id] → {block_info: {name, unit, total, reagent}}
       sorted_prep_ids: topologically sorted reagent_id list (deps first)
-      block_assignments: dict[reagent_id] → (block_id, block_name) for direct composites
       warnings: list of str
     """
     order_acc: dict = {}
     prep_acc: dict = {}
     dep_graph: dict = {}
     warnings: list = []
-    block_assignments: dict = {}
 
     for batch in batches:
         analysis = batch.analysis
@@ -188,9 +190,7 @@ def build_expansion(batches) -> dict:
             amount, unit, warning = convert_to_base_unit(reagent, total_amount, mr.amount_unit)
             if warning:
                 warnings.append(warning)
-            if reagent.is_composite and block_info and reagent.id not in block_assignments:
-                block_assignments[reagent.id] = block_info
-            expand_reagent(reagent, amount, unit, order_acc, prep_acc, dep_graph, warnings)
+            expand_reagent(reagent, amount, unit, order_acc, prep_acc, dep_graph, warnings, block_info=block_info)
 
     order_items = sorted(
         [
@@ -211,6 +211,5 @@ def build_expansion(batches) -> dict:
         "order_items": order_items,
         "prep_items": prep_acc,
         "sorted_prep_ids": sorted_prep_ids,
-        "block_assignments": block_assignments,
         "warnings": warnings,
     }

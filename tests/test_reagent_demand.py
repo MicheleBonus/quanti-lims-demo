@@ -280,8 +280,9 @@ def test_prep_list_includes_intermediate_composites(client, db):
         assert "PL Pufferlösung R" in text
         # Intermediate composite appears BEFORE the top-level composite (topo order)
         assert text.index("PL Ammoniaklösung R") < text.index("PL Pufferlösung R")
-        # Intermediate composite is in "Vorabherstellungen" section
-        assert "Vorabherstellungen" in text
+        # Intermediate composite is in the block section, NOT "Vorabherstellungen"
+        assert "Vorabherstellungen" not in text
+        assert "Prep List Block" in text  # block heading present
 
 
 def test_order_list_renders_without_error(client, db):
