@@ -1252,11 +1252,14 @@ def register_routes(app):
                         k_total = k_det + n_extra
                         computed_m_ges = round(e_ab * k_total * mortar_f, 3)
                     if analysis.reported_molar_mass_gmol is not None:
-                        # Reported-component analyses use individual weighing (m_S = m_ges per row).
-                        # target_m_s_min is a per-determination minimum, derived from e_ab and the
-                        # substance purity tolerance — not from the batch total × element-content %.
-                        g_ab_min = analysis.g_ab_min_pct if analysis.g_ab_min_pct is not None else 98.0
-                        computed_m_s = round(e_ab * g_ab_min / 100.0, 3)
+                        # Reported-component: target_m_s_min is minimum substance mass in the
+                        # blend. Derived from total blend mass × gehalt_min / (100 × cf),
+                        # where cf = CONTENT_FACTOR converts element% back to substance fraction.
+                        substance = analysis.substance
+                        n = analysis.reported_stoichiometry or 1.0
+                        cf = (n * analysis.reported_molar_mass_gmol / substance.molar_mass_gmol
+                              if substance and substance.molar_mass_gmol else 1.0)
+                        computed_m_s = round(computed_m_ges * gehalt_min / (100.0 * cf), 3)
                     else:
                         computed_m_s = round(computed_m_ges * gehalt_min / 100.0, 3)
                     if item.target_m_ges_g is None:
