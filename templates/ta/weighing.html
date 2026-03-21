@@ -12,6 +12,8 @@
       Ziel: V_disp im Bereich {{ batch.target_v_min_ml }}–{{ batch.target_v_max_ml }} mL |
       {% elif is_mass_det %}
       Einwaagebereich: {{ batch.analysis.m_einwaage_min_mg }}–{{ batch.analysis.m_einwaage_max_mg }} mg | Toleranz: ±{{ batch.analysis.g_ab_min_pct }}/{{ batch.analysis.g_ab_max_pct }}% |
+      {% elif is_loss_on_drying %}
+      m_S,Richtwert: {{ batch.analysis.e_ab_g }} g | Tol: {{ batch.analysis.g_ab_min_pct }}–{{ batch.analysis.g_ab_max_pct }}% |
       {% else %}
       Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges ≥ {{ batch.target_m_ges_g }} g |
       {% endif %}
@@ -59,7 +61,7 @@
         <th style="width:120px">{% if is_loss_on_drying %}{{ batch.analysis.result_label }} (%){% else %}G_wahr (%){% endif %}</th>
         <th style="width:120px">A_min</th>
         <th style="width:120px">A_max</th>
-        <th style="width:120px">V_erw. (mL)</th>
+        {% if not is_loss_on_drying %}<th style="width:120px">V_erw. (mL)</th>{% endif %}
           {% endif %}
         {% else %}
         <th style="width:180px">V_disp (mL)</th>
@@ -110,7 +112,7 @@
         <td class="calc-g-wahr text-end" id="gw-{{ s.id }}">{{ s.g_wahr|fmt(4) if s.g_wahr else '' }}</td>
         <td class="text-end" id="amin-{{ s.id }}">{{ s.a_min|fmt(4) if s.a_min else '' }}</td>
         <td class="text-end" id="amax-{{ s.id }}">{{ s.a_max|fmt(4) if s.a_max else '' }}</td>
-        <td class="text-end" id="vexp-{{ s.id }}">{{ s.v_expected|fmt(3) if s.v_expected else '' }}</td>
+        {% if not is_loss_on_drying %}<td class="text-end" id="vexp-{{ s.id }}">{{ s.v_expected|fmt(3) if s.v_expected else '' }}</td>{% endif %}
           {% endif %}
         {% else %}
         <td>
@@ -191,11 +193,6 @@ const IS_MASS_DET = {{ 'true' if is_mass_det else 'false' }};
 const IS_LOSS_ON_DRYING = {{ 'true' if is_loss_on_drying else 'false' }};
 const N_CRYSTAL_WATER = {{ batch.analysis.n_crystal_water | tojson }};
 const MW_WATER_LOD = 18.015;
-const HYDRATE_FACTOR_LOD = (IS_LOSS_ON_DRYING && N_CRYSTAL_WATER !== null && N_CRYSTAL_WATER > 0
-    && MW_ANALYTE !== null && MW_ANALYTE > 0)
-  ? (N_CRYSTAL_WATER * MW_WATER_LOD) / MW_ANALYTE
-  : 0.0;
-const EFFECTIVE_CONTENT_FACTOR = IS_LOSS_ON_DRYING ? HYDRATE_FACTOR_LOD : CONTENT_FACTOR;
 const M_EINWAAGE_MIN_MG = {{ batch.analysis.m_einwaage_min_mg if batch.analysis.m_einwaage_min_mg is not none else 'null' }};
 const M_EINWAAGE_MAX_MG = {{ batch.analysis.m_einwaage_max_mg if batch.analysis.m_einwaage_max_mg is not none else 'null' }};
 // Method and substance parameters (used by all modes)
@@ -219,6 +216,11 @@ const CONTENT_FACTOR = (REPORTED_MW !== null && MW_ANALYTE !== null && MW_ANALYT
 const MW_EFFECTIVE = (REPORTED_MW !== null && REPORTED_MW > 0)
   ? REPORTED_STOICH * REPORTED_MW
   : (MW_ANHYDROUS !== null && MW_ANHYDROUS > 0) ? MW_ANHYDROUS : MW_ANALYTE;
+const HYDRATE_FACTOR_LOD = (IS_LOSS_ON_DRYING && N_CRYSTAL_WATER !== null && N_CRYSTAL_WATER > 0
+    && MW_ANALYTE !== null && MW_ANALYTE > 0)
+  ? (N_CRYSTAL_WATER * MW_WATER_LOD) / MW_ANALYTE
+  : 0.0;
+const EFFECTIVE_CONTENT_FACTOR = IS_LOSS_ON_DRYING ? HYDRATE_FACTOR_LOD : CONTENT_FACTOR;
 const TOL_MIN = {{ batch.analysis.tol_min or 'null' }};
 const TOL_MAX = {{ batch.analysis.tol_max or 'null' }};
 const V_SOLUTION = {{ batch.analysis.method.v_solution_ml if batch.analysis.method and batch.analysis.method.v_solution_ml else 0 }};
@@ -341,9 +343,10 @@ document.querySelectorAll('.weighing-input').forEach(input => {
       }
 
       // V_erw calculation: use per-determination mass (e_ab_g), fall back to m_s
+      // (skipped for loss_on_drying — no titration)
       const msMg = (E_AB_G !== null ? E_AB_G : ms) * 1000;
       let vExp = null;
-      if (C_TITRANT !== null && C_TITRANT > 0 && MW_EFFECTIVE !== null && MW_EFFECTIVE > 0) {
+      if (!IS_LOSS_ON_DRYING && C_TITRANT !== null && C_TITRANT > 0 && MW_EFFECTIVE !== null && MW_EFFECTIVE > 0) {
         const nAnalyte = (msMg * gw / 100) / MW_EFFECTIVE;
         const nEqT = N_EQ_TITRANT !== null ? N_EQ_TITRANT : 1.0;
         if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
@@ -355,7 +358,7 @@ document.querySelectorAll('.weighing-input').forEach(input => {
           vExp = nVorExcess * nEqT / C_TITRANT;
         }
       }
-      if (vExp === null && M_EQ !== null) {
+      if (!IS_LOSS_ON_DRYING && vExp === null && M_EQ !== null) {
         // Legacy fallback using m_eq_mg
         if (['direct', 'complexometric', 'argentometric', 'other'].includes(METHOD)) {
           vExp = ((msMg * gw / 100) / (M_EQ * TITER)) * ALIQUOT_FRAC;
@@ -433,6 +436,21 @@ document.querySelectorAll('.weighing-input').forEach(input => {
     const maxMg = {{ batch.analysis.m_einwaage_max_mg | tojson if batch.analysis.m_einwaage_max_mg is not none else 'null' }};
     if (minMg !== null && maxMg !== null) {
       orientText.textContent = 'Einwaagebereich: ' + minMg + ' – ' + maxMg + ' mg';
+    } else {
+      orientText.style.display = 'none';
+    }
+  }
+})();
+{% elif is_loss_on_drying %}
+(function() {
+  const orientText = document.getElementById('weighing-orientation');
+  if (orientText) {
+    const eAbG = E_AB_G;
+    const k = {{ batch.analysis.k_determinations or 1 }};
+    if (eAbG !== null && eAbG > 0) {
+      orientText.textContent =
+        'Orientierung: m_S,Richtwert = ' + eAbG.toFixed(4).replace('.', ',') + ' g pro Ansatz · ' +
+        'Anzahl Ansätze k = ' + k;
     } else {
       orientText.style.display = 'none';
     }
