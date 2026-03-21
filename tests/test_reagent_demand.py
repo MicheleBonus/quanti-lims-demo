@@ -215,7 +215,6 @@ def test_order_list_expands_nested_composites(client, db):
         # Base reagents appear (name present in table)
         assert "OL Ammoniak konz." in text
         assert "OL Wasser R" in text
-        # Intermediate composite does NOT appear in order list
-        assert "OL Ammoniaklösung R" not in text
-        # Top composite does NOT appear in order list
-        assert "OL Pufferlösung R" not in text
+        # Composites should NOT appear as table rows (only as "Verwendung" references)
+        assert "<td>OL Ammoniaklösung R</td>" not in text
+        assert "<td>OL Pufferlösung R</td>" not in text

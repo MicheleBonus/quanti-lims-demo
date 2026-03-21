@@ -89,7 +89,6 @@ def expand_reagent(
     warnings: list,
     visiting: frozenset | None = None,
     caller_name: str | None = None,
-    top_caller_name: str | None = None,
 ) -> None:
     """Recursively expand reagent into order_acc (base) and prep_acc (composites).
 
@@ -98,9 +97,6 @@ def expand_reagent(
     dep_graph: {parent_id: {child_id, ...}} — used for topological sort of prep list.
     visiting: frozenset of reagent_ids on the current path (cycle detection).
     caller_name: name of the immediate parent composite (for for_composites tracking).
-    top_caller_name: name of the top-level composite in this expansion chain; frozen at
-        the first composite level so base reagents are attributed to the outermost
-        composite, not an intermediate one.
     """
     if visiting is None:
         visiting = frozenset()
@@ -121,11 +117,9 @@ def expand_reagent(
                 "for_composites": set(),
             }
         order_acc[key]["total"] += amount
+        if caller_name:
+            order_acc[key]["for_composites"].add(caller_name)
         return
-
-    # Composite — freeze top_caller_name at the first composite level
-    if top_caller_name is None:
-        top_caller_name = reagent.name
 
     if reagent.id not in prep_acc:
         prep_acc[reagent.id] = {
@@ -153,7 +147,6 @@ def expand_reagent(
             comp.child, comp_amount, comp_unit,
             order_acc, prep_acc, dep_graph, warnings,
             new_visiting, caller_name=reagent.name,
-            top_caller_name=top_caller_name,
         )
 
 
