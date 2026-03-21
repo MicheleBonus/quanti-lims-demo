@@ -5,18 +5,20 @@ from calculation_modes import MODE_ASSAY_MASS_BASED
 
 
 def _make_batch(target_m_s_min_g, target_m_ges_g, p_effective, gehalt_min_pct,
-                molar_mass=None, anhydrous_molar_mass=None):
+                molar_mass=None, anhydrous_molar_mass=None,
+                reported_molar_mass=None, reported_stoichiometry=None):
     batch = MagicMock()
     batch.target_m_s_min_g = target_m_s_min_g
     batch.target_m_ges_g = target_m_ges_g
     batch.analysis.calculation_mode = MODE_ASSAY_MASS_BASED
-    # p_effective from lot
     batch.p_effective = p_effective
-    # gehalt_min_pct stored on batch
     batch.gehalt_min_pct = gehalt_min_pct
-    # molar mass fields for hydrate correction
     batch.analysis.substance.molar_mass_gmol = molar_mass
     batch.analysis.substance.anhydrous_molar_mass_gmol = anhydrous_molar_mass
+    # Must be explicitly set (not left as MagicMock) so the None-check in
+    # evaluate_weighing_limits works correctly for old tests.
+    batch.analysis.reported_molar_mass_gmol = reported_molar_mass
+    batch.analysis.reported_stoichiometry = reported_stoichiometry
     return batch
 
 
@@ -161,3 +163,51 @@ def test_mass_determination_above_max(app):
     with app.app_context():
         result = evaluate_weighing_limits(batch, m_s_actual_g=0.2000, m_ges_actual_g=None)
     assert result["m_s_max_violation"] is True
+
+
+def test_reported_component_uses_content_factor(app):
+    """III.1: reported_molar_mass=30.974, molar_mass=177.99 → CONTENT_FACTOR≈0.174.
+    m_s=0.854, p_eff=100, p_min=15 → m_ges_max = 0.854 * 100 * 0.174 / 15 ≈ 0.990 g.
+    m_ges=1.5 must violate (was 5.69 g with hydrate_factor=1.0, so no violation before fix).
+    """
+    from app import evaluate_weighing_limits
+    with app.app_context():
+        batch = _make_batch(
+            target_m_s_min_g=0.854, target_m_ges_g=0.99,
+            p_effective=100.0, gehalt_min_pct=15.0,
+            molar_mass=177.99, reported_molar_mass=30.974, reported_stoichiometry=1.0,
+        )
+        content_factor = 1.0 * 30.974 / 177.99  # ≈ 0.1740
+        m_ges_max = 0.854 * 100.0 * content_factor / 15.0  # ≈ 0.990 g
+        # Just above → violation
+        result_over = evaluate_weighing_limits(batch, 0.854, m_ges_max + 0.1)
+        assert result_over["m_ges_max_violation"], \
+            "Expected violation: m_ges exceeds content-factor-corrected max"
+        # Just below → no violation
+        result_under = evaluate_weighing_limits(batch, 0.854, m_ges_max - 0.01)
+        assert not result_under["m_ges_max_violation"], \
+            "Expected no violation: m_ges within content-factor-corrected max"
+
+
+def test_reported_component_stoich_none_defaults_to_1(app):
+    """reported_stoichiometry=None must default to 1.0 — same result as stoich=1.0."""
+    from app import evaluate_weighing_limits
+    with app.app_context():
+        batch_none = _make_batch(
+            target_m_s_min_g=0.854, target_m_ges_g=0.99,
+            p_effective=100.0, gehalt_min_pct=15.0,
+            molar_mass=177.99, reported_molar_mass=30.974, reported_stoichiometry=None,
+        )
+        batch_one = _make_batch(
+            target_m_s_min_g=0.854, target_m_ges_g=0.99,
+            p_effective=100.0, gehalt_min_pct=15.0,
+            molar_mass=177.99, reported_molar_mass=30.974, reported_stoichiometry=1.0,
+        )
+        content_factor = 1.0 * 30.974 / 177.99
+        m_ges_max = 0.854 * 100.0 * content_factor / 15.0
+        # Both must give identical violation behaviour: over the limit
+        assert evaluate_weighing_limits(batch_none, 0.854, m_ges_max + 0.1)["m_ges_max_violation"]
+        assert evaluate_weighing_limits(batch_one,  0.854, m_ges_max + 0.1)["m_ges_max_violation"]
+        # And identical pass behaviour: under the limit
+        assert not evaluate_weighing_limits(batch_none, 0.854, m_ges_max - 0.01)["m_ges_max_violation"]
+        assert not evaluate_weighing_limits(batch_one,  0.854, m_ges_max - 0.01)["m_ges_max_violation"]
