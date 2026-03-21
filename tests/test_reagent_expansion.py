@@ -292,3 +292,63 @@ class TestBuildExpansion:
         # Topo sort: nh3_lsg (200) before buffer (201)
         prep_ids = result["sorted_prep_ids"]
         assert prep_ids.index(200) < prep_ids.index(201)
+
+    def test_shared_composite_across_two_blocks(self):
+        """Composite used by two blocks appears separately in each block's prep entry."""
+        from reagent_expansion import build_expansion
+
+        water = make_base_reagent(300, "Wasser R")
+        sol = make_composite(400, "Stammlösung", [(water, 50.0, "mL", 100.0)])
+
+        def make_mr(reagent, amount):
+            mr = MagicMock()
+            mr.reagent = reagent
+            mr.amount_per_determination = amount
+            mr.amount_per_blind = 0.0
+            mr.amount_unit = "mL"
+            return mr
+
+        def make_block(bid, code, name):
+            b = MagicMock()
+            b.id = bid
+            b.code = code
+            b.name = name
+            return b
+
+        def make_batch(sol, amount, block):
+            method = MagicMock()
+            method.blind_required = False
+            method.b_blind_determinations = 0
+            method.reagent_usages = [make_mr(sol, amount)]
+            analysis = MagicMock()
+            analysis.k_determinations = 1
+            analysis.method = method
+            analysis.block = block
+            sample = MagicMock()
+            sample.is_buffer = False
+            batch = MagicMock()
+            batch.analysis = analysis
+            batch.samples = [sample]  # n=1
+            batch.safety_factor = 1.0
+            return batch
+
+        block_a = make_block(1, "A", "Block A")
+        block_b = make_block(2, "B", "Block B")
+        batch_a = make_batch(sol, 200.0, block_a)  # needs 200mL sol
+        batch_b = make_batch(sol, 300.0, block_b)  # needs 300mL sol
+
+        result = build_expansion([batch_a, batch_b])
+        prep = result["prep_items"]
+
+        # Composite appears in prep_items
+        assert 400 in prep
+
+        # Two separate block entries
+        block_info_a = (1, "A – Block A")
+        block_info_b = (2, "B – Block B")
+        assert block_info_a in prep[400]
+        assert block_info_b in prep[400]
+
+        # Amounts are independent, not summed together
+        assert abs(prep[400][block_info_a]["total"] - 200.0) < 1e-9
+        assert abs(prep[400][block_info_b]["total"] - 300.0) < 1e-9

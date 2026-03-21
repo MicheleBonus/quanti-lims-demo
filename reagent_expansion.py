@@ -89,7 +89,7 @@ def expand_reagent(
     warnings: list,
     visiting: frozenset | None = None,
     caller_name: str | None = None,
-    block_info=None,
+    block_info: tuple | None = None,
 ) -> None:
     """Recursively expand reagent into order_acc (base) and prep_acc (composites).
 
@@ -174,6 +174,7 @@ def build_expansion(batches) -> dict:
         if not method:
             continue
         block = getattr(analysis, "block", None)
+        # block_info is (block.id, display_label) — int id used for sorting in app.py
         block_info = (block.id, f"{block.code} – {block.name}") if block else None
         k = analysis.k_determinations or 1
         b = method.b_blind_determinations if method.blind_required else 0
