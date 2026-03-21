@@ -1971,67 +1971,63 @@ def register_routes(app):
         sem = active_semester()
         if not sem:
             return render_template("reports/prep_list.html", semester=None, blocks=[], generated=None)
-        from collections import defaultdict
+        from reagent_expansion import build_expansion
         from datetime import date as _date
-        # (block_id, reagent_id) → accumulated total
-        block_reagent_totals: dict[tuple, float] = defaultdict(float)
-        block_reagent_meta: dict[tuple, dict] = {}
-        block_names: dict[int, str] = {}
+        from collections import defaultdict
+
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
-        for batch in batches:
-            analysis = batch.analysis
-            method = analysis.method
-            if not method:
+        result = build_expansion(batches)
+
+        prep_items = result["prep_items"]
+        sorted_prep_ids = result["sorted_prep_ids"]
+        block_assignments = result["block_assignments"]
+
+        # Group by block. Intermediate composites (not in block_assignments) → None key.
+        block_reagents: dict = defaultdict(list)
+        for rg_id in sorted_prep_ids:
+            if rg_id not in prep_items:
                 continue
-            block = analysis.block
-            if not block:
-                continue
-            block_names[block.id] = f"{block.code} – {block.name}"
-            k = analysis.k_determinations or 1
-            b = method.b_blind_determinations if method.blind_required else 0
-            n = sum(1 for s in batch.samples if not s.is_buffer)
-            safety = getattr(batch, "safety_factor", 1.2) or 1.2
-            for mr in method.reagent_usages:
-                reagent = mr.reagent
-                if not reagent or not reagent.is_composite:
-                    continue
-                key = (block.id, reagent.id)
-                total_amount = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
-                block_reagent_totals[key] += total_amount
-                if key not in block_reagent_meta:
-                    block_reagent_meta[key] = {
-                        "name": reagent.name,
-                        "unit": canonical_unit_label(mr.amount_unit),
-                        "reagent": reagent,
-                        "prep_notes": reagent.notes or "",
-                    }
-        # Build block_reagents from accumulated totals
-        block_reagents: dict[int, list] = defaultdict(list)
-        for (block_id, reagent_id), total_amount in block_reagent_totals.items():
-            meta = block_reagent_meta[(block_id, reagent_id)]
-            reagent = meta["reagent"]
+            item = prep_items[rg_id]
+            reagent = item["reagent"]
+            total = item["total"]
             components = []
             for comp in reagent.components:
                 if comp.child and comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0:
-                    comp_total = round(total_amount / comp.per_parent_volume_ml * comp.quantity, 2)
+                    comp_total = round(total / comp.per_parent_volume_ml * comp.quantity, 2)
                     components.append({
                         "name": comp.child.name,
                         "amount": comp_total,
                         "unit": canonical_unit_label(comp.quantity_unit),
                     })
-            block_reagents[block_id].append({
-                "name": meta["name"],
-                "total": round(total_amount, 1),
-                "unit": meta["unit"],
+            block_key = block_assignments.get(rg_id)  # None for intermediate composites
+            block_reagents[block_key].append({
+                "name": item["name"],
+                "total": round(total, 1),
+                "unit": item["unit"],
                 "components": components,
-                "prep_notes": meta["prep_notes"],
+                "prep_notes": reagent.notes or "",
             })
-        blocks = [
-            {"id": bid, "name": block_names[bid], "reagents": block_reagents[bid]}
-            for bid in sorted(block_reagents.keys())
-        ]
-        return render_template("reports/prep_list.html", semester=sem, blocks=blocks,
-                               generated=_date.today().isoformat())
+
+        # Build blocks list: "Vorabherstellungen" (None key) first, then sorted by block id.
+        blocks = []
+        if None in block_reagents:
+            blocks.append({
+                "id": None,
+                "name": "Vorabherstellungen",
+                "reagents": block_reagents[None],
+            })
+        for block_key, reagents in sorted(
+            ((k, v) for k, v in block_reagents.items() if k is not None),
+            key=lambda x: x[0][0],
+        ):
+            blocks.append({"id": block_key[0], "name": block_key[1], "reagents": reagents})
+
+        return render_template(
+            "reports/prep_list.html",
+            semester=sem,
+            blocks=blocks,
+            generated=_date.today().isoformat(),
+        )
 
     @app.route("/admin/system")
     def admin_system():

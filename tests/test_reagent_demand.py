@@ -218,3 +218,67 @@ def test_order_list_expands_nested_composites(client, db):
         # Composites should NOT appear as table rows (only as "Verwendung" references)
         assert "<td>OL Ammoniaklösung R</td>" not in text
         assert "<td>OL Pufferlösung R</td>" not in text
+
+
+def test_prep_list_includes_intermediate_composites(client, db):
+    """Integration: /reports/reagents/prep-list shows all composites in topo order."""
+    from models import (
+        Block, Substance, Analysis, Method, Semester, SampleBatch,
+        Reagent, MethodReagent, ReagentComponent,
+    )
+    with client.application.app_context():
+        Semester.query.update({"is_active": False})
+        db.session.flush()
+        sem = Semester(code="PL01", name="Prep List Nested Test", is_active=True)
+        block = Block(code="PL", name="Prep List Block", max_days=4)
+        substance = Substance(name="PL Substance", molar_mass_gmol=100.0)
+        db.session.add_all([sem, block, substance])
+        db.session.flush()
+        analysis = Analysis(
+            block_id=block.id, code="PL1", ordinal=89, name="PL Analysis",
+            substance_id=substance.id, calculation_mode="assay_mass_based",
+            k_determinations=1, result_unit="%", result_label="Gehalt",
+            g_ab_min_pct=98.0, g_ab_max_pct=102.0, e_ab_g=0.5,
+        )
+        db.session.add(analysis)
+        db.session.flush()
+        water = Reagent(name="PL Wasser R", is_composite=False, base_unit="mL")
+        nh3_lsg = Reagent(name="PL Ammoniaklösung R", is_composite=True, base_unit="mL")
+        buffer = Reagent(name="PL Pufferlösung R", is_composite=True, base_unit="mL")
+        db.session.add_all([water, nh3_lsg, buffer])
+        db.session.flush()
+        db.session.add_all([
+            ReagentComponent(parent_reagent_id=nh3_lsg.id, child_reagent_id=water.id,
+                             quantity=26.0, quantity_unit="mL", per_parent_volume_ml=93.0),
+            ReagentComponent(parent_reagent_id=buffer.id, child_reagent_id=nh3_lsg.id,
+                             quantity=100.0, quantity_unit="mL", per_parent_volume_ml=1000.0),
+        ])
+        method = Method(
+            analysis_id=analysis.id, method_type="direct",
+            blind_required=False, b_blind_determinations=0,
+            v_solution_ml=100.0, aliquot_enabled=False,
+        )
+        db.session.add(method)
+        db.session.flush()
+        usage = MethodReagent(
+            method_id=method.id, reagent_id=buffer.id,
+            amount_per_determination=100.0, amount_per_blind=0.0,
+            amount_unit="mL", is_titrant=False,
+        )
+        db.session.add(usage)
+        db.session.add(SampleBatch(
+            analysis_id=analysis.id, semester_id=sem.id,
+            total_samples_prepared=1, titer=1.0, safety_factor=1.0,
+        ))
+        db.session.commit()
+
+        resp = client.get("/reports/reagents/prep-list")
+        assert resp.status_code == 200
+        text = resp.data.decode()
+        # Both composites appear
+        assert "PL Ammoniaklösung R" in text
+        assert "PL Pufferlösung R" in text
+        # Intermediate composite appears BEFORE the top-level composite (topo order)
+        assert text.index("PL Ammoniaklösung R") < text.index("PL Pufferlösung R")
+        # Intermediate composite is in "Vorabherstellungen" section
+        assert "Vorabherstellungen" in text
