@@ -149,3 +149,69 @@ def expand_reagent(
             order_acc, prep_acc, dep_graph, warnings,
             new_visiting, caller_name=reagent.name,
         )
+
+
+def build_expansion(batches) -> dict:
+    """Drive expand_reagent for all MethodReagents across all batches.
+
+    Returns dict with:
+      order_items: list of {name, cas, total, unit, for_reagents} sorted by name
+      prep_items: dict[reagent_id] → {name, unit, total, reagent}
+      sorted_prep_ids: topologically sorted reagent_id list (deps first)
+      block_assignments: dict[reagent_id] → (block_id, block_name) for direct composites
+      warnings: list of str
+    """
+    order_acc: dict = {}
+    prep_acc: dict = {}
+    dep_graph: dict = {}
+    warnings: list = []
+    block_assignments: dict = {}
+
+    for batch in batches:
+        analysis = batch.analysis
+        method = analysis.method
+        if not method:
+            continue
+        block = getattr(analysis, "block", None)
+        block_info = (block.id, f"{block.code} – {block.name}") if block else None
+        k = analysis.k_determinations or 1
+        b = method.b_blind_determinations if method.blind_required else 0
+        n = sum(1 for s in batch.samples if not s.is_buffer)
+        safety = getattr(batch, "safety_factor", 1.2) or 1.2
+
+        for mr in method.reagent_usages:
+            reagent = mr.reagent
+            if not reagent:
+                continue
+            total_amount = (
+                n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
+            )
+            amount, unit, warning = convert_to_base_unit(reagent, total_amount, mr.amount_unit)
+            if warning:
+                warnings.append(warning)
+            if reagent.is_composite and block_info and reagent.id not in block_assignments:
+                block_assignments[reagent.id] = block_info
+            expand_reagent(reagent, amount, unit, order_acc, prep_acc, dep_graph, warnings)
+
+    order_items = sorted(
+        [
+            {
+                "name": v["name"],
+                "cas": v["cas"],
+                "total": v["total"],
+                "unit": v["unit"],
+                "for_reagents": sorted(v["for_composites"]),
+            }
+            for v in order_acc.values()
+        ],
+        key=lambda x: x["name"],
+    )
+    sorted_prep_ids = topological_sort(dep_graph)
+
+    return {
+        "order_items": order_items,
+        "prep_items": prep_acc,
+        "sorted_prep_ids": sorted_prep_ids,
+        "block_assignments": block_assignments,
+        "warnings": warnings,
+    }

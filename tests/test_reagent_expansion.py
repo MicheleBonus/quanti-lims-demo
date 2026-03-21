@@ -234,3 +234,56 @@ class TestExpandReagent:
         order_acc, prep_acc, dep_graph, warnings = {}, {}, {}, []
         expand_reagent(comp, 100.0, "mL", order_acc, prep_acc, dep_graph, warnings)
         assert order_acc == {}  # skipped, no ZeroDivisionError
+
+
+class TestBuildExpansion:
+    def test_build_expansion_with_nested_composite(self):
+        """build_expansion returns order_items (base only) and prep_items (composites)."""
+        from reagent_expansion import build_expansion
+
+        ammonia = make_base_reagent(100, "Ammoniak konz.", base_unit="mL", density=0.91)
+        water = make_base_reagent(101, "Wasser R")
+        nh3_lsg = make_composite(200, "Ammoniaklösung R", [
+            (ammonia, 67.0, "g", 93.0),
+            (water, 26.0, "mL", 93.0),
+        ])
+        buffer = make_composite(201, "Pufferlösung pH 10", [(nh3_lsg, 100.0, "mL", 1000.0)])
+
+        mr = MagicMock()
+        mr.reagent = buffer
+        mr.amount_per_determination = 100.0
+        mr.amount_per_blind = 0.0
+        mr.amount_unit = "mL"
+
+        method = MagicMock()
+        method.blind_required = False
+        method.b_blind_determinations = 0
+        method.reagent_usages = [mr]
+
+        analysis = MagicMock()
+        analysis.k_determinations = 1
+        analysis.method = method
+        analysis.block = None
+
+        sample = MagicMock()
+        sample.is_buffer = False
+        batch = MagicMock()
+        batch.analysis = analysis
+        batch.samples = [sample, sample, sample]  # n=3
+        batch.safety_factor = 1.0
+
+        result = build_expansion([batch])
+
+        # Base reagents in order_items, not intermediate composite
+        order_names = [i["name"] for i in result["order_items"]]
+        assert "Ammoniak konz." in order_names
+        assert "Wasser R" in order_names
+        assert "Ammoniaklösung R" not in order_names
+
+        # Both composites in prep_items
+        assert 200 in result["prep_items"]
+        assert 201 in result["prep_items"]
+
+        # Topo sort: nh3_lsg (200) before buffer (201)
+        prep_ids = result["sorted_prep_ids"]
+        assert prep_ids.index(200) < prep_ids.index(201)
