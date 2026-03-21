@@ -114,6 +114,7 @@
 (() => {
   const MODE_ASSAY = 'assay_mass_based';
   const MODE_STANDARDIZATION = 'titrant_standardization';
+  const MODE_LOSS_ON_DRYING = 'loss_on_drying';
 
   const methodTypeSelect = document.getElementById('method_type');
   const analysisSelect = document.getElementById('analysis_id');
@@ -195,9 +196,23 @@
 
   function syncModeVisibility() {
     const isStd = currentCalcMode === MODE_STANDARDIZATION;
+    const isLOD = currentCalcMode === MODE_LOSS_ON_DRYING;
+
+    // Loss on drying: hide all titration-related UI
+    document.getElementById('assay-volumes-row').style.display = isLOD ? 'none' : '';
+    document.getElementById('aliquot-section').style.display = isLOD ? 'none' : '';
+    titrationSection.style.display = isLOD ? 'none' : '';
+    document.getElementById('calc-preview').style.display = isLOD ? 'none' : '';
+    blindRow.style.display = isLOD ? 'none' : '';
+    meqLegacyCol.style.display = (isStd || isLOD) ? 'none' : '';
+
+    if (isLOD) {
+      // Auto-select gravimetric for loss on drying
+      if (methodTypeSelect.value !== 'gravimetric') methodTypeSelect.value = 'gravimetric';
+      return;
+    }
 
     // Hide irrelevant fields for standardization
-    meqLegacyCol.style.display = isStd ? 'none' : '';
     titrantConcCol.style.display = isStd ? 'none' : '';
     vSolutionCol.style.display = isStd ? 'none' : '';
     vAliquotCol.style.display = isStd ? 'none' : '';
