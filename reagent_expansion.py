@@ -77,3 +77,75 @@ def topological_sort(dep_graph: dict) -> list:
     for node in sorted(dep_graph):
         _dfs(node)
     return result
+
+
+def expand_reagent(
+    reagent,
+    amount: float,
+    unit: str,
+    order_acc: dict,
+    prep_acc: dict,
+    dep_graph: dict,
+    warnings: list,
+    visiting: frozenset | None = None,
+    caller_name: str | None = None,
+) -> None:
+    """Recursively expand reagent into order_acc (base) and prep_acc (composites).
+
+    order_acc key: (reagent_id, unit) → {name, cas, total, unit, for_composites}
+    prep_acc key: reagent_id → {name, unit, total, reagent}
+    dep_graph: {parent_id: {child_id, ...}} — used for topological sort of prep list.
+    visiting: frozenset of reagent_ids on the current path (cycle detection).
+    caller_name: name of the immediate parent composite (for for_composites tracking).
+    """
+    if visiting is None:
+        visiting = frozenset()
+
+    if reagent.id in visiting:
+        raise ValueError(
+            f"Zyklische Abhängigkeit bei Reagenz '{reagent.name}' (id={reagent.id})"
+        )
+
+    if not reagent.is_composite:
+        key = (reagent.id, unit)
+        if key not in order_acc:
+            order_acc[key] = {
+                "name": reagent.name,
+                "cas": reagent.cas_number or "–",
+                "total": 0.0,
+                "unit": unit,
+                "for_composites": set(),
+            }
+        order_acc[key]["total"] += amount
+        if caller_name:
+            order_acc[key]["for_composites"].add(caller_name)
+        return
+
+    # Composite
+    if reagent.id not in prep_acc:
+        prep_acc[reagent.id] = {
+            "name": reagent.name,
+            "unit": unit,
+            "total": 0.0,
+            "reagent": reagent,
+        }
+    prep_acc[reagent.id]["total"] += amount
+    dep_graph.setdefault(reagent.id, set())
+
+    new_visiting = visiting | {reagent.id}
+    for comp in reagent.components:
+        if not comp.child or not comp.per_parent_volume_ml or comp.per_parent_volume_ml <= 0:
+            continue
+        comp_amount = amount / comp.per_parent_volume_ml * comp.quantity
+        comp_amount, comp_unit, warning = convert_to_base_unit(
+            comp.child, comp_amount, comp.quantity_unit
+        )
+        if warning:
+            warnings.append(warning)
+        if comp.child.is_composite:
+            dep_graph[reagent.id].add(comp.child_reagent_id)
+        expand_reagent(
+            comp.child, comp_amount, comp_unit,
+            order_acc, prep_acc, dep_graph, warnings,
+            new_visiting, caller_name=reagent.name,
+        )
