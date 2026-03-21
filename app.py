@@ -92,7 +92,7 @@ def evaluate_weighing_limits(batch: SampleBatch, m_s_actual_g: float | None, m_g
         mw = substance.molar_mass_gmol if substance else None
         analysis = batch.analysis
         reported_mw = analysis.reported_molar_mass_gmol if analysis else None
-        if reported_mw and mw and mw > 0:
+        if reported_mw is not None and mw is not None and mw > 0:
             n = (analysis.reported_stoichiometry or 1.0)
             content_factor = n * reported_mw / mw
         else:
