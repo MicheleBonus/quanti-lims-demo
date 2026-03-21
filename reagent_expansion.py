@@ -50,3 +50,30 @@ def convert_to_base_unit(
         from_unit,
         f"Einheitenkonvertierung nicht möglich: {from_unit}→{target} für '{reagent.name}'",
     )
+
+
+def topological_sort(dep_graph: dict) -> list:
+    """DFS topological sort. dep_graph[parent_id] = {child_id, ...}.
+
+    Returns list with children (dependencies) before parents.
+    Raises ValueError on cycle.
+    """
+    result: list = []
+    visited: set = set()
+    in_stack: set = set()
+
+    def _dfs(node: int) -> None:
+        if node in in_stack:
+            raise ValueError(f"Zyklische Abhängigkeit bei Reagenz id={node}")
+        if node in visited:
+            return
+        in_stack.add(node)
+        for child in sorted(dep_graph.get(node, set())):
+            _dfs(child)
+        in_stack.discard(node)
+        visited.add(node)
+        result.append(node)
+
+    for node in sorted(dep_graph):
+        _dfs(node)
+    return result

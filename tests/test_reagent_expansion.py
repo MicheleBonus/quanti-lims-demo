@@ -75,3 +75,34 @@ class TestConvertToBaseUnit:
         r = make_reagent("pcs")
         amount, unit, warn = convert_to_base_unit(r, 5.0, "mL")
         assert warn is not None
+
+
+class TestTopologicalSort:
+    def test_empty_graph(self):
+        from reagent_expansion import topological_sort
+        assert topological_sort({}) == []
+
+    def test_single_node_no_deps(self):
+        from reagent_expansion import topological_sort
+        result = topological_sort({1: set()})
+        assert result == [1]
+
+    def test_linear_chain(self):
+        from reagent_expansion import topological_sort
+        # A(1) depends on B(2) depends on C(3)
+        result = topological_sort({1: {2}, 2: {3}, 3: set()})
+        assert result.index(3) < result.index(2) < result.index(1)
+
+    def test_diamond_dependency(self):
+        from reagent_expansion import topological_sort
+        # D(4) needed by B(2) and C(3), both needed by A(1)
+        result = topological_sort({1: {2, 3}, 2: {4}, 3: {4}, 4: set()})
+        assert result.count(4) == 1  # appears exactly once
+        assert result.index(4) < result.index(2)
+        assert result.index(4) < result.index(3)
+        assert result.index(2) < result.index(1) or result.index(3) < result.index(1)
+
+    def test_cycle_raises_value_error(self):
+        from reagent_expansion import topological_sort
+        with pytest.raises(ValueError, match="Zyklische"):
+            topological_sort({1: {2}, 2: {1}})
