@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from calculation_modes import (
     MODE_ASSAY_MASS_BASED,
+    MODE_LOSS_ON_DRYING,
     MODE_MASS_DETERMINATION,
     MODE_TITRANT_STANDARDIZATION,
     get_evaluator,
@@ -190,6 +191,7 @@ class Analysis(db.Model):
     m_einwaage_max_mg = db.Column(db.Float, nullable=True)  # Max TA weighing mass (mass_determination mode, mg)
     reported_molar_mass_gmol = db.Column(db.Float, nullable=True)
     reported_stoichiometry = db.Column(db.Float, nullable=True)
+    n_crystal_water = db.Column(db.Integer, nullable=True)  # For loss_on_drying mode
 
     block = db.relationship("Block", back_populates="analyses")
     substance = db.relationship("Substance", back_populates="analyses")
