@@ -244,6 +244,7 @@ class Method(db.Model):
     e_ab_ps_g = db.Column(db.Float)          # Arzneibuch-Einwaage Primärstandard (g) – per method, not per reagent
     c_stock_mol_l = db.Column(db.Float)      # Stammkonzentration (mol/L), z.B. 1.0 für 1M HCl
     v_dilution_ml = db.Column(db.Float)      # Verdünnungsvolumen (mL), z.B. 100.0
+    p_hydrate_min_pct = db.Column(db.Float)   # For loss_on_drying: min. declared hydrate content in mixture (%)
     description = db.Column(db.Text)
     position = db.Column(db.Integer, nullable=False, default=0)
 

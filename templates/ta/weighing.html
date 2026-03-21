@@ -13,7 +13,7 @@
       {% elif is_mass_det %}
       Einwaagebereich: {{ batch.analysis.m_einwaage_min_mg }}–{{ batch.analysis.m_einwaage_max_mg }} mg | Toleranz: ±{{ batch.analysis.g_ab_min_pct }}/{{ batch.analysis.g_ab_max_pct }}% |
       {% elif is_loss_on_drying %}
-      m_S,Richtwert: {{ batch.analysis.e_ab_g }} g | Tol: {{ batch.analysis.g_ab_min_pct }}–{{ batch.analysis.g_ab_max_pct }}% |
+      m_S,Richtwert: {{ batch.analysis.e_ab_g }} g | m_ges,Richtwert: {{ batch.target_m_ges_g }} g | Tol: {{ batch.analysis.g_ab_min_pct }}–{{ batch.analysis.g_ab_max_pct }}% |
       {% else %}
       Ziel: m_S ≥ {{ batch.target_m_s_min_g }} g | m_ges ≥ {{ batch.target_m_ges_g }} g |
       {% endif %}
@@ -447,10 +447,18 @@ document.querySelectorAll('.weighing-input').forEach(input => {
   if (orientText) {
     const eAbG = E_AB_G;
     const k = {{ batch.analysis.k_determinations or 1 }};
+    const mGesTarget = {{ batch.target_m_ges_g | tojson if batch.target_m_ges_g is not none else 'null' }};
+    const pHydrate = {{ (batch.analysis.method.p_hydrate_min_pct) | tojson if batch.analysis.method and batch.analysis.method.p_hydrate_min_pct is not none else 'null' }};
     if (eAbG !== null && eAbG > 0) {
-      orientText.textContent =
-        'Orientierung: m_S,Richtwert = ' + eAbG.toFixed(4).replace('.', ',') + ' g pro Ansatz · ' +
-        'Anzahl Ansätze k = ' + k;
+      const mGesPerDet = mGesTarget !== null ? mGesTarget : eAbG;
+      const totalNeeded = (mGesPerDet * k).toFixed(3).replace('.', ',');
+      let txt = 'Orientierung: m_S,Richtwert = ' + eAbG.toFixed(4).replace('.', ',') + ' g';
+      if (mGesTarget !== null && Math.abs(mGesTarget - eAbG) > 0.0005) {
+        txt += ' · m_ges,Richtwert = ' + mGesTarget.toFixed(4).replace('.', ',') + ' g';
+        if (pHydrate !== null) txt += ' (' + pHydrate + ' % Hydratsubstanz)';
+      }
+      txt += ' · ⚠ Gesamtbedarf: mind. ' + totalNeeded + ' g Substanz für k = ' + k + ' Ansätze';
+      orientText.textContent = txt;
     } else {
       orientText.style.display = 'none';
     }

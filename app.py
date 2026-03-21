@@ -692,6 +692,8 @@ def register_routes(app):
             else:
                 item.m_eq_primary_mg = _float(request.form.get("m_eq_primary_mg"))
             item.e_ab_ps_g = _float(request.form.get("e_ab_ps_g"))
+            if _mode == MODE_LOSS_ON_DRYING:
+                item.p_hydrate_min_pct = _float(request.form.get("p_hydrate_min_pct"))
             if _mode == MODE_TITRANT_STANDARDIZATION:
                 item.c_stock_mol_l = _float(request.form.get("c_stock_mol_l"))
                 item.v_dilution_ml = _float(request.form.get("v_dilution_ml"))
@@ -1279,6 +1281,18 @@ def register_routes(app):
                         item.target_m_ges_g = computed_m_ges
                     if item.target_m_s_min_g is None:
                         item.target_m_s_min_g = computed_m_s
+            elif mode == MODE_LOSS_ON_DRYING and analysis:
+                # For LoD: each determination weighs E_AB of hydrate (m_S,min per row).
+                # m_ges per row = E_AB / (p_hydrate_min_pct / 100) if mixture; else ≈ E_AB.
+                e_ab = analysis.e_ab_g
+                method = analysis.method
+                p_hydrate = (method.p_hydrate_min_pct if method and method.p_hydrate_min_pct else None)
+                if e_ab is not None:
+                    if item.target_m_s_min_g is None:
+                        item.target_m_s_min_g = round(e_ab, 4)
+                    if item.target_m_ges_g is None:
+                        frac = (p_hydrate / 100.0) if (p_hydrate and p_hydrate > 0) else 1.0
+                        item.target_m_ges_g = round(e_ab / frac, 4)
             item.dilution_factor = _float(request.form.get("dilution_factor"))
             item.dilution_solvent = request.form.get("dilution_solvent") or None
             item.dilution_notes = request.form.get("dilution_notes") or None

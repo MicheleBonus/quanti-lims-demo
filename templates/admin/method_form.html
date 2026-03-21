@@ -103,6 +103,13 @@
     <div class="col-md-3">{{ checkbox("blind_required", "Blindversuch zwingend", item.blind_required) }}</div>
     <div class="col-md-3">{{ field("b_blind_determinations", "Anzahl Blindversuche (b)", item.b_blind_determinations or 1, type="number") }}</div>
   </div>
+  <div id="lod-params-section" style="display:none">
+    <hr class="my-3">
+    <h6><i class="bi bi-droplet"></i> Trocknungsverlust-Parameter</h6>
+    <div class="row">
+      <div class="col-md-3">{{ field("p_hydrate_min_pct", "Mindestgehalt Hydratsubstanz (%)", item.p_hydrate_min_pct, type="number", step="0.1", help="Mindestdeklarierter Anteil der Hydratsubstanz im Gemisch (z.B. 95.0). Leer = Reinsubstanz (100 %).") }}</div>
+    </div>
+  </div>
   {{ textarea("description", "Beschreibung / Vorschrift", item.description) }}
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Speichern</button>
   <a href="{{ url_for('admin_methods') }}" class="btn btn-outline-secondary">Abbrechen</a>
@@ -205,6 +212,8 @@
     document.getElementById('calc-preview').style.display = isLOD ? 'none' : '';
     blindRow.style.display = isLOD ? 'none' : '';
     meqLegacyCol.style.display = (isStd || isLOD) ? 'none' : '';
+
+    document.getElementById('lod-params-section').style.display = isLOD ? '' : 'none';
 
     if (isLOD) {
       // Auto-select gravimetric for loss on drying
