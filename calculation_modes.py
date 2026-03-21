@@ -8,6 +8,9 @@ from typing import Protocol
 MODE_ASSAY_MASS_BASED = "assay_mass_based"
 MODE_TITRANT_STANDARDIZATION = "titrant_standardization"
 MODE_MASS_DETERMINATION = "mass_determination"
+MODE_LOSS_ON_DRYING = "loss_on_drying"
+
+MW_WATER = 18.015  # Molar mass of water (g/mol), used for hydrate factor calculation
 
 
 def attempt_type_for(attempt_number: int) -> str:
@@ -376,8 +379,58 @@ class MassDeterminationEvaluator:
         )
 
 
+class LossOnDryingEvaluator:
+    """Evaluator for gravimetric loss-on-drying analyses (Trocknungsverlust).
+
+    The TA weighs m_s grams of a hydrated substance and m_ges grams total
+    (hydrate + inert filler). The student dries the sample and reports the
+    percentage mass lost as ansage_value.
+
+    Trocknungsverlust% = (m_s / m_ges) × p_effective × HYDRATE_FACTOR
+    HYDRATE_FACTOR = n_crystal_water × MW_WATER / substance.molar_mass_gmol
+
+    No V_expected (gravimetric method — no titration).
+    """
+
+    def _hydrate_factor(self, sample) -> float:
+        analysis = sample.batch.analysis
+        substance = analysis.substance
+        n = analysis.n_crystal_water or 0
+        mw = substance.molar_mass_gmol if substance is not None else None
+        if n > 0 and mw and mw > 0:
+            return n * MW_WATER / mw
+        return 0.0
+
+    def _g_wahr(self, sample) -> float | None:
+        if sample.m_s_actual_g is None or sample.m_ges_actual_g is None or sample.m_ges_actual_g <= 0:
+            return None
+        raw = (sample.m_s_actual_g / sample.m_ges_actual_g) * sample.batch.p_effective
+        return raw * self._hydrate_factor(sample)
+
+    def calculate_sample(self, sample) -> SampleCalculation:
+        g_wahr = self._g_wahr(sample)
+        tol_min = sample.batch.analysis.tol_min
+        tol_max = sample.batch.analysis.tol_max
+        a_min = round(g_wahr * tol_min / 100.0, 4) if g_wahr is not None and tol_min is not None else None
+        a_max = round(g_wahr * tol_max / 100.0, 4) if g_wahr is not None and tol_max is not None else None
+        return SampleCalculation(g_wahr=g_wahr, a_min=a_min, a_max=a_max)
+
+    def evaluate_result(self, result) -> EvaluationResult:
+        calc = self.calculate_sample(result.assignment.sample)
+        passed = None
+        if calc.a_min is not None and calc.a_max is not None and result.ansage_value is not None:
+            passed = calc.a_min <= result.ansage_value <= calc.a_max
+        return EvaluationResult(
+            g_wahr=calc.g_wahr,
+            a_min=calc.a_min,
+            a_max=calc.a_max,
+            passed=passed,
+        )
+
+
 def resolve_mode(mode: str | None) -> str:
-    if mode in {MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION, MODE_MASS_DETERMINATION}:
+    if mode in {MODE_ASSAY_MASS_BASED, MODE_TITRANT_STANDARDIZATION,
+                MODE_MASS_DETERMINATION, MODE_LOSS_ON_DRYING}:
         return mode
     return MODE_ASSAY_MASS_BASED
 
@@ -388,4 +441,6 @@ def get_evaluator(mode: str | None) -> ModeEvaluator:
         return TitrantStandardizationEvaluator()
     if resolved == MODE_MASS_DETERMINATION:
         return MassDeterminationEvaluator()
+    if resolved == MODE_LOSS_ON_DRYING:
+        return LossOnDryingEvaluator()
     return MassBasedEvaluator()
