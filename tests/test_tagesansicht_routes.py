@@ -123,3 +123,28 @@ def test_tagesansicht_protocol_missing_column(client, tages_fx, db):
     assert resp.status_code == 200
     body = resp.data.decode("utf-8")
     assert "Protokoll fehlt" in body
+
+
+def test_rotation_mini_ui_state_a_shows_form(client, tages_fx):
+    """When no GroupRotations configured: form with selects is shown."""
+    resp = client.get("/praktikum/?date=2099-11-01")
+    body = resp.data.decode("utf-8")
+    assert "rotation/save" in body          # save form action
+    assert "Rotation speichern" in body     # submit button
+    assert 'name="group_A"' in body         # select for group A
+
+
+def test_rotation_mini_ui_state_b_shows_readonly(client, tages_fx, db):
+    """When GroupRotations are configured: read-only view + edit button shown."""
+    from models import GroupRotation
+    gr = GroupRotation(practical_day_id=tages_fx["day"].id, group_code="A",
+                       analysis_id=tages_fx["a1"].id, is_override=False)
+    db.session.add(gr)
+    db.session.flush()
+
+    resp = client.get("/praktikum/?date=2099-11-01")
+    body = resp.data.decode("utf-8")
+    assert "rotation-readonly" in body       # read-only div present
+    assert "rotation-edit" in body           # edit div pre-rendered (hidden)
+    assert "Bearbeiten" in body              # edit button visible
+    assert "RT.1" in body                    # analysis code shown

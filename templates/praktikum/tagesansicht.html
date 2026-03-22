@@ -71,7 +71,79 @@
     </span>
   </div>
 
-  {# ── GroupRotation mini-UI: added in Task 6 ─── #}
+  {# ── GroupRotation mini-UI (normal days only) ──────────────────────────── #}
+  {% if practical_day.day_type == "normal" %}
+  <div class="card mb-3 border-success-subtle">
+    <div class="card-header d-flex align-items-center gap-2 py-2" style="background:rgba(25,135,84,.08);">
+      <i class="bi bi-arrow-repeat text-success"></i>
+      <span class="fw-semibold text-success">Rotation heute</span>
+      {% if practical_day.group_rotations %}
+      <button type="button" class="btn btn-sm btn-outline-secondary ms-auto"
+              onclick="document.getElementById('rotation-readonly').classList.add('d-none');
+                       document.getElementById('rotation-edit').classList.remove('d-none');">
+        ✎ Bearbeiten
+      </button>
+      {% endif %}
+    </div>
+    <div class="card-body p-3">
+
+      {# ── State B: read-only ─── #}
+      {% if practical_day.group_rotations %}
+      <div id="rotation-readonly">
+        <div class="d-flex gap-3 flex-wrap">
+          {% for gr in practical_day.group_rotations | sort(attribute="group_code") %}
+          <div class="border rounded px-3 py-2 text-center position-relative">
+            <div class="fw-bold fs-5">{{ gr.group_code }}</div>
+            <div class="text-success small">→ {{ gr.analysis.code }}</div>
+            {% if gr.is_override %}
+            <span class="position-absolute top-0 end-0 me-1 mt-1" style="font-size:10px;"
+                  title="Manuell überschrieben">⚙</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── State A: save form / State B: hidden edit form ─── #}
+      <div id="rotation-edit" {% if practical_day.group_rotations %}class="d-none"{% endif %}>
+        <form method="post" action="/praktikum/rotation/save">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="practical_day_id" value="{{ practical_day.id }}">
+          <div class="d-flex gap-3 flex-wrap mb-3">
+            {% set active_groups = ["A","B","C","D"][:semester.active_group_count] %}
+            {% for code in active_groups %}
+            {% set existing_id = None %}
+            {% for gr in practical_day.group_rotations %}
+              {% if gr.group_code == code %}{% set existing_id = gr.analysis_id %}{% endif %}
+            {% endfor %}
+            <div class="border rounded px-3 py-2">
+              <div class="fw-bold text-center mb-1">{{ code }}</div>
+              <select name="group_{{ code }}" class="form-select form-select-sm" style="width:160px;">
+                {% for a in block_analyses %}
+                <option value="{{ a.id }}"
+                  {% set suggested_id = suggested_rotation[code].id if code in suggested_rotation else None %}
+                  {% if existing_id == a.id or (existing_id is none and suggested_id == a.id) %}selected{% endif %}>
+                  {{ a.code }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-success btn-sm">
+            {% if practical_day.group_rotations %}Rotation aktualisieren{% else %}Rotation speichern{% endif %}
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+                  onclick="resetToSuggestions()">
+            ⟳ Rotation automatisch berechnen
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+  {% endif %}{# end normal day rotation section #}
 
   {# ── Legend ─────────────────────────────────────────────────────────────── #}
   <div class="d-flex gap-3 flex-wrap mb-3" style="font-size:12px; color:#888;">
@@ -231,5 +303,13 @@
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
     new bootstrap.Tooltip(el);
   });
+  // GroupRotation reset to suggestions
+  var ROTATION_SUGGESTIONS = {{ suggested_rotation_json | safe }};
+  function resetToSuggestions() {
+    Object.entries(ROTATION_SUGGESTIONS).forEach(([code, analysisId]) => {
+      var sel = document.querySelector('select[name="group_' + code + '"]');
+      if (sel) sel.value = analysisId;
+    });
+  }
 </script>
 {% endblock %}
