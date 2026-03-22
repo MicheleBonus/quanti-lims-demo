@@ -458,6 +458,8 @@ def test_protocol_missing_assigned_status_excluded(db, fx):
 def test_protocol_missing_nachkochtag_block_scoped(db, fx):
     """Nachkochtag: protocol_missing_assignments scoped to current block only."""
     from praktikum import resolve_student_slots
+    from models import Block, Analysis, SampleBatch, Sample, SampleAssignment
+
     # passed assignment in same block → included
     sa1 = SampleAssignment(
         sample_id=fx["samples_b1"][0].id,
@@ -468,6 +470,41 @@ def test_protocol_missing_nachkochtag_block_scoped(db, fx):
     db.session.add(sa1)
     db.session.flush()
 
+    # passed assignment in a DIFFERENT block → excluded from Nachkochtag scope
+    other_block = Block(code="OTHER", name="Other Block")
+    db.session.add(other_block)
+    db.session.flush()
+    other_analysis = Analysis(
+        name="Other Analyse", block_id=other_block.id, code="OT.1", ordinal=1,
+        substance_id=fx["sub"].id, calculation_mode="assay_mass_based",
+    )
+    db.session.add(other_analysis)
+    db.session.flush()
+    other_batch = SampleBatch(
+        semester_id=fx["sem"].id, analysis_id=other_analysis.id,
+        total_samples_prepared=4,
+    )
+    db.session.add(other_batch)
+    db.session.flush()
+    other_sample = Sample(
+        batch_id=other_batch.id, running_number=1, is_buffer=False,
+        m_s_actual_g=0.1, m_ges_actual_g=0.5,
+    )
+    db.session.add(other_sample)
+    db.session.flush()
+    sa2 = SampleAssignment(
+        sample_id=other_sample.id,
+        student_id=fx["students"][0].id,
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date="2099-10-06", status="passed",
+    )
+    db.session.add(sa2)
+    db.session.flush()
+
     slots = resolve_student_slots(fx["nach_day"], fx["sem"])
     slot_a = next(s for s in slots if s.student.group_code == "A")
+    # same-block assignment included
     assert len(slot_a.protocol_missing_assignments) == 1
+    assert slot_a.protocol_missing_assignments[0].id == sa1.id
+    # cross-block assignment excluded
+    assert sa2.id not in [s.id for s in slot_a.protocol_missing_assignments]
