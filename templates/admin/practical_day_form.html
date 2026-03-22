@@ -41,6 +41,34 @@
     <textarea name="notes" id="notes" class="form-control" rows="2">{{ day.notes or "" }}</textarea>
   </div>
 
+  {# GroupRotation section — hidden for Nachkochtag #}
+  <div class="mb-3" id="rotation_section">
+    <label class="form-label fw-semibold">Rotation (Gruppen → Analysen)</label>
+    <div class="d-flex gap-3 flex-wrap mb-2" id="rotation_rows">
+      {% set active_groups = ["A","B","C","D"][:semester.active_group_count if semester else 4] %}
+      {% for code in active_groups %}
+      {% set existing_rot = None %}
+      {% if day %}{% for gr in day.group_rotations %}{% if gr.group_code == code %}{% set existing_rot = gr %}{% endif %}{% endfor %}{% endif %}
+      <div class="border rounded p-2">
+        <div class="fw-bold text-center mb-1">{{ code }}</div>
+        <select name="rotation_group_{{ code }}" class="form-select form-select-sm rotation-select"
+                data-group="{{ code }}" style="width:180px;">
+          <option value="">– keine –</option>
+          {% for a in (day.block.analyses | sort(attribute='ordinal') if day else []) %}
+          <option value="{{ a.id }}"
+            {% if existing_rot and existing_rot.analysis_id == a.id %}selected{% endif %}>
+            {{ a.code }} – {{ a.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="adminAutoFill()">
+      ⟳ Auto-ausfüllen
+    </button>
+  </div>
+
   <button type="submit" class="btn btn-primary">Speichern</button>
   <a href="{{ url_for('admin_practical_days') }}" class="btn btn-outline-secondary">Abbrechen</a>
 </form>
@@ -53,6 +81,26 @@
   // Init
   if (document.getElementById('day_type_select').value === 'nachkochtag') {
     document.getElementById('block_day_number_field').style.display = 'none';
+  }
+
+  // Hide/show rotation section for Nachkochtag
+  function updateRotationVisibility() {
+    var isNach = document.getElementById('day_type_select').value === 'nachkochtag';
+    document.getElementById('rotation_section').style.display = isNach ? 'none' : '';
+  }
+  document.getElementById('day_type_select').addEventListener('change', updateRotationVisibility);
+  updateRotationVisibility();
+
+  // Auto-fill rotation using cyclic algorithm
+  var ALL_ANALYSES = {{ all_analyses_json | safe }};
+  var ADMIN_SUGGESTIONS = {{ suggested_rotation_json | safe }};
+  function adminAutoFill() {
+    document.querySelectorAll('.rotation-select').forEach(function(sel) {
+      var code = sel.dataset.group;
+      if (ADMIN_SUGGESTIONS[code]) {
+        sel.value = ADMIN_SUGGESTIONS[code];
+      }
+    });
   }
 </script>
 {% endblock %}

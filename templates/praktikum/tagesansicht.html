@@ -1,190 +1,315 @@
 {% extends "base.html" %}
 {% block title %}Tagesansicht – Quanti-LIMS{% endblock %}
+
+{# ── Date format macro ─────────────────────────────────────────────────── #}
+{% macro fmt_date(iso) %}{% set _p = iso.split('-') %}{{ _p[2] }}.{{ _p[1] }}.{{ _p[0] }}{% endmacro %}
+
 {% block content %}
 
-{# ── Header ────────────────────────────────────────────────────── #}
-<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+{# ── Timeline ribbon ────────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center gap-2 flex-wrap px-2 py-2 mb-0 border-bottom bg-body-tertiary"
+     style="position:sticky;top:0;z-index:100;">
+  {% set ns = namespace(current_block_id=None) %}
+  {% for day in all_days %}
+    {% if day.block_id != ns.current_block_id %}
+      {% if ns.current_block_id is not none %}
+        <div class="vr mx-1" style="height:20px;"></div>
+      {% endif %}
+      <span class="badge text-bg-secondary" style="font-size:10px;">Block {{ day.block.code }}</span>
+      {% set ns.current_block_id = day.block_id %}
+    {% endif %}
+    {% set chip_class = "btn btn-sm py-0 px-2 " %}
+    {% if day.date == selected_date %}
+      {% set chip_class = chip_class ~ "btn-success fw-bold" %}
+    {% elif day.date < today_str %}
+      {% set chip_class = chip_class ~ "btn-outline-secondary text-body-tertiary" %}
+    {% else %}
+      {% set chip_class = chip_class ~ "btn-outline-success" %}
+    {% endif %}
+    {% set chip_label = fmt_date(day.date) ~ " T" ~ day.block_day_number if day.day_type == "normal" else fmt_date(day.date) ~ " N" %}
+    <a href="{{ url_for('praktikum_tagesansicht', date=day.date) }}"
+       class="{{ chip_class }}" style="font-size:12px;">{{ chip_label }}</a>
+  {% endfor %}
+</div>
+
+{# ── Header (date picker) ────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap mt-3">
   <div class="d-flex align-items-center gap-2">
     <i class="bi bi-calendar-day fs-3 text-success"></i>
     <h1 class="h3 mb-0">Tagesansicht</h1>
   </div>
   <form method="get" class="d-flex align-items-center gap-2 ms-auto" id="tagesansicht-date-form">
     <label class="form-label mb-0 fw-semibold">Datum:</label>
-    {# Hidden ISO input is submitted; Flatpickr display input is for UI only #}
-    <input type="hidden" name="date" id="date-iso" value="{{ selected_date }}">
-    {% set _p = selected_date.split('-') %}
+    <input type="hidden" name="date" id="date-iso">
     <input type="text" class="form-control form-control-sm flatpickr-date-nav" id="date-display"
-           value="{{ _p[2] }}.{{ _p[1] }}.{{ _p[0] }}" style="width:130px">
+           value="{{ fmt_date(selected_date) }}" style="width:130px">
   </form>
 </div>
 
-{# ── No semester / no practical day ────────────────────────────── #}
+{# ── No semester ──────────────────────────────────────────────────────────── #}
 {% if not semester %}
 <div class="alert alert-warning">
   <i class="bi bi-exclamation-triangle"></i>
   Kein aktives Semester gefunden. Bitte zuerst ein Semester aktivieren.
 </div>
 
+{# ── No practical day ─────────────────────────────────────────────────────── #}
 {% elif not practical_day %}
 <div class="alert alert-info">
   <i class="bi bi-info-circle"></i>
-  Für den <strong>{{ selected_date }}</strong> ist kein Praktikumstag definiert.
+  Für den <strong>{{ fmt_date(selected_date) }}</strong> ist kein Praktikumstag definiert.
+  Wähle einen Tag in der Leiste oben aus.
 </div>
 
 {% else %}
-
-{# ── Day info ───────────────────────────────────────────────────── #}
-<div class="mb-3">
-  <span class="badge text-bg-secondary fs-6">
-    Block {{ practical_day.block.code }}
-    {% if practical_day.day_type == "nachkochtag" %}
-      – Nachkochtag
-    {% else %}
-      – Tag {{ practical_day.block_day_number }}
-    {% endif %}
-  </span>
-</div>
-
-{# ── Rotation overview (normal days only) ──────────────────────── #}
-{% if practical_day.day_type == "normal" and practical_day.group_rotations %}
-<div class="card mb-4">
-  <div class="card-header fw-semibold">
-    <i class="bi bi-arrow-repeat"></i> Rotation heute
+  {# ── Day header badge ─── #}
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge text-bg-secondary fs-6">
+      Block {{ practical_day.block.code }}
+      {% if practical_day.day_type == "nachkochtag" %} – Nachkochtag
+      {% else %} – Tag {{ practical_day.block_day_number }}{% endif %}
+    </span>
   </div>
-  <div class="card-body p-2">
-    <div class="d-flex flex-wrap gap-3">
-      {% for gr in practical_day.group_rotations | sort(attribute="group_code") %}
-      <div class="border rounded px-3 py-2 text-center">
-        <div class="fw-bold fs-5">Gruppe {{ gr.group_code }}</div>
-        <div class="text-body-secondary small">{{ gr.analysis.name }}</div>
+
+  {# ── GroupRotation mini-UI (normal days only) ──────────────────────────── #}
+  {% if practical_day.day_type == "normal" %}
+  <div class="card mb-3 border-success-subtle">
+    <div class="card-header d-flex align-items-center gap-2 py-2" style="background:rgba(25,135,84,.08);">
+      <i class="bi bi-arrow-repeat text-success"></i>
+      <span class="fw-semibold text-success">Rotation heute</span>
+      {% if practical_day.group_rotations %}
+      <button type="button" class="btn btn-sm btn-outline-secondary ms-auto"
+              onclick="document.getElementById('rotation-readonly').classList.add('d-none');
+                       document.getElementById('rotation-edit').classList.remove('d-none');">
+        ✎ Bearbeiten
+      </button>
+      {% endif %}
+    </div>
+    <div class="card-body p-3">
+
+      {# ── State B: read-only ─── #}
+      {% if practical_day.group_rotations %}
+      <div id="rotation-readonly">
+        <div class="d-flex gap-3 flex-wrap">
+          {% for gr in practical_day.group_rotations | sort(attribute="group_code") %}
+          <div class="border rounded px-3 py-2 text-center position-relative">
+            <div class="fw-bold fs-5">{{ gr.group_code }}</div>
+            <div class="text-success small">→ {{ gr.analysis.code }}</div>
+            {% if gr.is_override %}
+            <span class="position-absolute top-0 end-0 me-1 mt-1" style="font-size:10px;"
+                  title="Manuell überschrieben">⚙</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
       </div>
-      {% endfor %}
+      {% endif %}
+
+      {# ── State A: save form / State B: hidden edit form ─── #}
+      <div id="rotation-edit" {% if practical_day.group_rotations %}class="d-none"{% endif %}>
+        <form method="post" action="{{ url_for('praktikum_rotation_save') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="practical_day_id" value="{{ practical_day.id }}">
+          <div class="d-flex gap-3 flex-wrap mb-3">
+            {% set active_groups = ["A","B","C","D"][:semester.active_group_count] %}
+            {% for code in active_groups %}
+            {% set existing_id = None %}
+            {% for gr in practical_day.group_rotations %}
+              {% if gr.group_code == code %}{% set existing_id = gr.analysis_id %}{% endif %}
+            {% endfor %}
+            <div class="border rounded px-3 py-2">
+              <div class="fw-bold text-center mb-1">{{ code }}</div>
+              <select name="group_{{ code }}" class="form-select form-select-sm" style="width:160px;">
+                {% for a in block_analyses %}
+                <option value="{{ a.id }}"
+                  {% set suggested_id = suggested_rotation[code].id if code in suggested_rotation else None %}
+                  {% if existing_id == a.id or (existing_id is none and suggested_id == a.id) %}selected{% endif %}>
+                  {{ a.code }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-success btn-sm">
+            {% if practical_day.group_rotations %}Rotation aktualisieren{% else %}Rotation speichern{% endif %}
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+                  onclick="resetToSuggestions()">
+            ⟳ Rotation automatisch berechnen
+          </button>
+        </form>
+      </div>
+
     </div>
   </div>
-</div>
-{% endif %}
+  {% endif %}{# end normal day rotation section #}
 
-{# ── Student table ──────────────────────────────────────────────── #}
-{% if not slots %}
-<div class="alert alert-info">Keine Studierenden im aktiven Semester.</div>
-{% else %}
-<table class="table table-hover align-middle">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Name</th>
-      <th>Gruppe</th>
-      {% if practical_day.day_type == "normal" %}
-      <th>Rotation</th>
+  {# ── Legend ─────────────────────────────────────────────────────────────── #}
+  <div class="d-flex gap-3 flex-wrap mb-3" style="font-size:12px; color:#888;">
+    <span><span class="badge text-bg-primary me-1"> </span>Offen</span>
+    <span><span class="badge text-bg-danger me-1"> </span>Wiederholung fällig</span>
+    <span><span class="badge me-1" style="background:#c07000"> </span>Protokoll fehlt</span>
+    <span><span class="badge text-bg-success me-1"> </span>Bestanden ✓</span>
+  </div>
+
+  {# ── Student table ────────────────────────────────────────────────────────── #}
+  {% if not slots %}
+  <div class="alert alert-info">Keine Studierenden im aktiven Semester.</div>
+  {% else %}
+
+  {# ── Chip helper macro ─── #}
+  {% macro analysis_chip(sa, analysis, is_today=false) %}
+    {% if sa is none %}
+      {# rotation_assignment not yet created — warning chip #}
+      <span class="badge text-bg-warning" style="width:62px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">
+        {{ analysis.code }}?
+      </span>
+    {% else %}
+      {% set abbr = "E" if sa.attempt_type == "Erstanalyse" else sa.attempt_type %}
+      {% set label = analysis.code ~ "·" ~ abbr %}
+      {% if sa.status == "passed" and sa.protocol_check is none %}
+        {% set chip_style = "background:#8a5010;border-color:#c07000;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type ~ " – bestanden, Protokoll fehlt" %}
+      {% elif sa.status == "passed" %}
+        {% set chip_style = "background:#0a2a1a;border-color:#1a6a3a;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type ~ " – bestanden ✓" %}
+        {% set label = label ~ " ✓" %}
+      {% elif sa.active_result is not none and sa.active_result.passed == false %}
+        {% set chip_style = "background:#3a0a0a;border-color:#8a1a1a;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type ~ " – Wiederholung fällig" %}
+      {% else %}
+        {% set chip_style = "background:#0d2a5a;border-color:#1a4a9a;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type %}
       {% endif %}
-      <th>Weitere offene Analysen</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for slot in slots %}
-    {# Nachkochtag: grey out students with no open assignments #}
-    {% set row_class = "table-secondary text-body-secondary" if (practical_day.day_type == "nachkochtag" and not slot.extra_assignments) else "" %}
-    <tr class="{{ row_class }}">
-      <td>{{ slot.student.running_number }}</td>
-      <td>{{ slot.student.last_name }}, {{ slot.student.first_name }}</td>
-      <td>
-        {% if slot.student.group_code %}
-          <span class="badge text-bg-secondary">{{ slot.student.group_code }}</span>
-        {% else %}
-          <span class="text-body-secondary">—</span>
-        {% endif %}
-      </td>
+      {% set border_width = "2.5px" if is_today else "1.5px" %}
+      <a href="{{ url_for('results_submit', assignment_id=sa.id) }}"
+         data-bs-toggle="tooltip" title="{{ tooltip }}"
+         style="display:inline-flex;align-items:center;justify-content:center;
+                width:62px;height:28px;border-radius:6px;font-weight:700;
+                font-size:11px;text-decoration:none;color:#eee;
+                border:{{ border_width }} solid;{{ chip_style }}">
+        {{ label }}
+      </a>
+    {% endif %}
+  {% endmacro %}
 
-      {# ── Rotation column (normal days) ── #}
-      {% if practical_day.day_type == "normal" %}
-      <td>
-        {% if slot.rotation_analysis is none %}
-          <span class="badge text-bg-secondary">Keine Rotation</span>
-        {% elif slot.rotation_assignment is none %}
-          <span class="badge text-bg-secondary">Noch nicht zugewiesen</span>
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th style="width:36px;">#</th>
+        <th>Name</th>
+        <th style="width:48px;">Gr.</th>
+        {% if practical_day.day_type == "normal" %}
+        <th style="width:90px;">Heute</th>
+        <th>Überfällig</th>
         {% else %}
-          {% set sa = slot.rotation_assignment %}
-          {% set ar = sa.active_result %}
-          {% if sa.status == "passed" %}
-            <span class="badge text-bg-success">
-              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} ✓
-            </span>
-          {% elif ar is not none and ar.passed == false %}
-            {# TODO: spec requires attempt_number == 1 check here (retry-of-retry case) #}
-            <span class="badge text-bg-danger">
-              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} Wdh. fällig
-            </span>
-          {% elif ar is not none and ar.passed is none %}
-            <span class="badge text-bg-warning text-dark">
-              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }} ausstehend
-            </span>
+        <th>Offene Analysen</th>
+        {% endif %}
+        <th>Protokoll fehlt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for slot in slots %}
+      {% set row_dim = "table-secondary text-body-secondary" if practical_day.day_type == "nachkochtag" and not slot.extra_assignments and not slot.protocol_missing_assignments else "" %}
+      <tr class="{{ row_dim }}">
+        <td>{{ slot.student.running_number }}</td>
+        <td>{{ slot.student.last_name }}, {{ slot.student.first_name }}</td>
+        <td>
+          {% if slot.student.group_code %}
+            <span class="badge text-bg-secondary">{{ slot.student.group_code }}</span>
           {% else %}
-            <span class="badge text-bg-primary">
-              {{ slot.rotation_analysis.name }} · {{ sa.attempt_type }}
-            </span>
-          {% endif %}
-        {% endif %}
-      </td>
-      {% endif %}
-
-      {# ── Extra assignments ── #}
-      <td>
-        {% if practical_day.day_type == "nachkochtag" and not slot.extra_assignments %}
-          <span class="badge text-bg-success">Block abgeschlossen</span>
-        {% else %}
-          {% for sa in slot.extra_assignments %}
-            {% set ar = sa.active_result %}
-            {% if sa.status == "passed" %}
-              <span class="badge text-bg-success me-1">
-                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} ✓
-              </span>
-            {% elif ar is not none and ar.passed == false %}
-              {# TODO: spec requires attempt_number == 1 check here (retry-of-retry case) #}
-              <span class="badge text-bg-danger me-1">
-                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} Wdh. fällig
-              </span>
-            {% elif ar is not none and ar.passed is none %}
-              <span class="badge text-bg-warning text-dark me-1">
-                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }} ausstehend
-              </span>
-            {% else %}
-              <span class="badge text-bg-primary me-1">
-                {{ sa.sample.batch.analysis.name }} · {{ sa.attempt_type }}
-              </span>
-            {% endif %}
-          {% endfor %}
-          {% if not slot.extra_assignments %}
             <span class="text-body-secondary">—</span>
           {% endif %}
+        </td>
+
+        {% if practical_day.day_type == "normal" %}
+        {# Heute (rotation) #}
+        <td>
+          {% if slot.rotation_analysis is none %}
+            <span class="text-body-secondary">—</span>
+          {% else %}
+            {{ analysis_chip(slot.rotation_assignment, slot.rotation_analysis, is_today=true) }}
+          {% endif %}
+        </td>
+        {# Überfällig #}
+        <td>
+          <div class="d-flex gap-1 flex-wrap">
+            {% for sa in slot.extra_assignments %}
+              {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+            {% else %}
+              <span class="text-body-secondary">—</span>
+            {% endfor %}
+          </div>
+        </td>
+        {% else %}
+        {# Nachkochtag: single "Offene Analysen" column #}
+        <td>
+          {% if not slot.extra_assignments %}
+            <span class="badge text-bg-success">Block abgeschlossen ✓</span>
+          {% else %}
+            <div class="d-flex gap-1 flex-wrap">
+              {% for sa in slot.extra_assignments %}
+                {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </td>
         {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+
+        {# Protokoll fehlt #}
+        <td>
+          <div class="d-flex gap-1 flex-wrap">
+            {% for sa in slot.protocol_missing_assignments %}
+              {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+            {% else %}
+              <span class="text-body-secondary">—</span>
+            {% endfor %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}{# end slots check #}
 {% endif %}
 
-{% endif %}{# end practical_day check #}
 {% endblock %}
 
 {% block scripts %}
 <script>
-  // Tagesansicht navigation date picker:
-  // Flatpickr shows DD.MM.YYYY; on change, update hidden ISO input and submit.
+  function _isoFromDate(d) {
+    return d.getFullYear() + '-'
+      + String(d.getMonth() + 1).padStart(2, '0') + '-'
+      + String(d.getDate()).padStart(2, '0');
+  }
   flatpickr('#date-display', {
     locale: 'de',
     dateFormat: 'd.m.Y',
     allowInput: true,
+    onReady: function(selectedDates) {
+      if (selectedDates.length === 1) {
+        document.getElementById('date-iso').value = _isoFromDate(selectedDates[0]);
+      }
+    },
     onChange: function(selectedDates, dateStr, instance) {
       if (selectedDates.length === 1) {
-        const d = selectedDates[0];
-        const iso = d.getFullYear() + '-'
-          + String(d.getMonth() + 1).padStart(2, '0') + '-'
-          + String(d.getDate()).padStart(2, '0');
-        document.getElementById('date-iso').value = iso;
+        document.getElementById('date-iso').value = _isoFromDate(selectedDates[0]);
         document.getElementById('tagesansicht-date-form').submit();
       }
     },
   });
+  // Bootstrap tooltips
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+    new bootstrap.Tooltip(el);
+  });
+  // GroupRotation reset to suggestions
+  var ROTATION_SUGGESTIONS = {{ suggested_rotation_json | safe }};
+  function resetToSuggestions() {
+    Object.entries(ROTATION_SUGGESTIONS).forEach(([code, analysisId]) => {
+      var sel = document.querySelector('select[name="group_' + code + '"]');
+      if (sel) sel.value = analysisId;
+    });
+  }
 </script>
 {% endblock %}

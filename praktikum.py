@@ -8,12 +8,61 @@ from models import (
 )
 
 
+GROUP_CODES = ["A", "B", "C", "D"]
+# Constrained by GROUP_CODE_ENUM in models.py — max 4 groups.
+
+
+def suggest_rotation(block, block_day_number, active_group_count: int) -> dict:
+    """Return {group_code: Analysis} cyclic suggestion for a normal practical day.
+
+    Group at position i → analysis at index (i + block_day_number - 1) % len(analyses).
+    Returns {} when block has no analyses or block_day_number is None (Nachkochtag).
+    """
+    analyses = sorted(block.analyses, key=lambda a: a.ordinal)
+    if not analyses or block_day_number is None:
+        return {}
+    groups = GROUP_CODES[:active_group_count]
+    return {
+        group: analyses[(i + block_day_number - 1) % len(analyses)]
+        for i, group in enumerate(groups)
+    }
+
+
+def _load_protocol_missing(semester_id: int, block_id: int | None = None) -> dict:
+    """Return {student_id: [SampleAssignment]} for passed assignments missing a ProtocolCheck.
+
+    block_id: if given, restrict to analyses in that block (used for Nachkochtag).
+    Uses selectinload to avoid N+1 on protocol_check.
+    """
+    from sqlalchemy.orm import selectinload
+    q = (
+        SampleAssignment.query
+        .options(selectinload(SampleAssignment.protocol_check))
+        .join(Sample)
+        .join(SampleBatch)
+        .filter(
+            SampleBatch.semester_id == semester_id,
+            SampleAssignment.status == "passed",
+        )
+    )
+    if block_id is not None:
+        q = q.join(Analysis, SampleBatch.analysis_id == Analysis.id).filter(
+            Analysis.block_id == block_id
+        )
+    result: dict[int, list] = {}
+    for sa in q.all():
+        if sa.protocol_check is None:
+            result.setdefault(sa.student_id, []).append(sa)
+    return result
+
+
 @dataclass
 class StudentSlot:
     student: Student
     rotation_analysis: Analysis | None
     rotation_assignment: SampleAssignment | None
     extra_assignments: list[SampleAssignment] = field(default_factory=list)
+    protocol_missing_assignments: list[SampleAssignment] = field(default_factory=list)
 
 
 def resolve_student_slots(practical_day, semester) -> list[StudentSlot]:
@@ -65,6 +114,9 @@ def _resolve_normal_day(practical_day, semester, students) -> list[StudentSlot]:
         ).all():
             samples_by_key[(s.batch_id, s.running_number)] = s
 
+    # Protocol-missing (full semester scope for normal days)
+    protocol_missing = _load_protocol_missing(semester.id)
+
     # Step 4: Build one slot per student
     slots: list[StudentSlot] = []
     for student in students:
@@ -95,6 +147,7 @@ def _resolve_normal_day(practical_day, semester, students) -> list[StudentSlot]:
             rotation_analysis=rotation_analysis,
             rotation_assignment=rotation_assignment,
             extra_assignments=extra,
+            protocol_missing_assignments=protocol_missing.get(student.id, []),
         ))
 
     return slots
@@ -120,6 +173,8 @@ def _resolve_nachkochtag(practical_day, semester, students) -> list[StudentSlot]
     for sa in open_assignments:
         by_student.setdefault(sa.student_id, []).append(sa)
 
+    protocol_missing = _load_protocol_missing(semester.id, block_id=block_id)
+
     # All students appear; empty extra_assignments = block completed
     return [
         StudentSlot(
@@ -127,6 +182,7 @@ def _resolve_nachkochtag(practical_day, semester, students) -> list[StudentSlot]
             rotation_analysis=None,
             rotation_assignment=None,
             extra_assignments=by_student.get(student.id, []),
+            protocol_missing_assignments=protocol_missing.get(student.id, []),
         )
         for student in students
     ]
