@@ -49,7 +49,7 @@
         {"day_id": {{ day.id }}, "block_day_number": {{ day.block_day_number }}}{% if not loop.last %},{% endif %}
         {% endfor %}
       ],
-      "analyses": [{{ entry.block.analyses | map(attribute='id') | join(', ') }}]
+      "analyses": {{ entry.block.analyses | map(attribute='id') | list | tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   };

@@ -500,7 +500,7 @@ def register_routes(app):
             if block.id not in block_map:
                 block_map[block.id] = {"block": block, "days": []}
             block_map[block.id]["days"].append(day)
-        # Sort blocks by id (natural insertion order)
+        # Sort blocks by id (Block has no ordinal field; assumes insertion order = display order)
         blocks = sorted(block_map.values(), key=lambda b: b["block"].id)
 
         # Build rotations dict: {day_id: {group_code: GroupRotation|None}}
@@ -542,11 +542,13 @@ def register_routes(app):
             ).all()
         }
 
-        # 3. Collect valid analysis IDs
-        valid_analyses = {a.id for a in Analysis.query.all()}
+        # 3. Collect valid analysis IDs (scoped to blocks that appear in this semester)
+        block_ids = {d.block_id for d in valid_days.values()}
+        valid_analyses = {a.id for a in Analysis.query.filter(Analysis.block_id.in_(block_ids)).all()}
         active_groups = GROUP_CODES[:semester.active_group_count]
 
         skipped = []
+        _suggest_cache: dict = {}  # day_id → {group_code: Analysis}
         # 4. Parse rotation[day_id][group] fields
         for key, value in request.form.items():
             if not key.startswith("rotation["):
@@ -583,9 +585,12 @@ def register_routes(app):
                 skipped.append(str(analysis_id))
                 continue
 
-            # Determine is_override
-            suggested_map = suggest_rotation(day.block, day.block_day_number,
-                                             semester.active_group_count)
+            # Determine is_override (cache suggest_rotation per day)
+            if day_id not in _suggest_cache:
+                _suggest_cache[day_id] = suggest_rotation(
+                    day.block, day.block_day_number, semester.active_group_count
+                )
+            suggested_map = _suggest_cache[day_id]
             suggested = suggested_map.get(group)
             is_override = (suggested is None) or (analysis_id != suggested.id)
 
@@ -605,7 +610,9 @@ def register_routes(app):
 
         if skipped:
             flash(f"Einige ungültige Analysen wurden übersprungen: {', '.join(skipped)}", "warning")
-        flash("Rotationen gespeichert.", "success")
+            flash("Rotationen gespeichert (mit Warnungen).", "success")
+        else:
+            flash("Rotationen gespeichert.", "success")
         return redirect(url_for("vorbereitung_rotation", semester_id=semester_id))
 
     @app.route("/praktikum/")

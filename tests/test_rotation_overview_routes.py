@@ -273,3 +273,20 @@ def test_post_rotation_save_skips_invalid_analysis_id(client, rot_fx):
     assert GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first() is None
     # Valid cell saved
     assert GroupRotation.query.filter_by(practical_day_id=d2.id, group_code="A").first() is not None
+
+
+def test_get_rotation_overview_no_active_semester_redirects(client, db):
+    """GET without ?semester_id= and no active semester → redirect to dashboard."""
+    # Ensure no active semester exists for this test
+    semesters = Semester.query.filter_by(is_active=True).all()
+    for s in semesters:
+        s.is_active = False
+    db.session.commit()
+    try:
+        resp = client.get("/vorbereitung/rotation", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/dashboard" in resp.headers["Location"] or resp.status_code == 302
+    finally:
+        for s in semesters:
+            s.is_active = True
+        db.session.commit()
