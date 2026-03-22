@@ -444,20 +444,49 @@ def register_routes(app):
     @app.route("/praktikum/")
     def praktikum_tagesansicht():
         from datetime import date as _date
-        from praktikum import resolve_student_slots
-        date_str = request.args.get("date") or _date.today().isoformat()
+        from praktikum import resolve_student_slots, suggest_rotation, GROUP_CODES
+        import json
+
+        today_str = _date.today().isoformat()
+        date_str = request.args.get("date") or today_str
         semester = Semester.query.filter_by(is_active=True).first()
+
+        all_days = (
+            PracticalDay.query
+            .filter_by(semester_id=semester.id)
+            .order_by(PracticalDay.date)
+            .all()
+        ) if semester else []
+
         practical_day = (
             PracticalDay.query.filter_by(semester_id=semester.id, date=date_str).first()
             if semester else None
         )
         slots = resolve_student_slots(practical_day, semester) if practical_day else []
+
+        block_analyses = []
+        suggested_rotation = {}
+        suggested_rotation_json = "{}"
+        if practical_day and practical_day.day_type == "normal":
+            block_analyses = sorted(practical_day.block.analyses, key=lambda a: a.ordinal)
+            suggested_rotation = suggest_rotation(
+                practical_day.block, practical_day.block_day_number, semester.active_group_count
+            )
+            suggested_rotation_json = json.dumps(
+                {code: a.id for code, a in suggested_rotation.items()}
+            )
+
         return render_template(
             "praktikum/tagesansicht.html",
             practical_day=practical_day,
             semester=semester,
             slots=slots,
             selected_date=date_str,
+            today_str=today_str,
+            all_days=all_days,
+            block_analyses=block_analyses,
+            suggested_rotation=suggested_rotation,
+            suggested_rotation_json=suggested_rotation_json,
         )
 
     # ═══════════════════════════════════════════════════════════════
