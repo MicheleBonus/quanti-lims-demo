@@ -62,13 +62,144 @@
 </div>
 
 {% else %}
-  {# ... rest of content — day info, rotation mini-UI, table — added in Tasks 5 & 6 #}
-  <div class="badge text-bg-secondary fs-6 mb-3">
-    Block {{ practical_day.block.code }}
-    {% if practical_day.day_type == "nachkochtag" %} – Nachkochtag
-    {% else %} – Tag {{ practical_day.block_day_number }}{% endif %}
+  {# ── Day header badge ─── #}
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="badge text-bg-secondary fs-6">
+      Block {{ practical_day.block.code }}
+      {% if practical_day.day_type == "nachkochtag" %} – Nachkochtag
+      {% else %} – Tag {{ practical_day.block_day_number }}{% endif %}
+    </span>
   </div>
-  {# PLACEHOLDER: rotation mini-UI and table added in Tasks 5 & 6 #}
+
+  {# ── GroupRotation mini-UI: added in Task 6 ─── #}
+
+  {# ── Legend ─────────────────────────────────────────────────────────────── #}
+  <div class="d-flex gap-3 flex-wrap mb-3" style="font-size:12px; color:#888;">
+    <span><span class="badge text-bg-primary me-1"> </span>Offen</span>
+    <span><span class="badge text-bg-danger me-1"> </span>Wiederholung fällig</span>
+    <span><span class="badge me-1" style="background:#c07000"> </span>Protokoll fehlt</span>
+    <span><span class="badge text-bg-success me-1"> </span>Bestanden ✓</span>
+  </div>
+
+  {# ── Student table ────────────────────────────────────────────────────────── #}
+  {% if not slots %}
+  <div class="alert alert-info">Keine Studierenden im aktiven Semester.</div>
+  {% else %}
+
+  {# ── Chip helper macro ─── #}
+  {% macro analysis_chip(sa, analysis, is_today=false) %}
+    {% if sa is none %}
+      {# rotation_assignment not yet created — warning chip #}
+      <span class="badge text-bg-warning" style="width:62px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">
+        {{ analysis.code }}?
+      </span>
+    {% else %}
+      {% set abbr = "E" if sa.attempt_type == "Erstanalyse" else sa.attempt_type %}
+      {% set label = analysis.code ~ "·" ~ abbr %}
+      {% if sa.status == "passed" and sa.protocol_check is none %}
+        {% set chip_style = "background:#8a5010;border-color:#c07000;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type ~ " – bestanden, Protokoll fehlt" %}
+      {% elif sa.status == "passed" %}
+        {% set chip_style = "background:#0a2a1a;border-color:#1a6a3a;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type ~ " – bestanden ✓" %}
+        {% set label = label ~ " ✓" %}
+      {% elif sa.active_result is not none and sa.active_result.passed == false %}
+        {% set chip_style = "background:#3a0a0a;border-color:#8a1a1a;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type ~ " – Wiederholung fällig" %}
+      {% else %}
+        {% set chip_style = "background:#0d2a5a;border-color:#1a4a9a;" %}
+        {% set tooltip = analysis.code ~ " – " ~ sa.attempt_type %}
+      {% endif %}
+      {% set border_width = "2.5px" if is_today else "1.5px" %}
+      <a href="{{ url_for('results_submit', assignment_id=sa.id) }}"
+         data-bs-toggle="tooltip" title="{{ tooltip }}"
+         style="display:inline-flex;align-items:center;justify-content:center;
+                width:62px;height:28px;border-radius:6px;font-weight:700;
+                font-size:11px;text-decoration:none;color:#eee;
+                border:{{ border_width }} solid;{{ chip_style }}">
+        {{ label }}
+      </a>
+    {% endif %}
+  {% endmacro %}
+
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th style="width:36px;">#</th>
+        <th>Name</th>
+        <th style="width:48px;">Gr.</th>
+        {% if practical_day.day_type == "normal" %}
+        <th style="width:90px;">Heute</th>
+        <th>Überfällig</th>
+        {% else %}
+        <th>Offene Analysen</th>
+        {% endif %}
+        <th>Protokoll fehlt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for slot in slots %}
+      {% set row_dim = "table-secondary text-body-secondary" if practical_day.day_type == "nachkochtag" and not slot.extra_assignments and not slot.protocol_missing_assignments else "" %}
+      <tr class="{{ row_dim }}">
+        <td>{{ slot.student.running_number }}</td>
+        <td>{{ slot.student.last_name }}, {{ slot.student.first_name }}</td>
+        <td>
+          {% if slot.student.group_code %}
+            <span class="badge text-bg-secondary">{{ slot.student.group_code }}</span>
+          {% else %}
+            <span class="text-body-secondary">—</span>
+          {% endif %}
+        </td>
+
+        {% if practical_day.day_type == "normal" %}
+        {# Heute (rotation) #}
+        <td>
+          {% if slot.rotation_analysis is none %}
+            <span class="text-body-secondary">—</span>
+          {% else %}
+            {{ analysis_chip(slot.rotation_assignment, slot.rotation_analysis, is_today=true) }}
+          {% endif %}
+        </td>
+        {# Überfällig #}
+        <td>
+          <div class="d-flex gap-1 flex-wrap">
+            {% for sa in slot.extra_assignments %}
+              {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+            {% else %}
+              <span class="text-body-secondary">—</span>
+            {% endfor %}
+          </div>
+        </td>
+        {% else %}
+        {# Nachkochtag: single "Offene Analysen" column #}
+        <td>
+          {% if not slot.extra_assignments %}
+            <span class="badge text-bg-success">Block abgeschlossen ✓</span>
+          {% else %}
+            <div class="d-flex gap-1 flex-wrap">
+              {% for sa in slot.extra_assignments %}
+                {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </td>
+        {% endif %}
+
+        {# Protokoll fehlt #}
+        <td>
+          <div class="d-flex gap-1 flex-wrap">
+            {% for sa in slot.protocol_missing_assignments %}
+              {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+            {% else %}
+              <span class="text-body-secondary">—</span>
+            {% endfor %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}{# end slots check #}
 {% endif %}
 
 {% endblock %}
@@ -95,6 +226,10 @@
         document.getElementById('tagesansicht-date-form').submit();
       }
     },
+  });
+  // Bootstrap tooltips
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+    new bootstrap.Tooltip(el);
   });
 </script>
 {% endblock %}
