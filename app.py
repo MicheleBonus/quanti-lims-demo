@@ -522,6 +522,92 @@ def register_routes(app):
             active_semester=semester,
         )
 
+    @app.route("/vorbereitung/rotation/save", methods=["POST"])
+    def vorbereitung_rotation_save():
+        from praktikum import suggest_rotation, GROUP_CODES
+        from models import Semester, PracticalDay, Analysis, GroupRotation
+
+        # 1. Validate semester
+        try:
+            semester_id = int(request.form["semester_id"])
+        except (KeyError, ValueError):
+            abort(400)
+        semester = db.get_or_404(Semester, semester_id)
+
+        # 2. Collect valid normal day IDs for this semester
+        valid_days = {
+            d.id: d
+            for d in PracticalDay.query.filter_by(
+                semester_id=semester.id, day_type="normal"
+            ).all()
+        }
+
+        # 3. Collect valid analysis IDs
+        valid_analyses = {a.id for a in Analysis.query.all()}
+        active_groups = GROUP_CODES[:semester.active_group_count]
+
+        skipped = []
+        # 4. Parse rotation[day_id][group] fields
+        for key, value in request.form.items():
+            if not key.startswith("rotation["):
+                continue
+            # Parse key: rotation[<day_id>][<group>]
+            try:
+                inner = key[len("rotation["):]  # e.g. "12][A]"
+                day_id_str, rest = inner.split("][", 1)
+                group = rest.rstrip("]")
+                day_id = int(day_id_str)
+            except (ValueError, IndexError):
+                abort(400)
+
+            if day_id not in valid_days:
+                abort(400)
+            if group not in active_groups:
+                continue
+
+            day = valid_days[day_id]
+
+            if not value:
+                # Blank → delete if exists
+                GroupRotation.query.filter_by(
+                    practical_day_id=day_id, group_code=group
+                ).delete()
+                continue
+
+            try:
+                analysis_id = int(value)
+            except ValueError:
+                abort(400)
+
+            if analysis_id not in valid_analyses:
+                skipped.append(value)
+                continue
+
+            # Determine is_override
+            suggested_map = suggest_rotation(day.block, day.block_day_number,
+                                             semester.active_group_count)
+            suggested = suggested_map.get(group)
+            is_override = (suggested is None) or (analysis_id != suggested.id)
+
+            # Upsert
+            gr = GroupRotation.query.filter_by(
+                practical_day_id=day_id, group_code=group
+            ).first()
+            if gr is None:
+                gr = GroupRotation(practical_day_id=day_id, group_code=group,
+                                   analysis_id=analysis_id, is_override=is_override)
+                db.session.add(gr)
+            else:
+                gr.analysis_id = analysis_id
+                gr.is_override = is_override
+
+        db.session.commit()
+
+        if skipped:
+            flash(f"Einige ungültige Analysen wurden übersprungen: {', '.join(skipped)}", "warning")
+        flash("Rotationen gespeichert.", "success")
+        return redirect(url_for("vorbereitung_rotation", semester_id=semester_id))
+
     @app.route("/praktikum/")
     def praktikum_tagesansicht():
         from datetime import date as _date

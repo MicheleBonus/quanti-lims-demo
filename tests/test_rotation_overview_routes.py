@@ -107,3 +107,170 @@ def test_get_rotation_overview_semester_param(client, rot_fx):
     assert resp.status_code == 200
     # sem2 has no days, so empty-state message should appear
     assert "Praktikumskalender".encode() in resp.data
+
+
+# ---------------------------------------------------------------------------
+# POST tests
+# ---------------------------------------------------------------------------
+
+def test_post_rotation_save_creates_group_rotations(client, rot_fx):
+    """POST valid data creates GroupRotation rows and redirects."""
+    d1 = rot_fx["day1"]
+    a1 = rot_fx["a1"]
+    sem = rot_fx["sem"]
+    resp = client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": a1.id,
+    }, follow_redirects=False)
+    assert resp.status_code == 302
+    gr = GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first()
+    assert gr is not None
+    assert gr.analysis_id == a1.id
+
+
+def test_post_rotation_save_upserts_existing(client, rot_fx, db):
+    """POST over an existing GroupRotation updates it, no duplicate rows."""
+    d1 = rot_fx["day1"]
+    a1 = rot_fx["a1"]
+    a2 = rot_fx["a2"]
+    sem = rot_fx["sem"]
+    # Pre-create
+    existing = GroupRotation(practical_day_id=d1.id, group_code="A",
+                             analysis_id=a1.id, is_override=False)
+    db.session.add(existing)
+    db.session.commit()
+    # Overwrite with a2
+    client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": a2.id,
+    })
+    rows = GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").all()
+    assert len(rows) == 1
+    assert rows[0].analysis_id == a2.id
+
+
+def test_post_rotation_save_sets_override_flag(client, rot_fx):
+    """Submitted value differs from suggest_rotation() → is_override = True."""
+    d1 = rot_fx["day1"]
+    a2 = rot_fx["a2"]  # day1 block_day_number=1, group A → suggest = a1 (ordinal 1); submit a2
+    sem = rot_fx["sem"]
+    client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": a2.id,
+    })
+    gr = GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first()
+    assert gr.is_override is True
+
+
+def test_post_rotation_save_clears_override_flag(client, rot_fx):
+    """Submitted value matches suggest_rotation() → is_override = False."""
+    d1 = rot_fx["day1"]
+    a1 = rot_fx["a1"]  # day1 block_day_number=1, group A → suggest = a1; submit a1
+    sem = rot_fx["sem"]
+    client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": a1.id,
+    })
+    gr = GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first()
+    assert gr.is_override is False
+
+
+def test_post_rotation_save_blank_deletes_rotation(client, rot_fx, db):
+    """Blank analysis_id for a cell with an existing row → row deleted."""
+    d1 = rot_fx["day1"]
+    a1 = rot_fx["a1"]
+    sem = rot_fx["sem"]
+    existing = GroupRotation(practical_day_id=d1.id, group_code="A",
+                             analysis_id=a1.id, is_override=False)
+    db.session.add(existing)
+    db.session.commit()
+    client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": "",
+    })
+    gr = GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first()
+    assert gr is None
+
+
+def test_post_rotation_save_blank_noop(client, rot_fx):
+    """Blank analysis_id for a cell with no existing row → no error, no row created."""
+    d1 = rot_fx["day1"]
+    sem = rot_fx["sem"]
+    resp = client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": "",
+    })
+    assert resp.status_code == 302
+    gr = GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first()
+    assert gr is None
+
+
+def test_post_rotation_save_no_analyses_on_block(client, rot_fx, db):
+    """Block with no analyses: suggest_rotation() returns {}, all submitted values set is_override=True."""
+    a1 = rot_fx["a1"]
+    sem = rot_fx["sem"]
+    # Create a block with no analyses so suggest_rotation() returns {}
+    block2 = Block(code="EMPTY_BLK", name="Empty Block")
+    db.session.add(block2)
+    db.session.flush()
+    day_empty = PracticalDay(semester_id=sem.id, block_id=block2.id,
+                             date="2099-11-10", day_type="normal", block_day_number=1)
+    db.session.add(day_empty)
+    db.session.commit()
+
+    # Block has no analyses → suggest_rotation() returns {} → is_override=True for any submission
+    client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{day_empty.id}][A]": a1.id,
+    })
+    gr = GroupRotation.query.filter_by(practical_day_id=day_empty.id, group_code="A").first()
+    assert gr is not None
+    assert gr.is_override is True
+
+    # Cleanup
+    db.session.rollback()
+    GroupRotation.query.filter_by(practical_day_id=day_empty.id).delete()
+    PracticalDay.query.filter_by(id=day_empty.id).delete()
+    Block.query.filter_by(code="EMPTY_BLK").delete()
+    db.session.commit()
+
+
+def test_post_rotation_save_ignores_nachkochtag(client, rot_fx):
+    """POST with a Nachkochtag day_id → 400."""
+    nk = rot_fx["nk"]
+    a1 = rot_fx["a1"]
+    sem = rot_fx["sem"]
+    resp = client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{nk.id}][A]": a1.id,
+    })
+    assert resp.status_code == 400
+
+
+def test_post_rotation_save_rejects_invalid_day_id(client, rot_fx):
+    """POST with a day_id not in the semester → 400."""
+    sem = rot_fx["sem"]
+    a1 = rot_fx["a1"]
+    resp = client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        "rotation[99999][A]": a1.id,
+    })
+    assert resp.status_code == 400
+
+
+def test_post_rotation_save_skips_invalid_analysis_id(client, rot_fx):
+    """Unknown analysis_id → cell skipped, other cells still saved."""
+    d1 = rot_fx["day1"]
+    d2 = rot_fx["day2"]
+    a1 = rot_fx["a1"]
+    sem = rot_fx["sem"]
+    resp = client.post("/vorbereitung/rotation/save", data={
+        "semester_id": sem.id,
+        f"rotation[{d1.id}][A]": 99999,   # invalid
+        f"rotation[{d2.id}][A]": a1.id,   # valid
+    }, follow_redirects=False)
+    assert resp.status_code == 302
+    # Invalid cell skipped
+    assert GroupRotation.query.filter_by(practical_day_id=d1.id, group_code="A").first() is None
+    # Valid cell saved
+    assert GroupRotation.query.filter_by(practical_day_id=d2.id, group_code="A").first() is not None
