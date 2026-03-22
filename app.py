@@ -471,6 +471,57 @@ def register_routes(app):
     def vorbereitung_stammdaten():
         return redirect(url_for("admin_substances"))
 
+    @app.route("/vorbereitung/rotation")
+    def vorbereitung_rotation():
+        from collections import OrderedDict
+        from models import Semester, Block, PracticalDay, Analysis, GroupRotation
+
+        # Determine target semester
+        semester_id = request.args.get("semester_id", type=int)
+        if semester_id:
+            semester = db.get_or_404(Semester, semester_id)
+        else:
+            semester = Semester.query.filter_by(is_active=True).first()
+            if semester is None:
+                flash("Kein aktives Semester gefunden.", "warning")
+                return redirect(url_for("home"))
+
+        # Load normal practical days grouped by block (blocks ordered by ordinal)
+        days = (
+            PracticalDay.query
+            .filter_by(semester_id=semester.id, day_type="normal")
+            .order_by(PracticalDay.date)
+            .all()
+        )
+        # Group by block, preserving Block.ordinal order
+        block_map = OrderedDict()
+        for day in days:
+            block = day.block
+            if block.id not in block_map:
+                block_map[block.id] = {"block": block, "days": []}
+            block_map[block.id]["days"].append(day)
+        # Sort blocks by id (natural insertion order)
+        blocks = sorted(block_map.values(), key=lambda b: b["block"].id)
+
+        # Build rotations dict: {day_id: {group_code: GroupRotation|None}}
+        rotations = {}
+        for entry in blocks:
+            for day in entry["days"]:
+                gr_map = {gr.group_code: gr for gr in day.group_rotations}
+                rotations[day.id] = gr_map
+
+        analyses = Analysis.query.order_by(Analysis.ordinal).all()
+        semesters = Semester.query.order_by(Semester.id.desc()).all()
+
+        return render_template(
+            "admin/rotation_overview.html",
+            blocks=blocks,
+            rotations=rotations,
+            analyses=analyses,
+            semesters=semesters,
+            active_semester=semester,
+        )
+
     @app.route("/praktikum/")
     def praktikum_tagesansicht():
         from datetime import date as _date

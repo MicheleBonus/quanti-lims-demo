@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Rotationszuweisung{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+
+  {# Page header #}
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <h1 class="h4 mb-0">Rotationszuweisung</h1>
+    {% if semesters|length > 1 %}
+    <form method="get" action="{{ url_for('vorbereitung_rotation') }}" class="d-flex align-items-center gap-2">
+      <select name="semester_id" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+        {% for sem in semesters %}
+        <option value="{{ sem.id }}" {% if sem.id == active_semester.id %}selected{% endif %}>
+          {{ sem.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </form>
+    {% else %}
+    <span class="text-muted small">{{ active_semester.name }}</span>
+    {% endif %}
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  {% if not blocks %}
+  <div class="alert alert-info">
+    Noch keine Praktikumstage angelegt. Bitte zuerst den
+    <a href="{{ url_for('admin_practical_days') }}">Praktikumskalender</a> konfigurieren.
+  </div>
+  {% else %}
+
+  {# BLOCK_DATA for JS auto-fill #}
+  <script>
+  const BLOCK_DATA = {
+    {% for entry in blocks %}
+    "{{ entry.block.id }}": {
+      "active_group_count": {{ active_semester.active_group_count }},
+      "days": [
+        {% for day in entry.days %}
+        {"day_id": {{ day.id }}, "block_day_number": {{ day.block_day_number }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ],
+      "analyses": [{{ entry.block.analyses | map(attribute='id') | join(', ') }}]
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+  const GROUP_CODES = ["A","B","C","D"];
+  </script>
+
+  <form method="post" action="/vorbereitung/rotation/save">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="semester_id" value="{{ active_semester.id }}">
+
+    {% for entry in blocks %}
+    {% set block = entry.block %}
+    {% set block_days = entry.days %}
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>{{ block.name }}</strong>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                onclick="autoFill('{{ block.id }}')">
+          Auto-fill {{ block.name }}
+        </button>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-bordered table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Tag</th>
+              {% for g in ["A","B","C","D"] %}
+              {% if loop.index <= active_semester.active_group_count %}
+              <th>Gruppe {{ g }}</th>
+              {% endif %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in block_days %}
+            <tr>
+              <td class="text-nowrap">
+                <div>Tag {{ day.block_day_number }}</div>
+                <div class="text-muted small">{{ day.date[8:10] }}.{{ day.date[5:7] }}.</div>
+              </td>
+              {% for g in ["A","B","C","D"] %}
+              {% if loop.index <= active_semester.active_group_count %}
+              {% set gr = rotations[day.id].get(g) %}
+              <td>
+                <div class="position-relative">
+                  {% if gr and gr.is_override %}
+                  <span class="position-absolute top-0 end-0 mt-1 me-1"
+                        style="width:8px;height:8px;border-radius:50%;background:#fd7e14;display:inline-block;"
+                        title="Manuell überschrieben"></span>
+                  {% endif %}
+                  <select name="rotation[{{ day.id }}][{{ g }}]"
+                          class="form-select form-select-sm"
+                          id="sel-{{ day.id }}-{{ g }}">
+                    <option value="">—</option>
+                    {% for a in analyses %}
+                    <option value="{{ a.id }}"
+                      {% if gr and gr.analysis_id == a.id %}selected{% endif %}>
+                      {{ a.code }} — {{ a.name }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              {% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="d-flex justify-content-end mb-4">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+  </form>
+
+  <script>
+  function autoFill(blockId) {
+    const data = BLOCK_DATA[blockId];
+    if (!data) return;
+    const groups = GROUP_CODES.slice(0, data.active_group_count);
+    data.days.forEach(function(day) {
+      groups.forEach(function(g, i) {
+        const sel = document.getElementById("sel-" + day.day_id + "-" + g);
+        if (!sel || data.analyses.length === 0) return;
+        const idx = (i + day.block_day_number - 1) % data.analyses.length;
+        sel.value = data.analyses[idx];
+      });
+    });
+  }
+  </script>
+
+  {% endif %}
+</div>
+{% endblock %}
