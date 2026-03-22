@@ -1,6 +1,12 @@
 import os
 import secrets
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
