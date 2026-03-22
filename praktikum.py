@@ -8,6 +8,26 @@ from models import (
 )
 
 
+GROUP_CODES = ["A", "B", "C", "D"]
+# Constrained by GROUP_CODE_ENUM in models.py — max 4 groups.
+
+
+def suggest_rotation(block, block_day_number, active_group_count: int) -> dict:
+    """Return {group_code: Analysis} cyclic suggestion for a normal practical day.
+
+    Group at position i → analysis at index (i + block_day_number - 1) % len(analyses).
+    Returns {} when block has no analyses or block_day_number is None (Nachkochtag).
+    """
+    analyses = sorted(block.analyses, key=lambda a: a.ordinal)
+    if not analyses or block_day_number is None:
+        return {}
+    groups = GROUP_CODES[:active_group_count]
+    return {
+        group: analyses[(i + block_day_number - 1) % len(analyses)]
+        for i, group in enumerate(groups)
+    }
+
+
 @dataclass
 class StudentSlot:
     student: Student

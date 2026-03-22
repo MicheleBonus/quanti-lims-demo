@@ -354,3 +354,42 @@ def test_nachkochtag_multiple_open_assignments(db, fx):
     slots = resolve_student_slots(fx["nach_day"], fx["sem"])
     slot = next(s for s in slots if s.student.id == fx["students"][0].id)
     assert len(slot.extra_assignments) == 2
+
+
+# ─── suggest_rotation tests ──────────────────────────────────────────────────
+
+def test_suggest_rotation_day1(db, fx):
+    """Day 1: group A → first analysis, B → second."""
+    from praktikum import suggest_rotation
+    result = suggest_rotation(fx["block"], block_day_number=1, active_group_count=2)
+    assert result["A"].id == fx["a1"].id
+    assert result["B"].id == fx["a2"].id
+
+def test_suggest_rotation_day2_wraps(db, fx):
+    """Day 2: shifts by one, wraps around."""
+    from praktikum import suggest_rotation
+    result = suggest_rotation(fx["block"], block_day_number=2, active_group_count=2)
+    assert result["A"].id == fx["a2"].id
+    assert result["B"].id == fx["a1"].id
+
+def test_suggest_rotation_more_groups_than_analyses(db, fx):
+    """4 groups, 2 analyses — wraps modulo len(analyses)."""
+    from praktikum import suggest_rotation
+    result = suggest_rotation(fx["block"], block_day_number=1, active_group_count=4)
+    assert len(result) == 4
+    assert result["A"].id == fx["a1"].id
+    assert result["C"].id == fx["a1"].id  # wraps back
+
+def test_suggest_rotation_empty_block(db, fx):
+    """Block with no analyses → empty dict."""
+    from praktikum import suggest_rotation
+    from models import Block
+    empty_block = Block(code="EMPTY", name="Empty")
+    db.session.add(empty_block)
+    db.session.flush()
+    assert suggest_rotation(empty_block, block_day_number=1, active_group_count=2) == {}
+
+def test_suggest_rotation_null_day_number(db, fx):
+    """Nachkochtag has block_day_number=None → empty dict."""
+    from praktikum import suggest_rotation
+    assert suggest_rotation(fx["block"], block_day_number=None, active_group_count=2) == {}
