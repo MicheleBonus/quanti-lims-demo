@@ -228,7 +228,6 @@ def test_post_rotation_save_no_analyses_on_block(client, rot_fx, db):
     assert gr.is_override is True
 
     # Cleanup
-    db.session.rollback()
     GroupRotation.query.filter_by(practical_day_id=day_empty.id).delete()
     PracticalDay.query.filter_by(id=day_empty.id).delete()
     Block.query.filter_by(code="EMPTY_BLK").delete()

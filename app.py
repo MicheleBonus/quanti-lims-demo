@@ -580,7 +580,7 @@ def register_routes(app):
                 abort(400)
 
             if analysis_id not in valid_analyses:
-                skipped.append(value)
+                skipped.append(str(analysis_id))
                 continue
 
             # Determine is_override
