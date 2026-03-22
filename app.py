@@ -23,7 +23,7 @@ from models import (
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
     AMOUNT_UNIT_VOLUME, GROUP_CODES,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
-    PracticalDay, GroupRotation, DutyAssignment, Colloquium,
+    PracticalDay, GroupRotation, DutyAssignment, Colloquium, ProtocolCheck,
 )
 from calculation_modes import (
     MODE_ASSAY_MASS_BASED, MODE_LOSS_ON_DRYING, MODE_MASS_DETERMINATION,
@@ -562,6 +562,28 @@ def register_routes(app):
             db.session.rollback()
             flash("Fehler beim Speichern der Rotation.", "danger")
         return redirect(url_for("praktikum_tagesansicht", date=day.date))
+
+    @app.route("/praktikum/protocol-check/save", methods=["POST"])
+    def praktikum_protocol_check_save():
+        from datetime import date as _date
+        try:
+            assignment_id = int(request.form["assignment_id"])
+        except (KeyError, ValueError):
+            abort(400)
+        sa = db.get_or_404(SampleAssignment, assignment_id)
+        if sa.status != "passed":
+            flash("Protokoll kann nur für abgeschlossene Analysen markiert werden.", "danger")
+        elif sa.protocol_check is None:
+            pc = ProtocolCheck(
+                sample_assignment_id=assignment_id,
+                checked_date=_date.today().isoformat(),
+                checked_by="TA",
+            )
+            db.session.add(pc)
+            db.session.commit()
+            flash("Protokoll als geprüft markiert.", "success")
+        date_str = request.form.get("date", _date.today().isoformat())
+        return redirect(url_for("praktikum_tagesansicht", date=date_str))
 
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Substances
