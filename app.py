@@ -489,6 +489,40 @@ def register_routes(app):
             suggested_rotation_json=suggested_rotation_json,
         )
 
+    @app.route("/praktikum/rotation/save", methods=["POST"])
+    def praktikum_rotation_save():
+        from praktikum import suggest_rotation, GROUP_CODES
+        from sqlalchemy.exc import IntegrityError
+        practical_day_id = int(request.form["practical_day_id"])
+        day = db.get_or_404(PracticalDay, practical_day_id)
+        semester = day.semester
+        suggested = suggest_rotation(day.block, day.block_day_number, semester.active_group_count)
+        groups = GROUP_CODES[:semester.active_group_count]
+        for code in groups:
+            raw = request.form.get(f"group_{code}")
+            if not raw:
+                flash(f"Fehlender Wert für Gruppe {code}.", "danger")
+                return redirect(url_for("praktikum_tagesansicht", date=day.date))
+            analysis_id = int(raw)
+            analysis = db.get_or_404(Analysis, analysis_id)
+            if analysis.block_id != day.block_id:
+                flash("Ungültige Analyse für diesen Block.", "danger")
+                return redirect(url_for("praktikum_tagesansicht", date=day.date))
+            suggested_analysis = suggested.get(code)
+            is_override = (suggested_analysis is None) or (analysis_id != suggested_analysis.id)
+            GroupRotation.query.filter_by(practical_day_id=day.id, group_code=code).delete()
+            db.session.add(GroupRotation(
+                practical_day_id=day.id, group_code=code,
+                analysis_id=analysis_id, is_override=is_override,
+            ))
+        try:
+            db.session.commit()
+            flash("Rotation gespeichert.", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Fehler beim Speichern der Rotation.", "danger")
+        return redirect(url_for("praktikum_tagesansicht", date=day.date))
+
     # ═══════════════════════════════════════════════════════════════
     # ADMIN: Substances
     # ═══════════════════════════════════════════════════════════════

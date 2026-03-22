@@ -33,7 +33,21 @@ def tages_fx(db):
     db.session.add(day)
     db.session.flush()
 
-    return {"sem": sem, "block": block, "a1": a1, "a2": a2, "day": day}
+    yield {"sem": sem, "block": block, "a1": a1, "a2": a2, "day": day}
+
+    # Teardown: delete any committed data so the next test's fixture setup
+    # doesn't hit UNIQUE constraint errors (routes may commit via follow_redirects).
+    db.session.rollback()
+    for model, filters in [
+        (GroupRotation, {"practical_day_id": day.id}),
+        (PracticalDay, {"semester_id": sem.id}),
+        (Analysis, {"block_id": block.id}),
+        (Block, {"code": "RT"}),
+        (Semester, {"code": "WS_TAGES"}),
+        (Substance, {"name": "TagesSubstanz"}),
+    ]:
+        db.session.query(model).filter_by(**filters).delete()
+    db.session.commit()
 
 
 def test_tagesansicht_passes_all_days(client, tages_fx):
@@ -148,3 +162,62 @@ def test_rotation_mini_ui_state_b_shows_readonly(client, tages_fx, db):
     assert "rotation-edit" in body           # edit div pre-rendered (hidden)
     assert "Bearbeiten" in body              # edit button visible
     assert "RT.1" in body                    # analysis code shown
+
+
+def test_rotation_save_creates_group_rotations(client, tages_fx, db):
+    """POST to rotation/save creates GroupRotation records."""
+    from models import GroupRotation
+    day = tages_fx["day"]
+    a1 = tages_fx["a1"]
+    a2 = tages_fx["a2"]
+
+    resp = client.post("/praktikum/rotation/save", data={
+        "practical_day_id": day.id,
+        "group_A": a1.id,
+        "group_B": a2.id,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    grs = GroupRotation.query.filter_by(practical_day_id=day.id).all()
+    assert len(grs) == 2
+    codes = {gr.group_code for gr in grs}
+    assert codes == {"A", "B"}
+
+
+def test_rotation_save_sets_is_override(client, tages_fx, db):
+    """is_override=True when submitted analysis differs from cyclic suggestion."""
+    from models import GroupRotation
+    day = tages_fx["day"]
+    a1 = tages_fx["a1"]
+    a2 = tages_fx["a2"]
+    # Day 1 suggestion: A→a1, B→a2. Submit A→a2 (override), B→a2 (matches suggestion)
+    client.post("/praktikum/rotation/save", data={
+        "practical_day_id": day.id,
+        "group_A": a2.id,   # differs from suggestion (a1)
+        "group_B": a2.id,   # matches suggestion
+    }, follow_redirects=True)
+    gr_a = GroupRotation.query.filter_by(practical_day_id=day.id, group_code="A").first()
+    gr_b = GroupRotation.query.filter_by(practical_day_id=day.id, group_code="B").first()
+    assert gr_a.is_override is True
+    assert gr_b.is_override is False
+
+
+def test_rotation_save_rejects_wrong_block_analysis(client, tages_fx, db):
+    """Analysis from a different block is rejected with flash error."""
+    from models import Block, Analysis, Substance, GroupRotation
+    other_sub = Substance(name="OtherSub99", formula="Z", molar_mass_gmol=1.0)
+    db.session.add(other_sub)
+    other_block = Block(code="OTHER99", name="Other Block")
+    db.session.add(other_block)
+    db.session.flush()
+    other_a = Analysis(name="Other Analysis", block_id=other_block.id, code="OT.1",
+                       ordinal=1, substance_id=other_sub.id, calculation_mode="assay_mass_based")
+    db.session.add(other_a)
+    db.session.flush()
+
+    resp = client.post("/praktikum/rotation/save", data={
+        "practical_day_id": tages_fx["day"].id,
+        "group_A": other_a.id,
+        "group_B": tages_fx["a2"].id,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert GroupRotation.query.filter_by(practical_day_id=tages_fx["day"].id).count() == 0

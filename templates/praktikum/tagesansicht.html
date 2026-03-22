@@ -107,7 +107,7 @@
 
       {# ── State A: save form / State B: hidden edit form ─── #}
       <div id="rotation-edit" {% if practical_day.group_rotations %}class="d-none"{% endif %}>
-        <form method="post" action="/praktikum/rotation/save">
+        <form method="post" action="{{ url_for('praktikum_rotation_save') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="practical_day_id" value="{{ practical_day.id }}">
           <div class="d-flex gap-3 flex-wrap mb-3">
