@@ -449,7 +449,7 @@ def register_routes(app):
 
         today_str = _date.today().isoformat()
         date_str = request.args.get("date") or today_str
-        semester = Semester.query.filter_by(is_active=True).first()
+        semester = Semester.query.filter_by(is_active=True).order_by(Semester.id.desc()).first()
 
         all_days = (
             PracticalDay.query
