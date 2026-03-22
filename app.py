@@ -484,7 +484,7 @@ def register_routes(app):
             semester = Semester.query.filter_by(is_active=True).first()
             if semester is None:
                 flash("Kein aktives Semester gefunden.", "warning")
-                return redirect(url_for("home"))
+                return redirect(url_for("dashboard"))
 
         # Load normal practical days grouped by block (blocks ordered by ordinal)
         days = (
