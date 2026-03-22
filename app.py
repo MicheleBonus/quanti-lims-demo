@@ -493,7 +493,7 @@ def register_routes(app):
             .order_by(PracticalDay.date)
             .all()
         )
-        # Group by block, preserving Block.ordinal order
+        # Group by block; sorted by block.id (natural insertion order)
         block_map = OrderedDict()
         for day in days:
             block = day.block
