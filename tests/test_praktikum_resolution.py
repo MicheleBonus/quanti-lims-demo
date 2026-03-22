@@ -393,3 +393,81 @@ def test_suggest_rotation_null_day_number(db, fx):
     """Nachkochtag has block_day_number=None → empty dict."""
     from praktikum import suggest_rotation
     assert suggest_rotation(fx["block"], block_day_number=None, active_group_count=2) == {}
+
+
+# ─── protocol_missing_assignments tests ──────────────────────────────────────
+
+def test_protocol_missing_passed_no_check(db, fx):
+    """Passed assignment without ProtocolCheck → in protocol_missing_assignments."""
+    from praktikum import resolve_student_slots
+    from models import ProtocolCheck
+    sa = SampleAssignment(
+        sample_id=fx["samples_b1"][0].id,
+        student_id=fx["students"][0].id,  # group A, running_number=1
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date="2099-10-06", status="passed",
+    )
+    db.session.add(sa)
+    db.session.flush()
+
+    slots = resolve_student_slots(fx["normal_day"], fx["sem"])
+    slot_a = next(s for s in slots if s.student.group_code == "A")
+    assert len(slot_a.protocol_missing_assignments) == 1
+    assert slot_a.protocol_missing_assignments[0].id == sa.id
+
+
+def test_protocol_missing_passed_with_check(db, fx):
+    """Passed assignment WITH ProtocolCheck → NOT in protocol_missing_assignments."""
+    from praktikum import resolve_student_slots
+    from models import ProtocolCheck
+    sa = SampleAssignment(
+        sample_id=fx["samples_b1"][0].id,
+        student_id=fx["students"][0].id,
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date="2099-10-06", status="passed",
+    )
+    db.session.add(sa)
+    db.session.flush()
+    pc = ProtocolCheck(sample_assignment_id=sa.id,
+                       checked_date="2099-10-07", checked_by="TA")
+    db.session.add(pc)
+    db.session.flush()
+
+    slots = resolve_student_slots(fx["normal_day"], fx["sem"])
+    slot_a = next(s for s in slots if s.student.group_code == "A")
+    assert slot_a.protocol_missing_assignments == []
+
+
+def test_protocol_missing_assigned_status_excluded(db, fx):
+    """Open (assigned) assignment → NOT in protocol_missing_assignments."""
+    from praktikum import resolve_student_slots
+    sa = SampleAssignment(
+        sample_id=fx["samples_b1"][0].id,
+        student_id=fx["students"][0].id,
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date="2099-10-06", status="assigned",
+    )
+    db.session.add(sa)
+    db.session.flush()
+
+    slots = resolve_student_slots(fx["normal_day"], fx["sem"])
+    slot_a = next(s for s in slots if s.student.group_code == "A")
+    assert slot_a.protocol_missing_assignments == []
+
+
+def test_protocol_missing_nachkochtag_block_scoped(db, fx):
+    """Nachkochtag: protocol_missing_assignments scoped to current block only."""
+    from praktikum import resolve_student_slots
+    # passed assignment in same block → included
+    sa1 = SampleAssignment(
+        sample_id=fx["samples_b1"][0].id,
+        student_id=fx["students"][0].id,
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date="2099-10-06", status="passed",
+    )
+    db.session.add(sa1)
+    db.session.flush()
+
+    slots = resolve_student_slots(fx["nach_day"], fx["sem"])
+    slot_a = next(s for s in slots if s.student.group_code == "A")
+    assert len(slot_a.protocol_missing_assignments) == 1
