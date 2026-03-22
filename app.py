@@ -378,6 +378,30 @@ def register_routes(app):
             abort(400, "Kein aktives Semester gefunden.")
         return sem.id
 
+    def _save_group_rotations_from_form(day, form, semester):
+        """Delete and re-create GroupRotations for `day` from POSTed form data.
+
+        Reads `rotation_group_{code}` keys. Skips missing keys silently.
+        Computes is_override by comparing to cyclic suggestion.
+        Called from admin_practical_day_new and admin_practical_day_edit.
+        """
+        from praktikum import suggest_rotation, GROUP_CODES
+        if not day.block_day_number:
+            return
+        suggested = suggest_rotation(day.block, day.block_day_number, semester.active_group_count)
+        for code in GROUP_CODES[:semester.active_group_count]:
+            raw = form.get(f"rotation_group_{code}")
+            if not raw:
+                continue
+            analysis_id = int(raw)
+            suggested_analysis = suggested.get(code)
+            is_override = (suggested_analysis is None) or (analysis_id != suggested_analysis.id)
+            GroupRotation.query.filter_by(practical_day_id=day.id, group_code=code).delete()
+            db.session.add(GroupRotation(
+                practical_day_id=day.id, group_code=code,
+                analysis_id=analysis_id, is_override=is_override,
+            ))
+
     def flash_saved(entity_label: str, details: str | None = None) -> None:
         timestamp = _de_date(_iso_now())
         save_times = session.get("save_timestamps", {})
@@ -2424,7 +2448,15 @@ def register_routes(app):
 
     @app.route("/admin/practical-days/new", methods=["GET", "POST"])
     def admin_practical_day_new():
+        semester = Semester.query.filter_by(is_active=True).first()
         blocks = Block.query.order_by(Block.code).all()
+        all_analyses = Analysis.query.order_by(Analysis.block_id, Analysis.ordinal).all()
+        all_analyses_json = json.dumps([
+            {"id": a.id, "block_id": a.block_id, "code": a.code,
+             "name": a.name, "ordinal": a.ordinal}
+            for a in all_analyses
+        ])
+        suggested_rotation_json = "{}"
         if request.method == "POST":
             day = PracticalDay(
                 semester_id=_get_active_semester_id(),
@@ -2435,6 +2467,9 @@ def register_routes(app):
                 notes=request.form.get("notes") or None,
             )
             db.session.add(day)
+            db.session.flush()  # get day.id
+            if day.day_type == "normal" and semester:
+                _save_group_rotations_from_form(day, request.form, semester)
             try:
                 db.session.commit()
                 flash("Praktikumstag gespeichert.", "success")
@@ -2442,19 +2477,34 @@ def register_routes(app):
             except IntegrityError:
                 db.session.rollback()
                 flash("Datum bereits vergeben für dieses Semester.", "danger")
-                return render_template("admin/practical_day_form.html", day=None, blocks=blocks)
-        return render_template("admin/practical_day_form.html", day=None, blocks=blocks)
+                return render_template("admin/practical_day_form.html", day=None, blocks=blocks,
+                                       semester=semester, all_analyses_json=all_analyses_json,
+                                       suggested_rotation_json=suggested_rotation_json)
+        return render_template("admin/practical_day_form.html", day=None, blocks=blocks,
+                               semester=semester, all_analyses_json=all_analyses_json,
+                               suggested_rotation_json=suggested_rotation_json)
 
     @app.route("/admin/practical-days/<int:day_id>/edit", methods=["GET", "POST"])
     def admin_practical_day_edit(day_id):
+        semester = Semester.query.filter_by(is_active=True).first()
         day = db.get_or_404(PracticalDay, day_id)
         blocks = Block.query.order_by(Block.code).all()
+        all_analyses = Analysis.query.order_by(Analysis.block_id, Analysis.ordinal).all()
+        all_analyses_json = json.dumps([
+            {"id": a.id, "block_id": a.block_id, "code": a.code,
+             "name": a.name, "ordinal": a.ordinal}
+            for a in all_analyses
+        ])
         if request.method == "POST":
             day.block_id = int(request.form["block_id"])
             day.date = parse_de_date(request.form["date"])
             day.day_type = request.form["day_type"]
             day.block_day_number = int(request.form["block_day_number"]) if request.form.get("block_day_number") else None
             day.notes = request.form.get("notes") or None
+            if day.day_type == "normal" and semester:
+                _save_group_rotations_from_form(day, request.form, semester)
+            elif day.day_type == "nachkochtag":
+                GroupRotation.query.filter_by(practical_day_id=day.id).delete()
             try:
                 db.session.commit()
                 flash("Praktikumstag aktualisiert.", "success")
@@ -2462,8 +2512,20 @@ def register_routes(app):
             except IntegrityError:
                 db.session.rollback()
                 flash("Datum bereits vergeben für dieses Semester.", "danger")
-                return render_template("admin/practical_day_form.html", day=day, blocks=blocks)
-        return render_template("admin/practical_day_form.html", day=day, blocks=blocks)
+                suggested_rotation_json = "{}"
+                return render_template("admin/practical_day_form.html", day=day, blocks=blocks,
+                                       semester=semester, all_analyses_json=all_analyses_json,
+                                       suggested_rotation_json=suggested_rotation_json)
+        suggested_rotation = {}
+        if day.day_type == "normal" and day.block_day_number and semester:
+            from praktikum import suggest_rotation
+            suggested_rotation = suggest_rotation(day.block, day.block_day_number, semester.active_group_count)
+        suggested_rotation_json = json.dumps(
+            {code: a.id for code, a in suggested_rotation.items()}
+        )
+        return render_template("admin/practical_day_form.html", day=day, blocks=blocks,
+                               semester=semester, all_analyses_json=all_analyses_json,
+                               suggested_rotation_json=suggested_rotation_json)
 
     @app.route("/admin/practical-days/<int:day_id>/delete", methods=["POST"])
     def admin_practical_day_delete(day_id):
