@@ -389,11 +389,17 @@ def register_routes(app):
         if not day.block_day_number:
             return
         suggested = suggest_rotation(day.block, day.block_day_number, semester.active_group_count)
+        valid_analysis_ids = {a.id for a in day.block.analyses}
         for code in GROUP_CODES[:semester.active_group_count]:
             raw = form.get(f"rotation_group_{code}")
             if not raw:
                 continue
-            analysis_id = int(raw)
+            try:
+                analysis_id = int(raw)
+            except ValueError:
+                continue
+            if analysis_id not in valid_analysis_ids:
+                continue  # silently skip invalid block analyses in admin path
             suggested_analysis = suggested.get(code)
             is_override = (suggested_analysis is None) or (analysis_id != suggested_analysis.id)
             GroupRotation.query.filter_by(practical_day_id=day.id, group_code=code).delete()
@@ -517,8 +523,14 @@ def register_routes(app):
     def praktikum_rotation_save():
         from praktikum import suggest_rotation, GROUP_CODES
         from sqlalchemy.exc import IntegrityError
-        practical_day_id = int(request.form["practical_day_id"])
+        try:
+            practical_day_id = int(request.form["practical_day_id"])
+        except (KeyError, ValueError):
+            abort(400)
         day = db.get_or_404(PracticalDay, practical_day_id)
+        if day.day_type != "normal":
+            flash("Rotation ist nur für normale Praktikumstage möglich.", "danger")
+            return redirect(url_for("praktikum_tagesansicht", date=day.date))
         semester = day.semester
         suggested = suggest_rotation(day.block, day.block_day_number, semester.active_group_count)
         groups = GROUP_CODES[:semester.active_group_count]
@@ -527,7 +539,11 @@ def register_routes(app):
             if not raw:
                 flash(f"Fehlender Wert für Gruppe {code}.", "danger")
                 return redirect(url_for("praktikum_tagesansicht", date=day.date))
-            analysis_id = int(raw)
+            try:
+                analysis_id = int(raw)
+            except ValueError:
+                flash("Ungültige Analyse-ID.", "danger")
+                return redirect(url_for("praktikum_tagesansicht", date=day.date))
             analysis = db.get_or_404(Analysis, analysis_id)
             if analysis.block_id != day.block_id:
                 flash("Ungültige Analyse für diesen Block.", "danger")
