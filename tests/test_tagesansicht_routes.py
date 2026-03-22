@@ -221,3 +221,37 @@ def test_rotation_save_rejects_wrong_block_analysis(client, tages_fx, db):
     }, follow_redirects=True)
     assert resp.status_code == 200
     assert GroupRotation.query.filter_by(practical_day_id=tages_fx["day"].id).count() == 0
+
+
+def test_protocol_check_save_creates_record(client, tages_fx, db):
+    """POST to protocol-check/save creates a ProtocolCheck and removes chip."""
+    from models import Student, SampleBatch, Sample, SampleAssignment, ProtocolCheck
+    sem = tages_fx["sem"]
+    a1 = tages_fx["a1"]
+
+    st = Student(semester_id=sem.id, matrikel="PC001", last_name="Pctest",
+                 first_name="Clara", running_number=3, group_code="C")
+    db.session.add(st)
+    db.session.flush()
+
+    batch = SampleBatch(semester_id=sem.id, analysis_id=a1.id, total_samples_prepared=4)
+    db.session.add(batch)
+    db.session.flush()
+
+    sample = Sample(batch_id=batch.id, running_number=3, is_buffer=False,
+                    m_s_actual_g=0.1, m_ges_actual_g=0.5)
+    db.session.add(sample)
+    db.session.flush()
+
+    sa = SampleAssignment(sample_id=sample.id, student_id=st.id,
+                          attempt_number=1, attempt_type="Erstanalyse",
+                          assigned_date="2099-11-01", status="passed")
+    db.session.add(sa)
+    db.session.flush()
+
+    resp = client.post("/praktikum/protocol-check/save", data={
+        "assignment_id": sa.id,
+        "date": "2099-11-01",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert ProtocolCheck.query.filter_by(sample_assignment_id=sa.id).count() == 1

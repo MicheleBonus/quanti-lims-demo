@@ -257,11 +257,26 @@
         </td>
         {% endif %}
 
-        {# Protokoll fehlt #}
+        {# Protokoll fehlt — each chip is a POST button to mark protocol as checked #}
         <td>
           <div class="d-flex gap-1 flex-wrap">
             {% for sa in slot.protocol_missing_assignments %}
-              {{ analysis_chip(sa, sa.sample.batch.analysis) }}
+              {% set analysis = sa.sample.batch.analysis %}
+              {% set abbr = "E" if sa.attempt_type == "Erstanalyse" else sa.attempt_type %}
+              <form method="post" action="{{ url_for('praktikum_protocol_check_save') }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="assignment_id" value="{{ sa.id }}">
+                <input type="hidden" name="date" value="{{ selected_date }}">
+                <button type="submit"
+                        data-bs-toggle="tooltip"
+                        title="{{ analysis.code }} – {{ sa.attempt_type }} – Klicken um Protokoll als geprüft zu markieren"
+                        style="display:inline-flex;align-items:center;justify-content:center;
+                               width:62px;height:28px;border-radius:6px;font-weight:700;
+                               font-size:11px;color:#eee;cursor:pointer;
+                               border:1.5px solid #c07000;background:#8a5010;">
+                  {{ analysis.code }}·{{ abbr }}
+                </button>
+              </form>
             {% else %}
               <span class="text-body-secondary">—</span>
             {% endfor %}
