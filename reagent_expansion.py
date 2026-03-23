@@ -7,6 +7,20 @@ from models import AMOUNT_UNIT_TYPES, AMOUNT_UNIT_MASS, AMOUNT_UNIT_VOLUME
 _MASS_TO_G = {"mg": 0.001, "g": 1.0, "kg": 1000.0}
 _VOL_TO_ML = {"µL": 0.001, "mL": 1.0, "L": 1000.0}
 
+FLASK_SIZES_ML = [50, 100, 250, 500, 1000, 2000]
+
+
+def _suggest_flask_size_ml(total_ml: float) -> float:
+    """Return numeric mL value of the smallest standard flask >= total_ml.
+
+    Returns 2000.0 if total_ml exceeds the largest size (caller uses
+    count = ceil(total_ml / 2000) to determine how many flasks are needed).
+    """
+    for s in FLASK_SIZES_ML:
+        if s >= total_ml:
+            return float(s)
+    return 2000.0
+
 
 def _build_sources(raw: dict) -> list:
     """Group raw sources dict {(analysis_info, via_label): amount} by analysis.
@@ -185,7 +199,9 @@ def expand_reagent(
         )
 
 
-def build_expansion(batches) -> dict:
+def build_expansion(batches, flask_configs=None) -> dict:
+    # flask_configs: dict[(reagent_id, block_id_or_None) -> flask_size_ml] | None
+    # When None (default), no flask correction is applied (backward-compatible).
     """Drive expand_reagent for all MethodReagents across all batches.
 
     Returns dict with:

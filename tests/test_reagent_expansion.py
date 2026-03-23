@@ -366,3 +366,25 @@ class TestBuildExpansion:
         # Amounts are independent, not summed together
         assert abs(prep[400][block_info_a]["total"] - 200.0) < 1e-9
         assert abs(prep[400][block_info_b]["total"] - 300.0) < 1e-9
+
+
+class TestSuggestFlaskSizeMl:
+    def test_exact_match(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(500.0) == 500.0
+
+    def test_rounds_up_to_next_size(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(501.0) == 1000.0
+
+    def test_small_value(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(30.0) == 50.0
+
+    def test_over_max_returns_2000(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(2001.0) == 2000.0
+
+    def test_zero_returns_50(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(0.0) == 50.0
