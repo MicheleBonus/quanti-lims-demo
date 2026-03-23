@@ -12,6 +12,28 @@ GROUP_CODES = ["A", "B", "C", "D"]
 # Constrained by GROUP_CODE_ENUM in models.py — max 4 groups.
 
 
+def _filter_superseded_failed(assignments: list) -> list:
+    """Filter out failed assignments when a follow-up (assigned/submitted) exists
+    for the same student and batch with a higher attempt_number."""
+    # Group by (student_id, batch_id)
+    groups: dict[tuple, list] = {}
+    for sa in assignments:
+        key = (sa.student_id, sa.sample.batch_id)
+        groups.setdefault(key, []).append(sa)
+
+    result = []
+    for group in groups.values():
+        active_attempt_numbers = {
+            sa.attempt_number for sa in group
+            if sa.status in ("assigned", "submitted")
+        }
+        for sa in group:
+            if sa.status == "failed" and any(n > sa.attempt_number for n in active_attempt_numbers):
+                continue  # superseded by follow-up
+            result.append(sa)
+    return result
+
+
 def suggest_rotation(block, block_day_number, active_group_count: int) -> dict:
     """Return {group_code: Analysis} cyclic suggestion for a normal practical day.
 
@@ -135,12 +157,14 @@ def _resolve_normal_day(practical_day, semester, students) -> list[StudentSlot]:
                         None,
                     )
 
-        # extra_assignments: all open assignments EXCEPT the rotation one
+        # extra_assignments: all open assignments EXCEPT the rotation one,
+        # superseded failed assignments hidden by follow-ups
         rot_id = rotation_assignment.id if rotation_assignment else None
-        extra = [
+        raw_extra = [
             sa for sa in by_student.get(student.id, [])
             if sa.id != rot_id
         ]
+        extra = _filter_superseded_failed(raw_extra)
 
         slots.append(StudentSlot(
             student=student,
@@ -165,7 +189,7 @@ def _resolve_nachkochtag(practical_day, semester, students) -> list[StudentSlot]
         .filter(
             SampleBatch.semester_id == semester.id,
             Analysis.block_id == block_id,
-            SampleAssignment.status.notin_(["passed", "cancelled"]),
+            SampleAssignment.status.notin_(["passed", "cancelled", "expelled"]),
         )
         .all()
     )
