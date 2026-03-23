@@ -1,6 +1,6 @@
 __pycache__
 *.pyc
-*.db
+# quanti_lims.db is intentionally included (anonymized demo data)
 .env
 .secret_key
 .worktrees
