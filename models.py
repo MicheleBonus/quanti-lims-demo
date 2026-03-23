@@ -321,6 +321,17 @@ class ReagentComponent(db.Model):
     child = db.relationship("Reagent", foreign_keys=[child_reagent_id])
 
 
+class PrepFlaskConfig(db.Model):
+    __tablename__ = "prep_flask_config"
+    id = db.Column(db.Integer, primary_key=True)
+    reagent_id = db.Column(db.Integer, db.ForeignKey("reagent.id"), nullable=False)
+    # block_id: NULL = Vorabherstellungen; no FK (Block PKs start at 1, NULL means no block)
+    block_id = db.Column(db.Integer, nullable=True)
+    flask_size_ml = db.Column(db.Float, nullable=False)
+
+    reagent = db.relationship("Reagent")
+
+
 class MethodReagent(db.Model):
     __tablename__ = "method_reagent"
     id = db.Column(db.Integer, primary_key=True)

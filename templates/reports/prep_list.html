@@ -32,13 +32,30 @@
       <div class="border rounded p-3 h-100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <strong>{{ rg.name }}</strong>
-          <span class="badge bg-primary ms-2">{{ rg.total }} {{ rg.unit }}</span>
-          {% if rg.suggested_flask %}
-          <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem">→ {{ rg.suggested_flask }}</span>
-          {% endif %}
+          <span class="badge bg-secondary ms-2">{{ rg.total }} {{ rg.unit }} Bedarf</span>
         </div>
+
+        {# Flask size selector #}
+        <div class="mb-2">
+          <div class="fw-bold mb-1">
+            {{ rg.flask_count }} × {{ rg.flask_size }} mL
+            <span class="text-muted small fw-normal">(Bedarf: {{ rg.total }} {{ rg.unit }})</span>
+          </div>
+          <form method="POST"
+                action="/prep-flask-config/{{ rg.reagent_id }}/{{ block.id if block.id is not none else 0 }}"
+                class="d-flex flex-wrap gap-1 align-items-center">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% for s in rg.button_sizes %}
+            <button type="submit" name="flask_size" value="{{ s }}"
+                    class="btn btn-sm {% if s == rg.flask_size %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+              {{ s }} mL
+            </button>
+            {% endfor %}
+          </form>
+        </div>
+
         {% if rg.components %}
-        <p class="text-muted small mb-1 text-uppercase fw-bold" style="font-size:0.65rem;letter-spacing:.05em">Zusammensetzung</p>
+        <p class="text-muted small mb-1 text-uppercase fw-bold" style="font-size:0.65rem;letter-spacing:.05em">Zusammensetzung ({{ rg.flask_count }} × {{ rg.flask_size }} mL)</p>
         <table class="table table-sm table-borderless mb-2">
           {% for comp in rg.components %}
           <tr>

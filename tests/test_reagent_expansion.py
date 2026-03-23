@@ -497,3 +497,149 @@ class TestFlaskSuggestion:
         assert _VOL_TO_ML.get("g") is None  # "g" is not a volume unit
         factor = _VOL_TO_ML.get("g")
         assert factor is None
+
+
+class TestSuggestFlaskSizeMl:
+    def test_exact_match(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(500.0) == 500.0
+
+    def test_rounds_up_to_next_size(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(501.0) == 1000.0
+
+    def test_small_value(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(30.0) == 50.0
+
+    def test_over_max_returns_2000(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(2001.0) == 2000.0
+
+    def test_zero_returns_50(self):
+        from reagent_expansion import _suggest_flask_size_ml
+        assert _suggest_flask_size_ml(0.0) == 50.0
+
+
+class TestBuildExpansionFlaskCorrection:
+    """Flask correction scales composite component contributions in order_acc."""
+
+    def _make_batch(self, analysis_code, composite, amount_ml, block_id=None):
+        """Helper: one batch with one method reagent using the given composite."""
+        from unittest.mock import MagicMock
+        mr = MagicMock()
+        mr.reagent = composite
+        mr.amount_per_determination = amount_ml
+        mr.amount_per_blind = 0
+        mr.amount_unit = "mL"
+        mr.is_titrant = False
+        mr.practical_amount_per_determination = None
+
+        method = MagicMock()
+        method.blind_required = False
+        method.b_blind_determinations = 0
+        method.reagent_usages = [mr]
+
+        block = MagicMock() if block_id else None
+        if block:
+            block.id = block_id
+            block.code = f"B{block_id}"
+            block.name = f"Block {block_id}"
+
+        analysis = MagicMock()
+        analysis.method = method
+        analysis.block = block
+        analysis.k_determinations = 1
+        analysis.code = analysis_code
+        analysis.name = analysis_code
+
+        sample = MagicMock()
+        sample.is_buffer = False
+
+        batch = MagicMock()
+        batch.analysis = analysis
+        batch.samples = [sample]
+        batch.safety_factor = 1.0
+        return batch
+
+    def test_no_flask_configs_no_change(self):
+        """Without flask_configs, order amounts are theoretical."""
+        from reagent_expansion import build_expansion
+        base = make_base_reagent(1, "HCl", "mL")
+        # composite: 10 mL HCl per 100 mL parent
+        composite = make_composite(2, "Buffer", [(base, 10.0, "mL", 100.0)])
+        batch = self._make_batch("I.1", composite, 83.0, block_id=1)
+        result = build_expansion([batch], flask_configs=None)
+        items = {i["name"]: i for i in result["order_items"]}
+        # theoretical: 83 mL composite * (10/100) = 8.3 mL HCl
+        assert abs(items["HCl"]["total"] - 8.3) < 0.01
+
+    def test_flask_correction_scales_component(self):
+        """Flask config rounds composite up to flask size; components scale proportionally."""
+        from reagent_expansion import build_expansion
+        base = make_base_reagent(1, "HCl", "mL")
+        composite = make_composite(2, "Buffer", [(base, 10.0, "mL", 100.0)])
+        batch = self._make_batch("I.1", composite, 83.0, block_id=1)
+        # flask_size=100 mL, count=ceil(83/100)=1, effective=100 mL
+        flask_configs = {(2, 1): 100.0}
+        result = build_expansion([batch], flask_configs=flask_configs)
+        items = {i["name"]: i for i in result["order_items"]}
+        # corrected: 100 mL * (10/100) = 10 mL HCl
+        assert abs(items["HCl"]["total"] - 10.0) < 0.01
+
+    def test_direct_base_reagent_unaffected(self):
+        """Flask correction does not affect directly-used base reagents."""
+        from unittest.mock import MagicMock
+        from reagent_expansion import build_expansion
+        base_direct = make_base_reagent(1, "HCl", "mL")
+        base_via = make_base_reagent(3, "NaOH", "mL")
+        composite = make_composite(2, "Buffer", [(base_via, 5.0, "mL", 100.0)])
+
+        mr_direct = MagicMock()
+        mr_direct.reagent = base_direct
+        mr_direct.amount_per_determination = 50.0
+        mr_direct.amount_per_blind = 0
+        mr_direct.amount_unit = "mL"
+        mr_direct.is_titrant = False
+        mr_direct.practical_amount_per_determination = None
+
+        mr_comp = MagicMock()
+        mr_comp.reagent = composite
+        mr_comp.amount_per_determination = 83.0
+        mr_comp.amount_per_blind = 0
+        mr_comp.amount_unit = "mL"
+        mr_comp.is_titrant = False
+        mr_comp.practical_amount_per_determination = None
+
+        method = MagicMock()
+        method.blind_required = False
+        method.b_blind_determinations = 0
+        method.reagent_usages = [mr_direct, mr_comp]
+
+        block = MagicMock()
+        block.id = 1
+        block.code = "B1"
+        block.name = "Block 1"
+
+        analysis = MagicMock()
+        analysis.method = method
+        analysis.block = block
+        analysis.k_determinations = 1
+        analysis.code = "I.1"
+        analysis.name = "I.1"
+
+        sample = MagicMock()
+        sample.is_buffer = False
+
+        batch = MagicMock()
+        batch.analysis = analysis
+        batch.samples = [sample]
+        batch.safety_factor = 1.0
+
+        flask_configs = {(2, 1): 100.0}  # only composite has flask config
+        result = build_expansion([batch], flask_configs=flask_configs)
+        items = {i["name"]: i for i in result["order_items"]}
+        # HCl used directly: 50 mL, unchanged
+        assert abs(items["HCl"]["total"] - 50.0) < 0.01
+        # NaOH via composite: 83 * (5/100) = 4.15 theoretical, corrected to 100 * (5/100) = 5.0
+        assert abs(items["NaOH"]["total"] - 5.0) < 0.01
