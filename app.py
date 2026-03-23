@@ -1917,34 +1917,46 @@ def register_routes(app):
     def assign_buffer():
         student_id = int(request.form["student_id"])
         analysis_id = int(request.form["analysis_id"])
+        sample_id_raw = request.form.get("sample_id")
+
+        if not sample_id_raw:
+            flash("Keine Probe ausgewählt.", "danger")
+            return redirect(request.referrer or url_for("assignments_overview"))
+
+        try:
+            sample_id = int(sample_id_raw)
+        except (ValueError, TypeError):
+            flash("Ungültige Proben-ID.", "danger")
+            return redirect(request.referrer or url_for("assignments_overview"))
+
         student = db.session.get(Student, student_id)
         if student and student.is_excluded:
             flash(f"{student.full_name} ist aus dem Praktikum ausgeschieden. Keine neue Zuweisung möglich.", "danger")
             return redirect(request.referrer or url_for("home"))
+
         sem = active_semester()
         batch = SampleBatch.query.filter_by(semester_id=sem.id, analysis_id=analysis_id).first()
         if not batch:
             flash("Kein Batch gefunden.", "danger")
             return redirect(url_for("assignments_overview"))
-        # Find next free buffer sample.
-        # A sample is free only when ALL its assignments are cancelled.
-        # "expelled" assignments mean the sample was physically used and must
-        # never be reassigned — they are correctly excluded here because
-        # "expelled" != "cancelled".
-        occupied_sample_ids = {
-            sa.sample_id for sa in SampleAssignment.query.filter(
-                SampleAssignment.status != "cancelled"
-            ).all()
-        }
-        buffer_sample = (
-            Sample.query.filter_by(batch_id=batch.id, is_buffer=True)
-            .filter(~Sample.id.in_(occupied_sample_ids))
-            .order_by(Sample.running_number).first()
-        )
-        if not buffer_sample:
-            flash("Keine freien Pufferproben mehr!", "danger")
+
+        # Validate the selected sample
+        sample = db.session.get(Sample, sample_id)
+        if not sample or sample.batch_id != batch.id or not sample.is_buffer:
+            flash("Ungültige Probe ausgewählt.", "danger")
             return redirect(url_for("assignments_overview"))
-        # Determine attempt number/type
+
+        # Reject if sample has any expelled assignment (physically used by expelled student)
+        if SampleAssignment.query.filter_by(sample_id=sample_id, status="expelled").first():
+            flash("Diese Probe ist gesperrt (ausgeschiedener Studierender).", "danger")
+            return redirect(url_for("assignments_overview"))
+
+        # Reject if sample is currently actively assigned
+        if sample.active_assignment:
+            flash(f"Probe #{sample.running_number} ist bereits zugewiesen.", "danger")
+            return redirect(url_for("assignments_overview"))
+
+        # Determine attempt number and type
         prev_count = (
             SampleAssignment.query
             .join(Sample).filter(Sample.batch_id == batch.id)
@@ -1954,7 +1966,7 @@ def register_routes(app):
         new_attempt_number = prev_count + 1
         attempt_type = attempt_type_for(new_attempt_number)
         sa = SampleAssignment(
-            sample=buffer_sample, student_id=student_id,
+            sample=sample, student_id=student_id,
             attempt_number=new_attempt_number, attempt_type=attempt_type,
             assigned_date=date.today().isoformat(), assigned_by="Praktikumsleitung",
             status="assigned",
@@ -1962,7 +1974,7 @@ def register_routes(app):
         db.session.add(sa)
         db.session.commit()
         label = "Erstanalyse" if attempt_type == "Erstanalyse" else f"{attempt_type}-Analyse"
-        flash(f"Pufferprobe #{buffer_sample.running_number} ({label}) zugewiesen.", "success")
+        flash(f"Pufferprobe #{sample.running_number} ({label}) zugewiesen.", "success")
         return redirect(url_for("assignments_overview"))
 
     @app.route("/assignments/repeat-options/<int:assignment_id>")

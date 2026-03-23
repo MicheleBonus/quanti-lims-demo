@@ -312,3 +312,70 @@ def test_repeat_options_returns_json(client, db):
     assert "student_id" in data
     assert "analysis_id" in data
     assert isinstance(data["available_samples"], list)
+
+
+def test_assign_buffer_requires_sample_id(client, db):
+    """POST /assignments/assign-buffer ohne sample_id gibt Fehler-Redirect."""
+    from models import SampleBatch, Semester, Student
+    sem = Semester.query.first()
+    if not sem:
+        pytest.skip("Kein Semester")
+    batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+    if not batch:
+        pytest.skip("Kein Batch")
+    student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+    if not student:
+        pytest.skip("Kein Student")
+
+    before_count = db.session.query(db.func.count()).select_from(
+        __import__('models').SampleAssignment
+    ).scalar()
+    response = client.post("/assignments/assign-buffer", data={
+        "csrf_token": "test",
+        "student_id": student.id,
+        "analysis_id": batch.analysis_id,
+        # no sample_id!
+    }, follow_redirects=True)
+    assert response.status_code == 200
+    after_count = db.session.query(db.func.count()).select_from(
+        __import__('models').SampleAssignment
+    ).scalar()
+    assert after_count == before_count, "Ohne sample_id darf keine Zuweisung entstehen"
+
+
+def test_assign_buffer_with_valid_sample_id(client, db):
+    """POST /assignments/assign-buffer mit gueltiger sample_id erstellt Assignment."""
+    from models import SampleBatch, Sample, SampleAssignment, Semester, Student
+    sem = Semester.query.first()
+    if not sem:
+        pytest.skip("Kein Semester")
+    batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+    if not batch:
+        pytest.skip("Kein Batch")
+    student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+    if not student:
+        pytest.skip("Kein Student")
+
+    occupied_ids = {
+        sa.sample_id for sa in SampleAssignment.query.filter(
+            SampleAssignment.status != "cancelled"
+        ).all()
+    }
+    free_buffer = (
+        Sample.query.filter_by(batch_id=batch.id, is_buffer=True)
+        .filter(~Sample.id.in_(occupied_ids))
+        .first()
+    )
+    if not free_buffer:
+        pytest.skip("Keine freie Pufferprobe")
+
+    before = SampleAssignment.query.filter_by(sample_id=free_buffer.id).count()
+    response = client.post("/assignments/assign-buffer", data={
+        "csrf_token": "test",
+        "student_id": student.id,
+        "analysis_id": batch.analysis_id,
+        "sample_id": free_buffer.id,
+    }, follow_redirects=True)
+    assert response.status_code == 200
+    after = SampleAssignment.query.filter_by(sample_id=free_buffer.id).count()
+    assert after == before + 1, f"Erwartet {before + 1} Assignments, got {after}"
