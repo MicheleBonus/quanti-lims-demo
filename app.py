@@ -19,7 +19,7 @@ from flask_migrate import Migrate
 from config import Config
 from models import (
     db, Block, Substance, SubstanceLot, Analysis, Method,
-    Reagent, ReagentComponent, MethodReagent,
+    Reagent, ReagentComponent, PrepFlaskConfig, MethodReagent,
     Semester, Student, SampleBatch, Sample, SampleAssignment, Result,
     AMOUNT_UNIT_VOLUME, GROUP_CODES,
     canonical_unit_label, get_amount_unit_type, get_unit_options, is_known_unit, normalize_unit,
