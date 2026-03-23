@@ -1162,6 +1162,16 @@ def register_routes(app):
             flash("Titrant-Markierung ist für diesen Methodentyp/Berechnungsmodus nicht zulässig.", "danger")
             return redirect(url_for("admin_method_reagents", method_id=method_id))
 
+        _practical_raw = request.form.get("practical_amount_per_determination", "").strip()
+        _practical_val = None
+        if is_titrant_requested and _practical_raw:
+            try:
+                _practical_val = float(_practical_raw)
+                if _practical_val <= 0:
+                    _practical_val = None
+            except ValueError:
+                _practical_val = None
+
         mr = MethodReagent(
             method_id=method_id,
             reagent_id=int(request.form["reagent_id"]),
@@ -1169,6 +1179,7 @@ def register_routes(app):
             amount_per_blind=float(request.form.get("amount_per_blind", 0)),
             amount_unit=normalize_unit(request.form.get("amount_unit") or "mL"),
             is_titrant=is_titrant_requested,
+            practical_amount_per_determination=_practical_val,
             step_description=request.form.get("step_description") or None,
         )
         if not is_known_unit(mr.amount_unit):
@@ -1205,6 +1216,25 @@ def register_routes(app):
         db.session.commit()
         flash("Zuordnung entfernt.", "warning")
         return redirect(url_for("admin_method_reagents", method_id=mid))
+
+    @app.route("/admin/method-reagents/<int:id>/set-practical", methods=["POST"])
+    def admin_method_reagent_set_practical(id):
+        mr = MethodReagent.query.get_or_404(id)
+        if not mr.is_titrant:
+            flash("Bürettengröße ist nur für Titranten relevant.", "warning")
+            return redirect(url_for("admin_method_reagents", method_id=mr.method_id))
+        raw = request.form.get("practical_amount", "").strip()
+        try:
+            val = float(raw)
+            if val <= 0:
+                raise ValueError
+        except ValueError:
+            flash("Ungültige Bürettengröße.", "danger")
+            return redirect(url_for("admin_method_reagents", method_id=mr.method_id))
+        mr.practical_amount_per_determination = val
+        db.session.commit()
+        flash("Bürettengröße gespeichert.", "success")
+        return redirect(url_for("admin_method_reagents", method_id=mr.method_id))
 
     # ═══════════════════════════════════════════════════════════════
     # SEMESTER MANAGEMENT
