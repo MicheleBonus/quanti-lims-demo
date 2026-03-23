@@ -546,3 +546,35 @@ def test_failed_hidden_when_followup_exists(db):
     result = _filter_superseded_failed([failed_sa, followup_sa])
     assert failed_sa not in result, "failed Assignment sollte herausgefiltert werden"
     assert followup_sa in result, "Follow-up Assignment sollte behalten werden"
+
+
+def test_failed_not_hidden_without_followup(db):
+    """Ein failed-Assignment ohne Follow-up bleibt in extra_assignments sichtbar."""
+    from models import SampleAssignment, Sample, SampleBatch, Student, Semester
+    from datetime import date
+    from praktikum import _filter_superseded_failed
+
+    sem = Semester.query.first()
+    if not sem:
+        pytest.skip("Kein Semester")
+    batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+    if not batch:
+        pytest.skip("Kein Batch")
+    student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+    if not student:
+        pytest.skip("Kein Student")
+    buffers = Sample.query.filter_by(batch_id=batch.id, is_buffer=True).all()
+    if not buffers:
+        pytest.skip("Keine Pufferproben")
+
+    # failed ohne Follow-up
+    failed_sa = SampleAssignment(
+        sample=buffers[0], student=student,
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date=date.today().isoformat(), status="failed",
+    )
+    db.session.add(failed_sa)
+    db.session.flush()
+
+    result = _filter_superseded_failed([failed_sa])
+    assert failed_sa in result, "failed Assignment ohne Follow-up sollte sichtbar bleiben"
