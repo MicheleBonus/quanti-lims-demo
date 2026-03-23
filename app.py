@@ -2429,6 +2429,8 @@ def register_routes(app):
             for block_key, item in prep_items[rg_id].items():
                 reagent = item["reagent"]
                 theoretical = item["total"]
+                if theoretical <= 0:
+                    continue
                 db_block_id = block_key[0] if block_key is not None else None
                 flask_size = flask_configs.get((rg_id, db_block_id))
                 if flask_size is None:
