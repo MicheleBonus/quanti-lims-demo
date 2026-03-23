@@ -92,7 +92,8 @@
     <table class="table table-sm table-borderless mb-0 ms-2">
     {% for comp in d.components %}
     {% if comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0 %}
-    {% set comp_total = (d.effective_total / comp.per_parent_volume_ml * comp.quantity)|round(1) %}
+    {% set comp_total = (d.effective_total / comp.per_parent_volume_ml * comp.quantity) %}
+    {% set comp_total = "%.3g"|format(comp_total) %}
     <tr>
       <td class="py-0 pe-3"><strong>{{ comp_total }} {{ comp.quantity_unit|unit }}</strong></td>
       <td class="py-0">{{ comp.child.name if comp.child else '?' }}</td>
