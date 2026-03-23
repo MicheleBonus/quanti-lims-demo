@@ -5,3 +5,4 @@ Flask-WTF>=1.2
 WTForms>=3.1
 psycopg2-binary>=2.9
 python-dotenv>=1.0
+gunicorn>=21.0
