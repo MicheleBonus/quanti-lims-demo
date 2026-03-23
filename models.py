@@ -330,6 +330,7 @@ class MethodReagent(db.Model):
     amount_per_blind = db.Column(db.Float, nullable=False, default=0)
     amount_unit = db.Column(UNIT_ENUM, nullable=False, default="mL")
     is_titrant = db.Column(db.Boolean, nullable=False, default=False)
+    practical_amount_per_determination = db.Column(db.Float, nullable=True)
     step_description = db.Column(db.Text)
     notes = db.Column(db.Text)
 
