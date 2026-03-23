@@ -115,3 +115,61 @@ def test_expelled_sample_not_free(client, db):
     sa.status = "expelled"
     db.session.flush()
     assert buffer.active_assignment is not None
+
+
+def test_colloquium_third_fail_sets_expelled(client, db):
+    """Dritter Kolloquiums-Fail: offene Assignments erhalten Status 'expelled'."""
+    from models import Student, SampleAssignment, Semester, Block, Sample, SampleBatch
+    from datetime import date
+
+    sem = Semester.query.first()
+    if not sem:
+        pytest.skip("Kein Semester")
+    student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+    if not student:
+        pytest.skip("Kein aktiver Student")
+    block = Block.query.first()
+    if not block:
+        pytest.skip("Kein Block")
+
+    # Ensure the student has at least one open assignment (assigned)
+    batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+    if batch:
+        free_sample = (
+            Sample.query.filter_by(batch_id=batch.id, is_buffer=False)
+            .filter(~Sample.id.in_(
+                db.session.query(SampleAssignment.sample_id).filter(
+                    SampleAssignment.status.notin_(["cancelled", "expelled"])
+                )
+            ))
+            .first()
+        )
+        if free_sample is None:
+            pytest.skip("Keine freie Probe für Test-Assignment")
+        sa = SampleAssignment(
+            sample=free_sample,
+            student=student,
+            attempt_number=99,
+            attempt_type="Erstanalyse",
+            assigned_date=date.today().isoformat(),
+            status="assigned",
+        )
+        db.session.add(sa)
+        db.session.flush()
+        sa_id = sa.id
+    else:
+        pytest.skip("Kein Batch")
+
+    response = client.post("/colloquium/plan", data={
+        "csrf_token": "test",
+        "student_id": student.id,
+        "block_id": block.id,
+        "attempt_number": 3,
+        "passed": "false",
+        "notes": "",
+    }, follow_redirects=True)
+    assert response.status_code == 200
+
+    db.session.expire_all()
+    refreshed_sa = db.session.get(SampleAssignment, sa_id)
+    assert refreshed_sa.status == "expelled", f"Expected 'expelled', got '{refreshed_sa.status}'"

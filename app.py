@@ -2820,11 +2820,12 @@ def register_routes(app):
                 student = db.session.get(Student, student_id)
                 if student:
                     student.is_excluded = True
-                    open_assignments = SampleAssignment.query.filter_by(
-                        student_id=student_id, status="assigned"
+                    open_assignments = SampleAssignment.query.filter(
+                        SampleAssignment.student_id == student_id,
+                        SampleAssignment.status.in_(["assigned", "submitted", "failed"])
                     ).all()
                     for a in open_assignments:
-                        a.status = "cancelled"
+                        a.status = "expelled"
                     flash(f"{student.full_name} hat das Kolloquium dreimal nicht bestanden und scheidet aus dem Praktikum aus.", "danger")
 
             db.session.commit()
