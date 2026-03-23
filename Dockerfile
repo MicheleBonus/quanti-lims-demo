@@ -4,4 +4,5 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 5000
-CMD ["gunicorn", "app:create_app()"]
+ENV FLASK_APP=app.py
+CMD ["sh", "-c", "flask db upgrade && gunicorn 'app:create_app()'"]
