@@ -90,3 +90,28 @@ def test_active_result_ignores_revoked(db):
         r.revoked = True
     db.session.flush()
     assert sa.active_result is None
+
+
+def test_expelled_sample_not_free(client, db):
+    """Eine Pufferprobe mit expelled-Assignment gilt als belegt."""
+    from models import Sample, SampleAssignment, Student
+    buffer = Sample.query.filter_by(is_buffer=True).first()
+    if buffer is None:
+        pytest.skip("Keine Pufferprobe in Testdaten")
+    sa = SampleAssignment.query.filter_by(sample_id=buffer.id).first()
+    if sa is None:
+        # Create a minimal assignment so the expelled-logic can be tested
+        student = Student.query.first()
+        if student is None:
+            pytest.skip("Kein Student in Testdaten")
+        sa = SampleAssignment(
+            sample_id=buffer.id, student_id=student.id,
+            attempt_number=1, attempt_type="main",
+            assigned_date="2026-01-01", assigned_by="Test",
+            status="assigned",
+        )
+        db.session.add(sa)
+        db.session.flush()
+    sa.status = "expelled"
+    db.session.flush()
+    assert buffer.active_assignment is not None
