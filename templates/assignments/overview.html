@@ -62,14 +62,12 @@
               <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button>
             </form>
           {% elif sa.status == 'failed' %}
-            <form method="POST" action="{{ url_for('assign_buffer') }}" class="d-inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="student_id" value="{{ sa.student_id }}">
-              <input type="hidden" name="analysis_id" value="{{ a.id }}">
-              <button type="submit" class="btn btn-outline-warning btn-sm" {% if d.buffer_count == 0 %}disabled{% endif %}>
-                <i class="bi bi-plus-circle"></i> Wiederholung
-              </button>
-            </form>
+            <button type="button"
+                    class="btn btn-outline-warning btn-sm open-repeat-modal"
+                    data-assignment-id="{{ sa.id }}"
+                    {% if d.buffer_count == 0 %}disabled{% endif %}>
+              <i class="bi bi-plus-circle"></i> Wiederholung
+            </button>
           {% endif %}
         </td>
       {% else %}
@@ -95,4 +93,111 @@
 {% endfor %}
 
 {% endif %}
+
+<!-- Wiederholungsanalyse-Dialog -->
+<div class="modal fade" id="repeatModal" tabindex="-1" aria-labelledby="repeatModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="repeatModalLabel">Wiederholungsanalyse zuweisen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="repeatModalLoading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm" role="status"></div> Lade…
+        </div>
+        <div id="repeatModalContent" style="display:none">
+          <table class="table table-sm mb-3">
+            <tr><th style="width:40%">Student/in</th><td id="rm-student"></td></tr>
+            <tr><th>Analyse</th><td id="rm-analysis"></td></tr>
+            <tr><th>Folgeversuch</th><td id="rm-attempt"></td></tr>
+          </table>
+          <label class="form-label fw-bold">Pufferprobe auswählen</label>
+          <select class="form-select" id="rm-sample-select"></select>
+          <div id="rm-no-samples" class="alert alert-warning mt-2" style="display:none">
+            Keine freien Pufferproben verfügbar.
+          </div>
+        </div>
+        <div id="repeatModalError" class="alert alert-danger mt-2" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <form method="POST" action="{{ url_for('assign_buffer') }}" id="repeatModalForm" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="student_id" id="rm-student-id">
+          <input type="hidden" name="analysis_id" id="rm-analysis-id">
+          <input type="hidden" name="sample_id" id="rm-sample-id">
+          <button type="submit" class="btn btn-warning" id="rm-submit-btn" disabled>
+            <i class="bi bi-plus-circle"></i> Zuweisen
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  document.querySelectorAll('.open-repeat-modal').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var assignmentId = this.getAttribute('data-assignment-id');
+      var modal = new bootstrap.Modal(document.getElementById('repeatModal'));
+
+      var loading = document.getElementById('repeatModalLoading');
+      var content = document.getElementById('repeatModalContent');
+      var errorEl = document.getElementById('repeatModalError');
+      var noSamples = document.getElementById('rm-no-samples');
+      var submitBtn = document.getElementById('rm-submit-btn');
+
+      loading.style.display = '';
+      content.style.display = 'none';
+      errorEl.style.display = 'none';
+      submitBtn.disabled = true;
+
+      modal.show();
+
+      fetch('/assignments/repeat-options/' + assignmentId)
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(data) {
+          loading.style.display = 'none';
+          content.style.display = '';
+
+          document.getElementById('rm-student').textContent = data.student_name;
+          document.getElementById('rm-analysis').textContent = data.analysis_code + ' – ' + data.analysis_name;
+          document.getElementById('rm-attempt').textContent = data.next_attempt_type + '-Analyse';
+          document.getElementById('rm-student-id').value = data.student_id;
+          document.getElementById('rm-analysis-id').value = data.analysis_id;
+
+          var select = document.getElementById('rm-sample-select');
+          select.innerHTML = '';
+          if (data.available_samples.length === 0) {
+            noSamples.style.display = '';
+            submitBtn.disabled = true;
+          } else {
+            noSamples.style.display = 'none';
+            data.available_samples.forEach(function(s) {
+              var opt = document.createElement('option');
+              opt.value = s.id;
+              opt.textContent = 'Probe #' + s.number + (s.id === data.recommended_sample_id ? ' (empfohlen)' : '');
+              select.appendChild(opt);
+            });
+            document.getElementById('rm-sample-id').value = select.value;
+            select.addEventListener('change', function() {
+              document.getElementById('rm-sample-id').value = this.value;
+            });
+            submitBtn.disabled = false;
+          }
+        })
+        .catch(function(err) {
+          loading.style.display = 'none';
+          errorEl.textContent = 'Fehler beim Laden: ' + err.message;
+          errorEl.style.display = '';
+        });
+    });
+  });
+})();
+</script>
 {% endblock %}
