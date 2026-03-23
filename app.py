@@ -278,8 +278,9 @@ def create_app(test_config: dict | None = None):
     with app.app_context():
         if app.config.get("TESTING"):
             db.create_all()   # tests: create schema directly (SQLite in-memory)
-        apply_legacy_sql_migrations(app)
         from sqlalchemy import inspect as sa_inspect
+        if sa_inspect(db.engine).has_table("analysis"):
+            apply_legacy_sql_migrations(app)
         from init_db import seed_database
         if sa_inspect(db.engine).has_table("block"):
             seed_database()
