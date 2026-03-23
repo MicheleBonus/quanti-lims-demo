@@ -259,6 +259,8 @@ class TestBuildExpansion:
         mr.amount_per_determination = 100.0
         mr.amount_per_blind = 0.0
         mr.amount_unit = "mL"
+        mr.is_titrant = False
+        mr.practical_amount_per_determination = None
 
         method = MagicMock()
         method.blind_required = False
@@ -318,6 +320,8 @@ class TestBuildExpansion:
             mr.amount_per_determination = amount
             mr.amount_per_blind = 0.0
             mr.amount_unit = "mL"
+            mr.is_titrant = False
+            mr.practical_amount_per_determination = None
             return mr
 
         def make_block(bid, code, name):
@@ -366,6 +370,133 @@ class TestBuildExpansion:
         # Amounts are independent, not summed together
         assert abs(prep[400][block_info_a]["total"] - 200.0) < 1e-9
         assert abs(prep[400][block_info_b]["total"] - 300.0) < 1e-9
+
+
+class TestBuildExpansionPractical:
+    def _make_batch(self, mr_list):
+        """Helper: build a mock batch with given MethodReagent mocks."""
+        batch = MagicMock()
+        batch.analysis.method.blind_required = False
+        batch.analysis.method.b_blind_determinations = 0
+        batch.analysis.method.reagent_usages = mr_list
+        batch.analysis.k_determinations = 1
+        batch.analysis.code = "T1"
+        batch.analysis.name = "Test"
+        batch.analysis.block = None
+        batch.safety_factor = 1.0
+        # 2 non-buffer samples
+        s1, s2 = MagicMock(), MagicMock()
+        s1.is_buffer = False
+        s2.is_buffer = False
+        batch.samples = [s1, s2]
+        return batch
+
+    def test_titrant_with_practical_amount_adds_practical_total(self):
+        from reagent_expansion import build_expansion
+        reagent = make_base_reagent(1, "HCl", base_unit="mL")
+        mr = MagicMock()
+        mr.reagent = reagent
+        mr.amount_per_determination = 14.0
+        mr.amount_per_blind = 0.0
+        mr.amount_unit = "mL"
+        mr.is_titrant = True
+        mr.practical_amount_per_determination = 50.0
+
+        batch = self._make_batch([mr])
+        result = build_expansion([batch])
+
+        items = result["order_items"]
+        assert len(items) == 1
+        item = items[0]
+        # theoretical: n=2, k=1, b=0, safety=1.0 → 2 * 14 = 28
+        assert item["total"] == 28.0
+        # practical: n=2, practical=50, k+b=1 → 2 * 50 * 1 = 100
+        assert item.get("practical_total") == 100.0
+        assert item.get("is_titrant") is True
+
+    def test_non_titrant_has_no_practical_total(self):
+        from reagent_expansion import build_expansion
+        reagent = make_base_reagent(2, "NaOH", base_unit="mL")
+        mr = MagicMock()
+        mr.reagent = reagent
+        mr.amount_per_determination = 10.0
+        mr.amount_per_blind = 0.0
+        mr.amount_unit = "mL"
+        mr.is_titrant = False
+        mr.practical_amount_per_determination = None
+
+        batch = self._make_batch([mr])
+        result = build_expansion([batch])
+        item = result["order_items"][0]
+        assert item.get("practical_total") is None
+        assert item.get("is_titrant") is not True
+
+    def test_titrant_without_practical_amount_has_no_practical_total(self):
+        from reagent_expansion import build_expansion
+        reagent = make_base_reagent(3, "EDTA", base_unit="mL")
+        mr = MagicMock()
+        mr.reagent = reagent
+        mr.amount_per_determination = 20.0
+        mr.amount_per_blind = 0.0
+        mr.amount_unit = "mL"
+        mr.is_titrant = True
+        mr.practical_amount_per_determination = None
+
+        batch = self._make_batch([mr])
+        result = build_expansion([batch])
+        item = result["order_items"][0]
+        assert item.get("practical_total") is None
+        # but is_titrant should still be flagged
+        assert item.get("is_titrant") is True
+
+    def test_titrant_practical_includes_blind_fills(self):
+        from reagent_expansion import build_expansion
+        reagent = make_base_reagent(4, "KMnO4", base_unit="mL")
+        mr = MagicMock()
+        mr.reagent = reagent
+        mr.amount_per_determination = 10.0
+        mr.amount_per_blind = 5.0
+        mr.amount_unit = "mL"
+        mr.is_titrant = True
+        mr.practical_amount_per_determination = 25.0
+
+        batch = self._make_batch([mr])
+        batch.analysis.method.blind_required = True
+        batch.analysis.method.b_blind_determinations = 1
+        result = build_expansion([batch])
+        item = result["order_items"][0]
+        # practical: n=2, practical=25, k=1, b=1, k+b=2 → 2 * 25 * 2 = 100
+        assert item["practical_total"] == 100.0
+
+
+class TestFlaskSuggestion:
+    def _suggest(self, total_ml):
+        from math import ceil
+        FLASK_SIZES_ML = [50, 100, 250, 500, 1000, 2000]
+        suggested = next((s for s in FLASK_SIZES_ML if s >= total_ml), None)
+        if suggested is None:
+            batches = ceil(total_ml / 2000)
+            return f"{batches}× 2000 mL"
+        return f"{suggested} mL"
+
+    def test_suggest_exact_match(self):
+        assert self._suggest(1000) == "1000 mL"
+
+    def test_suggest_rounds_up(self):
+        assert self._suggest(847) == "1000 mL"
+
+    def test_suggest_small(self):
+        assert self._suggest(30) == "50 mL"
+
+    def test_suggest_large_needs_multiple(self):
+        assert self._suggest(2500) == "2× 2000 mL"
+
+    def test_non_volume_unit_returns_none(self):
+        # Non-volume units (e.g., "g") should yield no suggestion
+        from reagent_expansion import _VOL_TO_ML
+        assert _VOL_TO_ML.get("g") is None  # "g" is not a volume unit
+        factor = _VOL_TO_ML.get("g")
+        assert factor is None
 
 
 class TestSuggestFlaskSizeMl:

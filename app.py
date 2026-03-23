@@ -1162,6 +1162,16 @@ def register_routes(app):
             flash("Titrant-Markierung ist für diesen Methodentyp/Berechnungsmodus nicht zulässig.", "danger")
             return redirect(url_for("admin_method_reagents", method_id=method_id))
 
+        _practical_raw = request.form.get("practical_amount_per_determination", "").strip()
+        _practical_val = None
+        if is_titrant_requested and _practical_raw:
+            try:
+                _practical_val = float(_practical_raw)
+                if _practical_val <= 0:
+                    _practical_val = None
+            except ValueError:
+                _practical_val = None
+
         mr = MethodReagent(
             method_id=method_id,
             reagent_id=int(request.form["reagent_id"]),
@@ -1169,6 +1179,7 @@ def register_routes(app):
             amount_per_blind=float(request.form.get("amount_per_blind", 0)),
             amount_unit=normalize_unit(request.form.get("amount_unit") or "mL"),
             is_titrant=is_titrant_requested,
+            practical_amount_per_determination=_practical_val,
             step_description=request.form.get("step_description") or None,
         )
         if not is_known_unit(mr.amount_unit):
@@ -1205,6 +1216,25 @@ def register_routes(app):
         db.session.commit()
         flash("Zuordnung entfernt.", "warning")
         return redirect(url_for("admin_method_reagents", method_id=mid))
+
+    @app.route("/admin/method-reagents/<int:id>/set-practical", methods=["POST"])
+    def admin_method_reagent_set_practical(id):
+        mr = MethodReagent.query.get_or_404(id)
+        if not mr.is_titrant:
+            flash("Bürettengröße ist nur für Titranten relevant.", "warning")
+            return redirect(url_for("admin_method_reagents", method_id=mr.method_id))
+        raw = request.form.get("practical_amount", "").strip()
+        try:
+            val = float(raw)
+            if val <= 0:
+                raise ValueError
+        except ValueError:
+            flash("Ungültige Bürettengröße.", "danger")
+            return redirect(url_for("admin_method_reagents", method_id=mr.method_id))
+        mr.practical_amount_per_determination = val
+        db.session.commit()
+        flash("Bürettengröße gespeichert.", "success")
+        return redirect(url_for("admin_method_reagents", method_id=mr.method_id))
 
     # ═══════════════════════════════════════════════════════════════
     # SEMESTER MANAGEMENT
@@ -2297,7 +2327,37 @@ def register_routes(app):
         sem = active_semester()
         if not sem:
             return render_template("reports/reagents.html", semester=None, demand=[],
-                                   missing_flask_items=[], has_non_volume_units=False)
+                                   missing_flask_items=[], missing_burette_items=[],
+                                   has_non_volume_units=False)
+        # Completeness: titrants without burette size, scoped to active semester
+        _active_analysis_ids = (
+            db.session.query(SampleBatch.analysis_id)
+            .filter(SampleBatch.semester_id == sem.id)
+            .distinct()
+        )
+        missing_burette = (
+            db.session.query(MethodReagent, Method, Analysis)
+            .join(Method, MethodReagent.method_id == Method.id)
+            .join(Analysis, Method.analysis_id == Analysis.id)
+            .filter(
+                MethodReagent.is_titrant == True,
+                MethodReagent.practical_amount_per_determination.is_(None),
+                Analysis.id.in_(_active_analysis_ids),
+            )
+            .order_by(Analysis.code)
+            .all()
+        )
+        missing_burette_items = [
+            {
+                "analysis_code": a.code,
+                "analysis_name": a.name,
+                "method_id": m.id,
+                "method_type": m.method_type,
+                "reagent_name": mr.reagent.name,
+            }
+            for mr, m, a in missing_burette
+        ]
+
         demand = []
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
         for batch in batches:
@@ -2381,6 +2441,7 @@ def register_routes(app):
             demand=demand,
             has_non_volume_units=has_non_volume_units,
             missing_flask_items=missing_flask_items,
+            missing_burette_items=missing_burette_items,
         )
 
     @app.route("/reports/reagents/order-list")
@@ -2414,6 +2475,7 @@ def register_routes(app):
         from reagent_expansion import build_expansion, FLASK_SIZES_ML, _suggest_flask_size_ml
         from datetime import date as _date
         from collections import defaultdict
+        from math import ceil
 
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
         flask_configs = {(c.reagent_id, c.block_id): c.flask_size_ml

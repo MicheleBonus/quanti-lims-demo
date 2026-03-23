@@ -9,7 +9,7 @@
 <div class="card-header">Zugeordnete Reagenzien</div>
 <div class="table-responsive">
 <table class="table table-sm table-hover mb-0 align-middle">
-<thead class="table-light"><tr><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>Einheit</th><th>Titrant?</th><th>Schritt</th><th></th></tr></thead>
+<thead class="table-light"><tr><th>Reagenz</th><th>Menge/Best.</th><th>Menge/Blind</th><th>Einheit</th><th>Titrant?</th><th>Bürettengröße</th><th>Schritt</th><th></th></tr></thead>
 <tbody>
 {% for mr in method.reagent_usages %}
 <tr>
@@ -18,6 +18,27 @@
   <td>{{ mr.amount_per_blind }}</td>
   <td>{{ mr.amount_unit|unit }}</td>
   <td>{% if mr.is_titrant %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}–{% endif %}</td>
+  <td>
+    {% if mr.is_titrant %}
+      {% if mr.practical_amount_per_determination is not none %}
+        <form method="POST" action="{{ url_for('admin_method_reagent_set_practical', id=mr.id) }}" class="d-flex gap-1 align-items-center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="number" name="practical_amount" value="{{ mr.practical_amount_per_determination }}" step="0.1" min="0.1" class="form-control form-control-sm" style="width:80px">
+          <span class="text-muted small">{{ mr.amount_unit|unit }}</span>
+          <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-check-lg"></i></button>
+        </form>
+      {% else %}
+        <form method="POST" action="{{ url_for('admin_method_reagent_set_practical', id=mr.id) }}" class="d-flex gap-1 align-items-center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="number" name="practical_amount" placeholder="z.B. 50" step="0.1" min="0.1" class="form-control form-control-sm border-warning" style="width:80px">
+          <span class="text-muted small">{{ mr.amount_unit|unit }}</span>
+          <button type="submit" class="btn btn-outline-warning btn-sm"><i class="bi bi-plus-lg"></i></button>
+        </form>
+      {% endif %}
+    {% else %}
+      <span class="text-muted">–</span>
+    {% endif %}
+  </td>
   <td class="text-body-secondary small">{{ mr.step_description or '–' }}</td>
   <td>
     <form method="POST" action="{{ url_for('admin_method_reagent_delete', id=mr.id) }}" class="d-inline" onsubmit="return confirm('Entfernen?')">
@@ -28,7 +49,7 @@
 </tr>
 {% endfor %}
 {% if not method.reagent_usages %}
-<tr><td colspan="7" class="text-center text-body-secondary py-3">Noch keine Reagenzien zugeordnet.</td></tr>
+<tr><td colspan="8" class="text-center text-body-secondary py-3">Noch keine Reagenzien zugeordnet.</td></tr>
 {% endif %}
 </tbody></table></div></div>
 
@@ -51,6 +72,19 @@
       <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Hinzufügen</button>
     </div>
   </div>
+  <div class="row mt-2" id="burette-size-row" style="display:none">
+    <div class="col-md-3">
+      <label class="form-label">Bürettengröße (mL)</label>
+      <div class="d-flex gap-1 align-items-center">
+        <input type="number" name="practical_amount_per_determination" id="practical_amount_field"
+               step="0.1" min="0.1" class="form-control form-control-sm" style="width:90px" placeholder="z.B. 50">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('practical_amount_field').value='10'">10</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('practical_amount_field').value='25'">25</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('practical_amount_field').value='50'">50</button>
+      </div>
+      <div class="form-text">Bürettenfüllvolumen pro Bestimmung</div>
+    </div>
+  </div>
   <div class="row">
     <div class="col-md-6">{{ field("step_description", "Schrittbeschreibung") }}</div>
   </div>
@@ -62,4 +96,20 @@
 </div></div>
 
 <a href="{{ url_for('admin_methods') }}" class="btn btn-outline-secondary mt-3"><i class="bi bi-arrow-left"></i> Zurück</a>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var titrantBox = document.getElementById('is_titrant');
+  var buretteRow = document.getElementById('burette-size-row');
+  if (titrantBox && buretteRow) {
+    function syncBuretteRow() {
+      buretteRow.style.display = titrantBox.checked ? '' : 'none';
+    }
+    titrantBox.addEventListener('change', syncBuretteRow);
+    syncBuretteRow();
+  }
+})();
+</script>
 {% endblock %}

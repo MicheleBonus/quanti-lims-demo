@@ -252,6 +252,27 @@ def build_expansion(batches, flask_configs=None) -> dict:
                            block_info=block_info, analysis_info=analysis_info,
                            composite_contrib_acc=composite_contrib_acc if flask_configs else None)
 
+            # Track practical totals for titrants (burette fill size overrides theoretical)
+            if mr.is_titrant:
+                pract_key = (reagent.id, unit)
+                if pract_key in order_acc:
+                    order_acc[pract_key]["is_titrant"] = True
+                if mr.practical_amount_per_determination is not None:
+                    practical_raw = n * mr.practical_amount_per_determination * (k + b) * safety
+                    pract_converted, _punit, pract_warn = convert_to_base_unit(
+                        reagent, practical_raw, mr.amount_unit
+                    )
+                    if pract_warn:
+                        warnings.append(pract_warn)
+                    pract_key2 = (reagent.id, _punit)
+                    if pract_key2 in order_acc:
+                        entry = order_acc[pract_key2]
+                        entry["practical_total"] = round(
+                            entry.get("practical_total", 0.0) + pract_converted, 4
+                        )
+                        entry.setdefault("burette_amount", mr.practical_amount_per_determination)
+                        entry.setdefault("burette_unit", mr.amount_unit)
+
     # Flask correction: scale base-reagent contributions via composites
     if flask_configs and composite_contrib_acc:
         from math import ceil
@@ -280,6 +301,10 @@ def build_expansion(batches, flask_configs=None) -> dict:
                 "total": v["total"],
                 "unit": v["unit"],
                 "sources": _build_sources(v["sources"]),
+                "is_titrant": v.get("is_titrant", False),
+                "practical_total": v.get("practical_total"),
+                "burette_amount": v.get("burette_amount"),
+                "burette_unit": v.get("burette_unit"),
             }
             for v in order_acc.values()
         ],
