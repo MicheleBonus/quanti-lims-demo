@@ -17,6 +17,11 @@ depends_on = None
 
 
 def upgrade():
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_cols = {col['name'] for col in inspector.get_columns('analysis')}
+    if 'reported_molar_mass_gmol' in existing_cols:
+        return  # already present (fresh install via db.create_all in initial migration)
     with op.batch_alter_table('analysis', schema=None) as batch_op:
         batch_op.add_column(sa.Column('reported_molar_mass_gmol', sa.Float(), nullable=True))
         batch_op.add_column(sa.Column('reported_stoichiometry', sa.Float(), nullable=True))

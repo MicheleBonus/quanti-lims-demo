@@ -15,6 +15,10 @@ depends_on = None
 
 
 def upgrade():
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    if 'prep_flask_config' in set(inspector.get_table_names()):
+        return  # already present (fresh install via db.create_all in initial migration)
     op.create_table(
         'prep_flask_config',
         sa.Column('id', sa.Integer(), nullable=False),
