@@ -2495,6 +2495,7 @@ def register_routes(app):
                     continue
                 db_block_id = block_key[0] if block_key is not None else None
                 flask_size = flask_configs.get((rg_id, db_block_id))
+                confirmed = flask_size is not None
                 if flask_size is None:
                     flask_size = _suggest_flask_size_ml(theoretical)
                 count = ceil(theoretical / flask_size) if flask_size > 0 else 1
@@ -2525,6 +2526,7 @@ def register_routes(app):
                     "flask_size": int(flask_size) if flask_size == int(flask_size) else flask_size,
                     "flask_count": count,
                     "button_sizes": button_sizes,
+                    "confirmed": confirmed,
                     "components": components,
                     "prep_notes": reagent.notes or "",
                 })
