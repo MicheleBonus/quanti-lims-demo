@@ -131,6 +131,8 @@ def expand_reagent(
     caller_name: str | None = None,
     block_info: tuple | None = None,
     analysis_info: str | None = None,
+    composite_contrib_acc: dict | None = None,
+    top_composite_id: int | None = None,
 ) -> None:
     """Recursively expand reagent into order_acc (base) and prep_acc (composites).
 
@@ -165,6 +167,9 @@ def expand_reagent(
         src_key = (analysis_info, caller_name)
         order_acc[key]["sources"].setdefault(src_key, 0.0)
         order_acc[key]["sources"][src_key] += amount
+        if composite_contrib_acc is not None and top_composite_id is not None:
+            ckey = (reagent.id, unit, top_composite_id, block_info)
+            composite_contrib_acc[ckey] = composite_contrib_acc.get(ckey, 0.0) + amount
         return
 
     if reagent.id not in prep_acc:
@@ -196,6 +201,8 @@ def expand_reagent(
             order_acc, prep_acc, dep_graph, warnings,
             new_visiting, caller_name=reagent.name, block_info=block_info,
             analysis_info=analysis_info,
+            composite_contrib_acc=composite_contrib_acc,
+            top_composite_id=top_composite_id if top_composite_id is not None else reagent.id,
         )
 
 
@@ -215,6 +222,7 @@ def build_expansion(batches, flask_configs=None) -> dict:
     prep_acc: dict = {}
     dep_graph: dict = {}
     warnings: list = []
+    composite_contrib_acc: dict = {}
 
     for batch in batches:
         analysis = batch.analysis
@@ -241,7 +249,28 @@ def build_expansion(batches, flask_configs=None) -> dict:
             if warning:
                 warnings.append(warning)
             expand_reagent(reagent, amount, unit, order_acc, prep_acc, dep_graph, warnings,
-                           block_info=block_info, analysis_info=analysis_info)
+                           block_info=block_info, analysis_info=analysis_info,
+                           composite_contrib_acc=composite_contrib_acc if flask_configs else None)
+
+    # Flask correction: scale base-reagent contributions via composites
+    if flask_configs and composite_contrib_acc:
+        from math import ceil
+        for (base_id, unit, composite_id, blk_info) in composite_contrib_acc:
+            db_block_id = blk_info[0] if blk_info is not None else None
+            flask_size = flask_configs.get((composite_id, db_block_id))
+            if flask_size is None:
+                continue
+            block_data = (prep_acc.get(composite_id) or {}).get(blk_info)
+            if block_data is None:
+                continue
+            theoretical = block_data["total"]
+            if theoretical <= 0:
+                continue
+            count = ceil(theoretical / flask_size)
+            effective = flask_size * count
+            scale = effective / theoretical  # always >= 1.0
+            contrib = composite_contrib_acc[(base_id, unit, composite_id, blk_info)]
+            order_acc[(base_id, unit)]["total"] += contrib * (scale - 1.0)
 
     order_items = sorted(
         [

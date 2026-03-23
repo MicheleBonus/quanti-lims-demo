@@ -2342,7 +2342,9 @@ def register_routes(app):
         from datetime import date as _date
 
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
-        result = build_expansion(batches)
+        flask_configs = {(c.reagent_id, c.block_id): c.flask_size_ml
+                         for c in PrepFlaskConfig.query.all()}
+        result = build_expansion(batches, flask_configs)
         return render_template(
             "reports/order_list.html",
             semester=sem,
