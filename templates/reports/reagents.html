@@ -17,6 +17,18 @@
 <div class="alert alert-info">Keine Reagenzien-Zuordnungen vorhanden. Bitte Methoden-Reagenzien pflegen.</div>
 {% else %}
 
+{% if missing_flask_items %}
+<div class="alert alert-warning">
+  <strong>{{ missing_flask_items|length }} Herstellreagenzien ohne bestätigte Kolbengröße:</strong>
+  <ul class="mb-0 mt-1">
+    {% for item in missing_flask_items %}
+    <li>{{ item.reagent_name }} — {{ item.block_label }} →
+      <a href="{{ url_for('reports_prep_list') }}">konfigurieren</a></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <p class="text-body-secondary small">
   Grundbedarf = n × (k × Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor
   &nbsp;—&nbsp; <em>n = Erstproben (ohne Pufferproben); k = Anzahl Bestimmungen pro Probe</em>
@@ -62,11 +74,11 @@
 <tr class="collapse" id="comp-{{ loop.index }}">
   <td colspan="2"></td>
   <td colspan="9" class="bg-light">
-    <small class="text-muted d-block mb-1">Zusammensetzung (skaliert auf {{ d.total }} {{ d.unit|unit }} Gesamtbedarf):</small>
+    <small class="text-muted d-block mb-1">Zusammensetzung (skaliert auf {{ d.effective_total }} {{ d.unit|unit }} Gesamtbedarf):</small>
     <table class="table table-sm table-borderless mb-0 ms-2">
     {% for comp in d.components %}
     {% if comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0 %}
-    {% set comp_total = (d.total / comp.per_parent_volume_ml * comp.quantity)|round(1) %}
+    {% set comp_total = (d.effective_total / comp.per_parent_volume_ml * comp.quantity)|round(1) %}
     <tr>
       <td class="py-0 pe-3"><strong>{{ comp_total }} {{ comp.quantity_unit|unit }}</strong></td>
       <td class="py-0">{{ comp.child.name if comp.child else '?' }}</td>

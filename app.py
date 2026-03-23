@@ -2293,9 +2293,11 @@ def register_routes(app):
 
     @app.route("/reports/reagents")
     def reports_reagents():
+        from math import ceil
         sem = active_semester()
         if not sem:
-            return render_template("reports/reagents.html", semester=None, demand=[])
+            return render_template("reports/reagents.html", semester=None, demand=[],
+                                   missing_flask_items=[], has_non_volume_units=False)
         demand = []
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
         for batch in batches:
@@ -2307,6 +2309,8 @@ def register_routes(app):
             b = method.b_blind_determinations if method.blind_required else 0
             n = sum(1 for s in batch.samples if not s.is_buffer)
             safety = getattr(batch, 'safety_factor', 1.2) or 1.2
+            block = getattr(analysis, "block", None)
+            block_info = (block.id, f"{block.code} – {block.name}") if block else None
             for mr in method.reagent_usages:
                 formula_kind = "volumetric" if mr.amount_unit_type == AMOUNT_UNIT_VOLUME else "generic"
                 total = n * (k * mr.amount_per_determination + b * mr.amount_per_blind) * safety
@@ -2327,9 +2331,57 @@ def register_routes(app):
                     "is_titrant": mr.is_titrant,
                     "is_composite": mr.reagent.is_composite,
                     "components": mr.reagent.components if mr.reagent.is_composite else [],
+                    "block_info": block_info,
                 })
+
+        # Flask correction: compute effective_total per demand entry for composites
+        flask_configs = {(c.reagent_id, c.block_id): c.flask_size_ml
+                         for c in PrepFlaskConfig.query.all()}
+        from reagent_expansion import build_expansion
+        expansion = build_expansion(batches, flask_configs if flask_configs else None)
+        prep_items = expansion["prep_items"]
+        for d in demand:
+            if not d["is_composite"]:
+                d["effective_total"] = d["total"]
+                continue
+            rg_id = d["reagent_obj"].id
+            blk_info = d["block_info"]
+            block_data = (prep_items.get(rg_id) or {}).get(blk_info)
+            if block_data and block_data["total"] > 0:
+                theoretical_block = block_data["total"]
+                db_block_id = blk_info[0] if blk_info is not None else None
+                flask_size = flask_configs.get((rg_id, db_block_id))
+                if flask_size:
+                    count = ceil(theoretical_block / flask_size)
+                    effective_block = flask_size * count
+                    scale = effective_block / theoretical_block
+                else:
+                    scale = 1.0
+                d["effective_total"] = round(d["total"] * scale, 4)
+            else:
+                d["effective_total"] = d["total"]
+
+        # Completeness warning: which composites lack PrepFlaskConfig in this semester
+        missing_flask_items = []
+        for rg_id, blocks in prep_items.items():
+            for blk_info, item in blocks.items():
+                db_block_id = blk_info[0] if blk_info is not None else None
+                if (rg_id, db_block_id) not in flask_configs:
+                    block_label = blk_info[1] if blk_info else "Vorabherstellung"
+                    missing_flask_items.append({
+                        "reagent_name": item["reagent"].name,
+                        "block_label": block_label,
+                    })
+        missing_flask_items.sort(key=lambda x: (x["reagent_name"], x["block_label"]))
+
         has_non_volume_units = any(get_amount_unit_type(d["unit"]) != AMOUNT_UNIT_VOLUME for d in demand)
-        return render_template("reports/reagents.html", semester=sem, demand=demand, has_non_volume_units=has_non_volume_units)
+        return render_template(
+            "reports/reagents.html",
+            semester=sem,
+            demand=demand,
+            has_non_volume_units=has_non_volume_units,
+            missing_flask_items=missing_flask_items,
+        )
 
     @app.route("/reports/reagents/order-list")
     def reports_order_list():
