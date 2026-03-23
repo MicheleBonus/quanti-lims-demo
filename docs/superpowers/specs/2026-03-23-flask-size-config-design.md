@@ -15,16 +15,32 @@ Dieses Feature ermöglicht es dem TA, die Kolbengröße pro Reagenz und Block zu
 
 ## Kontext & Datenmodell
 
-Relevante Modelle:
-- `Reagent`: `is_composite` (True für Herstellreagenzien)
-- `ReagentComponent`: `quantity`, `quantity_unit`, `per_parent_volume_ml` — Rezeptur eines zusammengesetzten Reagenz
-- `Block`: identifiziert den Praktikumsblock; NULL steht für "Vorabherstellungen"
-- `build_expansion(batches)` in `reagent_expansion.py`: liefert `prep_items` (Herstellreagenzien) und `order_items` (Basisreagenzien, rekursiv expandiert)
+Relevante Modelle und Strukturen:
 
-Bisherige Komponentenformel in `reports_prep_list`:
+- `Reagent`: `is_composite` (True für Herstellreagenzien)
+- `ReagentComponent`: `quantity`, `quantity_unit`, `per_parent_volume_ml`
+- `SampleBatch`: hat `block` (Relationship → `Block`); `batch.block.id` und `batch.block.name` sofern ein Block zugeordnet ist; `batch.block` kann None sein (Vorabherstellungen)
+- `build_expansion(batches)` in `reagent_expansion.py`:
+  - `prep_acc` / `prep_items`: keyed `reagent_id → {block_info → {name, unit, total, reagent}}`
+    - `block_info` ist `None` für Vorabherstellungen oder Tuple `(block_id: int, block_name: str)`
+  - `order_acc`: keyed `(reagent_id, unit)`
+  - `order_items`: Liste von Dicts mit `{name, cas, total, unit, sources, is_titrant, practical_total, burette_amount, burette_unit}`
+- `reports_reagents` (app.py ~2294): baut `demand`-Liste mit einem Dict pro `(batch, MethodReagent)`-Paar. Felder: `analysis`, `analysis_name`, `reagent` (Name als String), `reagent_obj` (ORM-Objekt), `unit`, `total`, `is_composite`, `components` (Liste von `ReagentComponent`), u.a. Enthält **kein** `block_info`-Feld bisher.
+
+Standardkolbengrößen (hardcoded): `FLASK_SIZES_ML = [50, 100, 250, 500, 1000, 2000]`
+
+Neue Hilfsfunktion (muss erstellt werden, in `reagent_expansion.py` oder `app.py`):
+```python
+def _suggest_flask_size_ml(total_ml: float) -> float:
+    """Gibt den numerischen mL-Wert der nächsten Standardgröße ≥ total_ml zurück.
+    Für total_ml > 2000: gibt 2000.0 zurück (mehrere Kolben werden durch count abgedeckt).
+    """
+    for s in FLASK_SIZES_ML:
+        if s >= total_ml:
+            return float(s)
+    return 2000.0
 ```
-comp_total = theoretical_total / per_parent_volume_ml × quantity
-```
+Die bisherige `suggested_flask`-Logik in `reports_prep_list` (gibt einen Anzeigestring zurück) bleibt unverändert; `_suggest_flask_size_ml` ist die neue numerische Variante.
 
 ---
 
@@ -33,19 +49,20 @@ comp_total = theoretical_total / per_parent_volume_ml × quantity
 | Feld | Typ | Beschreibung |
 |---|---|---|
 | `id` | Integer PK | |
-| `reagent_id` | Integer FK → Reagent | zusammengesetztes Reagenz |
-| `block_id` | Integer FK → Block, nullable | Block im Semester; NULL = Vorabherstellungen |
+| `reagent_id` | Integer FK → Reagent, not null | zusammengesetztes Reagenz |
+| `block_id` | Integer, nullable | Block-ID; NULL = Vorabherstellungen |
 | `flask_size_ml` | Float, not null | gewählte Kolbengröße in mL |
 
-**Unique Constraint**: `(reagent_id, block_id)`
+**Hinweis zu `block_id`**: Kein FK auf `Block` (da NULL semantisch "kein Block" bedeutet und kein `Block` mit id=0 existiert — SQLAlchemy-PKs starten bei 1). Kein DB-Level UNIQUE-Constraint, da SQLite NULL-Werte in UNIQUE-Constraints als distinkt behandelt (mehrere NULLs wären erlaubt). Eindeutigkeit wird **auf Anwendungsebene** sichergestellt: Upsert prüft `filter_by(reagent_id=X, block_id=Y).first()`, dann UPDATE oder INSERT.
 
-Die Anzahl Kolben und die Effektivmenge werden immer implizit berechnet:
-```
+Effektivmenge wird immer implizit berechnet:
+```python
+from math import ceil
 count = ceil(theoretical_total / flask_size_ml)
-effective_total = flask_size_ml × count
+effective_total = flask_size_ml * count
 ```
 
-Kein Semesterbezug — `block_id` ist bereits block-spezifisch und damit indirekt semesterspezifisch. Migration: neues nullable-Feld, keine Altdaten-Migration nötig.
+Migration: neue Tabelle via Alembic (`flask db migrate` + `flask db upgrade`), keine Altdaten-Migration nötig.
 
 ---
 
@@ -54,116 +71,208 @@ Kein Semesterbezug — `block_id` ist bereits block-spezifisch und damit indirek
 ### UI (`/reports/reagents/prep-list`)
 
 Jeder Eintrag eines zusammengesetzten Reagenz zeigt:
-- **Effektive Menge**: `N × flask_size mL` (z.B. `2 × 500 mL`), vorausgefüllt mit Override aus `PrepFlaskConfig` falls vorhanden, sonst mit dem bisherigen Vorschlag
+- **Effektive Menge**: `N × flask_size mL` (z.B. `2 × 500 mL`), vorausgefüllt mit dem Override aus `PrepFlaskConfig` falls vorhanden, sonst mit dem bisherigen Vorschlag (`_suggest_flask`)
 - **Theoretischer Bedarf** klein darunter als Referenz: `(Bedarf: 830 mL)`
-- **Quick-Select-Buttons**: eine kleine Auswahl passender Standardkolbengrößen (`[50, 100, 250, 500, 1000, 2000]` mL), sinnvoll gefiltert auf Optionen rund um den Bedarf (z.B. die nächst-kleinere und 2–3 größere Standardgrößen)
-- **POST** zu `POST /prep-flask-config/<reagent_id>/<block_id>` → speichert in `PrepFlaskConfig` (INSERT OR UPDATE) → Redirect zurück zur Herstellliste
+- **Quick-Select-Buttons**: alle S aus `FLASK_SIZES_ML` für die `1 ≤ ceil(theoretical / S) ≤ 5` gilt. Fallback wenn kein S diese Bedingung erfüllt: alle S mit `ceil(theoretical / S) ≤ 10`.
+- **POST** zu `POST /prep-flask-config/<reagent_id>/<block_id>`, wobei Vorabherstellungen mit `block_id=0` in der URL codiert werden. Route konvertiert `0 → None` für DB-Lookup. `Block`-PKs starten bei 1, 0 ist sicherer Sentinel.
+- Route führt Upsert durch:
+  ```python
+  db_block_id = None if block_id_url == 0 else block_id_url
+  cfg = PrepFlaskConfig.query.filter_by(reagent_id=reagent_id, block_id=db_block_id).first()
+  if cfg:
+      cfg.flask_size_ml = new_size
+  else:
+      db.session.add(PrepFlaskConfig(reagent_id=reagent_id, block_id=db_block_id, flask_size_ml=new_size))
+  db.session.commit()
+  ```
 
-Für `block_id=None` (Vorabherstellungen) wird ein Sentinel-Wert `0` in der URL verwendet.
-
-### Berechnung
+### Berechnung in `reports_prep_list`
 
 ```python
-# Lookup: Override oder Vorschlag
-config = PrepFlaskConfig.query.filter_by(reagent_id=rg_id, block_id=block_id).first()
-if config:
-    flask_size = config.flask_size_ml
-else:
-    flask_size = suggested_flask_size(theoretical_total)  # bisherige Logik
+# flask_configs laden (für gesamte Route, einmalig):
+from math import ceil
+flask_configs = {(c.reagent_id, c.block_id): c.flask_size_ml
+                 for c in PrepFlaskConfig.query.all()}
 
-count = ceil(theoretical_total / flask_size)
+# Pro Herstellreagenz-Eintrag (rg_id, block_key, item):
+# block_key ist None oder (block_id, block_name)
+db_block_id = block_key[0] if block_key is not None else None
+flask_size = flask_configs.get((rg_id, db_block_id))
+theoretical = item["total"]
+if flask_size is None:
+    flask_size = _suggest_flask_size_ml(theoretical)  # numerischer Wert in mL
+count = ceil(theoretical / flask_size) if flask_size > 0 else 1
 effective_total = flask_size * count
 
-# Zutaten
-comp_total = effective_total / comp.per_parent_volume_ml * comp.quantity
+# Zutatenmengen (in quantity_unit, direkte Anzeige ohne convert_to_base_unit):
+comp_total = round(effective_total / comp.per_parent_volume_ml * comp.quantity, 2)
+
+# effective_total für Feature 2/3 speichern:
+item["effective_total"] = effective_total
+item["flask_size"] = flask_size
+item["flask_count"] = count
 ```
 
-Die `suggested_flask` Logik aus dem vorherigen Feature (Standardgrößen `[50, 100, 250, 500, 1000, 2000]` mL) wird für die Vorauswahl wiederverwendet.
+`_suggest_flask_size_ml` gibt den numerischen mL-Wert der nächsten Standardgröße zurück (analog zur bestehenden Logik in `reports_prep_list`, extrahiert als Hilfsfunktion).
 
 ---
 
 ## Feature 2 — Bestellliste: kolbenkorrigierte Basisreagenz-Mengen
 
-### Problem
+### Erweiterung von `expand_reagent` — Provenienz-Tracking
 
-`build_expansion` expandiert zusammengesetzte Reagenzien rekursiv und akkumuliert Basisreagenz-Mengen in `order_acc`. Diese Mengen basieren auf dem theoretischen Bedarf. Nach der Kolbenkorrektur weicht der `effective_total` vom `theoretical_total` ab — alle Basisreagenzien, die über ein Herstellreagenz bezogen werden, müssen entsprechend skaliert werden.
-
-### Lösung: Provenienz-Tracking + Post-Processing in `build_expansion`
-
-`expand_reagent` wird erweitert: beim Akkumulieren in `order_acc` wird zusätzlich ein `composite_contrib_acc` befüllt, das aufzeichnet, welcher Anteil jedes Basisreagenz über welches Herstellreagenz (identifiziert durch `reagent_id`) und welchen Block kam:
+`expand_reagent` erhält zwei neue optionale Parameter:
 
 ```python
-composite_contrib_acc[(base_reagent_id, composite_reagent_id, block_info)] += amount_in_base_unit
+def expand_reagent(
+    reagent, amount, unit,
+    order_acc, prep_acc, dep_graph, warnings,
+    visiting=None, caller_name=None, block_info=None, analysis_info=None,
+    composite_contrib_acc=None,   # NEU
+    top_composite_id=None,        # NEU
+) -> None:
 ```
 
-Nach dem Durchlauf aller Batches (bevor `order_items` gebaut wird):
+Die neuen Parameter werden als Keyword-Argumente an alle bestehenden rekursiven Aufrufe weitergegeben. Bestehende Call-Sites in `build_expansion` sind nicht betroffen (sie nutzen bereits Keyword-Argumente).
 
-```python
-for (base_id, composite_id, block_info), contrib in composite_contrib_acc.items():
-    config = flask_configs.get((composite_id, block_info[0] if block_info else None))
-    theoretical = prep_acc[composite_id][block_info]["total"]
-    effective = compute_effective_total(theoretical, config)
-    scale = effective / theoretical if theoretical > 0 else 1.0
-    # Skalierung des Beitrags in order_acc
-    order_acc[base_id]["total"] += contrib * (scale - 1.0)
-    # (contrib * scale - contrib = delta; bestehender Wert += delta)
-```
+- `top_composite_id`: ID des obersten Herstellreagenz in der aktuellen Rekursionskette, oder `None` wenn das Reagenz direkt (nicht über ein Composite) verwendet wird.
+- `composite_contrib_acc`: Dict, in das Beiträge von Basisreagenzien über Composites akkumuliert werden.
 
-`flask_configs` ist ein Dict `{(reagent_id, block_id): flask_size_ml}`, das aus der DB geladen und in `build_expansion` übergeben wird.
+Verhalten:
+- Wenn `reagent.is_composite == True` und `top_composite_id is None`: setze `top_composite_id = reagent.id` für alle rekursiven Aufrufe dieser Kette.
+- Wenn `reagent.is_composite == True` und `top_composite_id is not None`: behalte `top_composite_id` (oberster Parent bleibt erhalten — korrekt bei verschachtelten Composites).
+- Wenn `reagent.is_composite == False` und `top_composite_id is not None` und `composite_contrib_acc is not None`: akkumuliere den Beitrag:
+  ```python
+  key = (reagent.id, unit, top_composite_id, block_info)
+  composite_contrib_acc[key] = composite_contrib_acc.get(key, 0.0) + amount
+  ```
+  `unit` und `amount` sind die Parameter im aktuellen Aufruf-Frame — d.h. derselbe `unit`-Wert, der auch für `order_acc[(reagent.id, unit)]` verwendet wird (nach der Konvertierungskette, oder im Fallback die Originaleinheit). Die Keys beider Dicts sind damit konsistent.
 
-Die Signatur von `build_expansion` wird erweitert:
+### Post-Processing in `build_expansion`
+
+Neue Signatur:
 ```python
 def build_expansion(batches, flask_configs=None) -> dict:
+    # flask_configs: dict[(reagent_id, block_id_or_None) → flask_size_ml] | None
 ```
 
-`flask_configs=None` bedeutet: keine Korrekturen (bisheriges Verhalten bleibt rückwärtskompatibel).
+Nach dem Durchlauf aller Batches, vor dem Bauen von `order_items` — innerhalb von `build_expansion`, mit Zugriff auf die lokalen `prep_acc` und `order_acc`:
 
-### Ergebnis
+```python
+if flask_configs and composite_contrib_acc:
+    for (base_id, unit, composite_id, block_info) in composite_contrib_acc:
+        db_block_id = block_info[0] if block_info is not None else None
+        flask_size = flask_configs.get((composite_id, db_block_id))
+        if flask_size is None:
+            continue  # kein Override, kein Post-Processing für diesen Eintrag
+        theoretical = prep_acc[composite_id][block_info]["total"]
+        if theoretical <= 0:
+            continue
+        count = ceil(theoretical / flask_size)
+        effective = flask_size * count
+        scale = effective / theoretical
+        contrib = composite_contrib_acc[(base_id, unit, composite_id, block_info)]
+        order_acc[(base_id, unit)]["total"] += contrib * (scale - 1.0)
+        # delta = contrib * (scale-1): addiert den Unterschied zwischen
+        # flask-korrigiertem Beitrag und theoretischem Beitrag.
+        # Da scale >= 1.0 immer gilt (effective >= theoretical), ist delta >= 0.
+```
 
-Die Bestellliste zeigt für alle Basisreagenzien die kolbenkorrigierten Mengen. Für direkt verwendete Basisreagenzien (nicht über Herstellreagenz) ändert sich nichts.
+`flask_configs=None` → `composite_contrib_acc` wird nicht befüllt, kein Post-Processing → Rückwärtskompatibilität bleibt erhalten.
 
 ---
 
 ## Feature 3 — Reagenzübersicht: kolbenkorrigierte Anzeige & Vollständigkeitswarnung
 
-### Korrigierte Komponentenanzeige (`/reports/reagents`)
+### Problem
 
-Die Übersicht berechnet Komponentenmengen aktuell inline im Template:
-```
-(d.total / comp.per_parent_volume_ml * comp.quantity)|round(1)
+`reports_reagents` baut `demand` als eine Liste mit einem Dict pro `(batch, MethodReagent)`-Paar. Für zusammengesetzte Reagenzien berechnet das Template Komponentenmengen aus `d.total` (pro-Analyse-Beitrag). Für die Kolbenkorrektur muss `d.total` durch einen kolbenkorrigierten Wert ersetzt werden.
+
+### Lösung: block_info pro Demand-Eintrag + Skalierung
+
+In `reports_reagents` wird pro Demand-Eintrag `block_info` ergänzt:
+
+```python
+# In der demand-Schleife (for batch in batches: for mr in method.reagent_usages:):
+block_info = (batch.block.id, batch.block.name) if batch.block else None
+demand.append({
+    ...  # alle bisherigen Felder
+    "block_info": block_info,   # NEU
+})
 ```
 
-`d.total` wird durch `d.effective_total` ersetzt — die Summe der kolbenkorrigierten Effektivmengen über alle Blöcke des Semesters. Dieser Wert wird von `build_expansion` (das ihn für die Bestellliste berechnet) als zusätzlicher Key `effective_total` im `prep_items`-Dict mitgeliefert.
+Nach der Schleife wird `build_expansion(batches, flask_configs)` aufgerufen, um `prep_items` mit per-Block-Totals zu erhalten:
+
+```python
+flask_configs = {(c.reagent_id, c.block_id): c.flask_size_ml
+                 for c in PrepFlaskConfig.query.all()}
+expansion = build_expansion(batches, flask_configs)
+prep_items = expansion["prep_items"]
+
+for d in demand:
+    if not d["is_composite"]:
+        d["effective_total"] = d["total"]
+        continue
+    rg_id = d["reagent_obj"].id
+    block_info = d["block_info"]
+    block_data = (prep_items.get(rg_id) or {}).get(block_info)
+    if block_data and block_data["total"] > 0:
+        theoretical_block = block_data["total"]
+        db_block_id = block_info[0] if block_info is not None else None
+        flask_size = flask_configs.get((rg_id, db_block_id))
+        if flask_size:
+            count = ceil(theoretical_block / flask_size)
+            effective_block = flask_size * count
+            scale = effective_block / theoretical_block
+        else:
+            scale = 1.0  # kein Override, kein Skalierung
+        d["effective_total"] = round(d["total"] * scale, 4)
+    else:
+        d["effective_total"] = d["total"]
+```
+
+Im Template (`reagents.html`) wird `d.effective_total` statt `d.total` für die Komponentenberechnung verwendet:
+
+```jinja
+{{ (d.effective_total / comp.per_parent_volume_ml * comp.quantity)|round(1) }}
+```
 
 ### Vollständigkeitswarnung
 
-Analog zur Bürettengrößen-Warnung erscheint ein Alert, wenn zusammengesetzte Reagenzien ohne `PrepFlaskConfig`-Eintrag existieren (und im aktiven Semester mindestens einen Batch haben):
+Für jedes Herstellreagenz in `prep_items` (alle `block_info`-Einträge, inklusive `None` für Vorabherstellungen) wird geprüft, ob ein `PrepFlaskConfig`-Eintrag vorhanden ist:
+
+```python
+missing = []
+for rg_id, blocks in prep_items.items():
+    for block_info, item in blocks.items():
+        db_block_id = block_info[0] if block_info is not None else None
+        if (rg_id, db_block_id) not in flask_configs:
+            block_label = block_info[1] if block_info else "Vorabherstellung"
+            missing.append({
+                "reagent_name": item["reagent"].name,
+                "block_label": block_label,
+            })
+```
+
+Alert (analog zur Bürettengrößen-Warnung) mit Link zur Herstellliste:
 
 ```html
 <div class="alert alert-warning">
   <strong>X Herstellreagenzien ohne bestätigte Kolbengröße:</strong>
   <ul>
     <li>Ammoniumpuffer — Block 1 → <a href="/reports/reagents/prep-list">konfigurieren</a></li>
+    <li>Pufferlösung pH 4 — Vorabherstellung → <a href="/reports/reagents/prep-list">konfigurieren</a></li>
     ...
   </ul>
 </div>
 ```
 
-- Alert nur wenn fehlende Einträge vorhanden
-- Link führt zur Herstellliste (wo die Kolbengröße gesetzt werden kann)
+Alert nur wenn `missing` nicht leer. Gilt für alle `block_info`-Einträge (benannte Blöcke und Vorabherstellungen).
 
 ---
 
 ## Abhängigkeiten & Reihenfolge
 
-1. **Feature 1** (DB-Tabelle + Herstellliste-UI + korrigierte Zutaten) — Grundlage
-2. **Feature 2** (Bestellliste-Korrektur) — baut auf Feature 1 auf (braucht `flask_configs` aus DB)
-3. **Feature 3** (Reagenzübersicht) — unabhängig von Feature 2, baut nur auf Feature 1 auf
-
-## Standardkolbengrößen
-
-```python
-FLASK_SIZES_ML = [50, 100, 250, 500, 1000, 2000]
-```
-
-Für die Quick-Select-Buttons werden nur Größen angezeigt, bei denen `count × size` sinnvoll ist: konkret die nächst-kleinere Standardgröße (die mehrfach benötigt würde) und bis zu 3 größere Optionen.
+1. **Feature 1** — DB-Tabelle + Herstellliste-UI + korrigierte Zutaten + `effective_total` in `prep_items`
+2. **Feature 2** — `build_expansion`-Erweiterung (baut auf Feature 1 auf: braucht `flask_configs` aus DB und `effective_total`-Logik)
+3. **Feature 3** — Reagenzübersicht (baut auf Feature 1 auf: braucht `build_expansion` mit `flask_configs` und `prep_items`)
