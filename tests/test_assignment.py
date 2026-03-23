@@ -269,3 +269,46 @@ def test_followup_cancelled_when_original_passes(db):
     db.session.expire(followup)
     refreshed = db.session.get(SampleAssignment, followup_id)
     assert refreshed.status == "cancelled", f"Expected 'cancelled', got '{refreshed.status}'"
+
+
+def test_repeat_options_returns_json(client, db):
+    """GET /assignments/repeat-options/<id> liefert JSON mit verfuegbaren Pufferproben."""
+    from models import SampleAssignment
+    failed_sa = SampleAssignment.query.filter_by(status="failed").first()
+    if not failed_sa:
+        # Create one if needed
+        from models import Sample, SampleBatch, Student, Semester
+        from datetime import date
+        sem = Semester.query.first()
+        if not sem:
+            pytest.skip("Kein Semester")
+        batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+        if not batch:
+            pytest.skip("Kein Batch")
+        student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+        if not student:
+            pytest.skip("Kein Student")
+        sample = Sample.query.filter_by(batch_id=batch.id, is_buffer=False).first()
+        if not sample:
+            pytest.skip("Keine Probe")
+        failed_sa = SampleAssignment(
+            sample=sample, student=student,
+            attempt_number=1, attempt_type="Erstanalyse",
+            assigned_date=date.today().isoformat(),
+            status="failed",
+        )
+        db.session.add(failed_sa)
+        db.session.flush()
+
+    response = client.get(f"/assignments/repeat-options/{failed_sa.id}")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data is not None
+    assert "student_name" in data
+    assert "analysis_code" in data
+    assert "analysis_name" in data
+    assert "next_attempt_type" in data
+    assert "available_samples" in data
+    assert "student_id" in data
+    assert "analysis_id" in data
+    assert isinstance(data["available_samples"], list)

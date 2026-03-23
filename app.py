@@ -1965,6 +1965,48 @@ def register_routes(app):
         flash(f"Pufferprobe #{buffer_sample.running_number} ({label}) zugewiesen.", "success")
         return redirect(url_for("assignments_overview"))
 
+    @app.route("/assignments/repeat-options/<int:assignment_id>")
+    def repeat_options(assignment_id):
+        """JSON endpoint: data for the repeat assignment dialog."""
+        assignment = SampleAssignment.query.get_or_404(assignment_id)
+        batch = assignment.sample.batch
+        student = assignment.student
+        analysis = batch.analysis
+
+        # Free buffer samples: not actively used, not expelled
+        occupied_ids = {
+            sa.sample_id for sa in SampleAssignment.query.filter(
+                SampleAssignment.status != "cancelled"
+            ).all()
+        }
+        available = (
+            Sample.query.filter_by(batch_id=batch.id, is_buffer=True)
+            .filter(~Sample.id.in_(occupied_ids))
+            .order_by(Sample.running_number).all()
+        )
+
+        # Determine next attempt type
+        prev_count = (
+            SampleAssignment.query
+            .join(Sample).filter(Sample.batch_id == batch.id)
+            .filter(SampleAssignment.student_id == student.id)
+            .count()
+        )
+        next_attempt_type = attempt_type_for(prev_count + 1)
+
+        return jsonify({
+            "student_name": student.full_name,
+            "analysis_code": analysis.code,
+            "analysis_name": analysis.name,
+            "next_attempt_type": next_attempt_type,
+            "recommended_sample_id": available[0].id if available else None,
+            "available_samples": [
+                {"id": s.id, "number": s.running_number} for s in available
+            ],
+            "student_id": student.id,
+            "analysis_id": analysis.id,
+        })
+
     @app.route("/assignments/<int:id>/cancel", methods=["POST"])
     @require_active_semester("assignments_overview")
     def assignment_cancel(id):
