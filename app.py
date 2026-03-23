@@ -2353,31 +2353,46 @@ def register_routes(app):
 
     @app.route("/reports/reagents/prep-list")
     def reports_prep_list():
+        from math import ceil
         sem = active_semester()
         if not sem:
             return render_template("reports/prep_list.html", semester=None, blocks=[], generated=None)
-        from reagent_expansion import build_expansion
+        from reagent_expansion import build_expansion, FLASK_SIZES_ML, _suggest_flask_size_ml
         from datetime import date as _date
         from collections import defaultdict
 
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
-        result = build_expansion(batches)
-
+        flask_configs = {(c.reagent_id, c.block_id): c.flask_size_ml
+                         for c in PrepFlaskConfig.query.all()}
+        result = build_expansion(batches, flask_configs)
         prep_items = result["prep_items"]
         sorted_prep_ids = result["sorted_prep_ids"]
 
-        # Group by block. block_info=None → "Vorabherstellungen".
         block_reagents: dict = defaultdict(list)
         for rg_id in sorted_prep_ids:
             if rg_id not in prep_items:
                 continue
             for block_key, item in prep_items[rg_id].items():
                 reagent = item["reagent"]
-                total = item["total"]
+                theoretical = item["total"]
+                db_block_id = block_key[0] if block_key is not None else None
+                flask_size = flask_configs.get((rg_id, db_block_id))
+                if flask_size is None:
+                    flask_size = _suggest_flask_size_ml(theoretical)
+                count = ceil(theoretical / flask_size) if flask_size > 0 else 1
+                effective_total = flask_size * count
+
+                # Quick-select button sizes: all S where 1 <= ceil(theoretical/S) <= 5
+                button_sizes = [s for s in FLASK_SIZES_ML
+                                if 1 <= ceil(theoretical / s) <= 5]
+                if not button_sizes:
+                    button_sizes = [s for s in FLASK_SIZES_ML
+                                    if ceil(theoretical / s) <= 10]
+
                 components = []
                 for comp in reagent.components:
                     if comp.child and comp.per_parent_volume_ml and comp.per_parent_volume_ml > 0:
-                        comp_total = round(total / comp.per_parent_volume_ml * comp.quantity, 2)
+                        comp_total = round(effective_total / comp.per_parent_volume_ml * comp.quantity, 2)
                         components.append({
                             "name": comp.child.name,
                             "amount": comp_total,
@@ -2385,13 +2400,17 @@ def register_routes(app):
                         })
                 block_reagents[block_key].append({
                     "name": item["name"],
-                    "total": round(total, 1),
+                    "reagent_id": rg_id,
+                    "total": round(theoretical, 1),
                     "unit": item["unit"],
+                    "effective_total": round(effective_total, 1),
+                    "flask_size": int(flask_size) if flask_size == int(flask_size) else flask_size,
+                    "flask_count": count,
+                    "button_sizes": button_sizes,
                     "components": components,
                     "prep_notes": reagent.notes or "",
                 })
 
-        # Build blocks list: "Vorabherstellungen" (None key) first, then sorted by block id.
         blocks = []
         if None in block_reagents:
             blocks.append({
@@ -2411,6 +2430,31 @@ def register_routes(app):
             blocks=blocks,
             generated=_date.today().isoformat(),
         )
+
+    @app.route("/prep-flask-config/<int:reagent_id>/<int:block_id>", methods=["POST"])
+    def prep_flask_config_set(reagent_id, block_id):
+        db_block_id = None if block_id == 0 else block_id
+        try:
+            flask_size = float(request.form["flask_size"])
+        except (KeyError, ValueError):
+            flash("Ungültige Kolbengröße.", "danger")
+            return redirect(url_for("reports_prep_list"))
+        if flask_size <= 0:
+            flash("Kolbengröße muss größer als 0 sein.", "danger")
+            return redirect(url_for("reports_prep_list"))
+        cfg = PrepFlaskConfig.query.filter_by(
+            reagent_id=reagent_id, block_id=db_block_id
+        ).first()
+        if cfg:
+            cfg.flask_size_ml = flask_size
+        else:
+            db.session.add(PrepFlaskConfig(
+                reagent_id=reagent_id,
+                block_id=db_block_id,
+                flask_size_ml=flask_size,
+            ))
+        db.session.commit()
+        return redirect(url_for("reports_prep_list"))
 
     @app.route("/admin/system")
     def admin_system():
