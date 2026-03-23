@@ -172,6 +172,23 @@ def resolve_standardization_titer(semester_id: int) -> dict | None:
     }
 
 
+def _cancel_followups_after_reentry(session, original_assignment):
+    """Cancel follow-up assignments when the original passes on re-entry.
+
+    Returns list of cancelled assignments (for flash messages).
+    """
+    batch_id = original_assignment.sample.batch_id
+    followups = SampleAssignment.query.join(Sample).filter(
+        Sample.batch_id == batch_id,
+        SampleAssignment.student_id == original_assignment.student_id,
+        SampleAssignment.attempt_number > original_assignment.attempt_number,
+        SampleAssignment.status.in_(["assigned", "submitted"]),
+    ).all()
+    for f in followups:
+        f.status = "cancelled"
+    return followups
+
+
 def apply_legacy_sql_migrations(app):
     """Apply legacy SQL migrations from migrations/legacy_sql/ in filename order.
 
@@ -1893,33 +1910,54 @@ def register_routes(app):
                 "buffer_count": len(buffer_samples),
                 "student_rows": student_rows,
             }
-        return render_template("assignments/overview.html", semester=sem, analyses=analyses, data=data)
+        open_repeat = request.args.get("open_repeat", type=int)
+        return render_template("assignments/overview.html", semester=sem, analyses=analyses, data=data, open_repeat=open_repeat)
 
     @app.route("/assignments/assign-buffer", methods=["POST"])
     @require_active_semester("assignments_overview")
     def assign_buffer():
         student_id = int(request.form["student_id"])
         analysis_id = int(request.form["analysis_id"])
+        sample_id_raw = request.form.get("sample_id")
+
+        if not sample_id_raw:
+            flash("Keine Probe ausgewählt.", "danger")
+            return redirect(request.referrer or url_for("assignments_overview"))
+
+        try:
+            sample_id = int(sample_id_raw)
+        except (ValueError, TypeError):
+            flash("Ungültige Proben-ID.", "danger")
+            return redirect(request.referrer or url_for("assignments_overview"))
+
         student = db.session.get(Student, student_id)
         if student and student.is_excluded:
             flash(f"{student.full_name} ist aus dem Praktikum ausgeschieden. Keine neue Zuweisung möglich.", "danger")
             return redirect(request.referrer or url_for("home"))
+
         sem = active_semester()
         batch = SampleBatch.query.filter_by(semester_id=sem.id, analysis_id=analysis_id).first()
         if not batch:
             flash("Kein Batch gefunden.", "danger")
             return redirect(url_for("assignments_overview"))
-        # Find next free buffer sample
-        used_ids = [sa.sample_id for sa in SampleAssignment.query.filter(SampleAssignment.status != "cancelled").all()]
-        buffer_sample = (
-            Sample.query.filter_by(batch_id=batch.id, is_buffer=True)
-            .filter(~Sample.id.in_(used_ids))
-            .order_by(Sample.running_number).first()
-        )
-        if not buffer_sample:
-            flash("Keine freien Pufferproben mehr!", "danger")
+
+        # Validate the selected sample
+        sample = db.session.get(Sample, sample_id)
+        if not sample or sample.batch_id != batch.id or not sample.is_buffer:
+            flash("Ungültige Probe ausgewählt.", "danger")
             return redirect(url_for("assignments_overview"))
-        # Determine attempt number/type
+
+        # Reject if sample has any expelled assignment (physically used by expelled student)
+        if SampleAssignment.query.filter_by(sample_id=sample_id, status="expelled").first():
+            flash("Diese Probe ist gesperrt (ausgeschiedener Studierender).", "danger")
+            return redirect(url_for("assignments_overview"))
+
+        # Reject if sample is currently actively assigned
+        if sample.active_assignment:
+            flash(f"Probe #{sample.running_number} ist bereits zugewiesen.", "danger")
+            return redirect(url_for("assignments_overview"))
+
+        # Determine attempt number and type
         prev_count = (
             SampleAssignment.query
             .join(Sample).filter(Sample.batch_id == batch.id)
@@ -1929,7 +1967,7 @@ def register_routes(app):
         new_attempt_number = prev_count + 1
         attempt_type = attempt_type_for(new_attempt_number)
         sa = SampleAssignment(
-            sample=buffer_sample, student_id=student_id,
+            sample=sample, student_id=student_id,
             attempt_number=new_attempt_number, attempt_type=attempt_type,
             assigned_date=date.today().isoformat(), assigned_by="Praktikumsleitung",
             status="assigned",
@@ -1937,8 +1975,50 @@ def register_routes(app):
         db.session.add(sa)
         db.session.commit()
         label = "Erstanalyse" if attempt_type == "Erstanalyse" else f"{attempt_type}-Analyse"
-        flash(f"Pufferprobe #{buffer_sample.running_number} ({label}) zugewiesen.", "success")
+        flash(f"Pufferprobe #{sample.running_number} ({label}) zugewiesen.", "success")
         return redirect(url_for("assignments_overview"))
+
+    @app.route("/assignments/repeat-options/<int:assignment_id>")
+    def repeat_options(assignment_id):
+        """JSON endpoint: data for the repeat assignment dialog."""
+        assignment = SampleAssignment.query.get_or_404(assignment_id)
+        batch = assignment.sample.batch
+        student = assignment.student
+        analysis = batch.analysis
+
+        # Free buffer samples: not actively used, not expelled
+        occupied_ids = {
+            sa.sample_id for sa in SampleAssignment.query.filter(
+                SampleAssignment.status != "cancelled"
+            ).all()
+        }
+        available = (
+            Sample.query.filter_by(batch_id=batch.id, is_buffer=True)
+            .filter(~Sample.id.in_(occupied_ids))
+            .order_by(Sample.running_number).all()
+        )
+
+        # Determine next attempt type
+        prev_count = (
+            SampleAssignment.query
+            .join(Sample).filter(Sample.batch_id == batch.id)
+            .filter(SampleAssignment.student_id == student.id)
+            .count()
+        )
+        next_attempt_type = attempt_type_for(prev_count + 1)
+
+        return jsonify({
+            "student_name": student.full_name,
+            "analysis_code": analysis.code,
+            "analysis_name": analysis.name,
+            "next_attempt_type": next_attempt_type,
+            "recommended_sample_id": available[0].id if available else None,
+            "available_samples": [
+                {"id": s.id, "number": s.running_number} for s in available
+            ],
+            "student_id": student.id,
+            "analysis_id": analysis.id,
+        })
 
     @app.route("/assignments/<int:id>/cancel", methods=["POST"])
     @require_active_semester("assignments_overview")
@@ -2078,6 +2158,7 @@ def register_routes(app):
                 tol_max_pct=analysis.tol_max,
                 attempt_type=assignment.attempt_type,
             )
+            old_status = assignment.status
             db.session.add(r)
             if r.passed is True:
                 assignment.status = "passed"
@@ -2089,6 +2170,12 @@ def register_routes(app):
             if r.passed is True:
                 flash(f"✅ Bestanden! Ansage: {val} {analysis.result_unit}", "success")
                 flash_saved("Ergebnisse")
+                if old_status == "failed":
+                    cancelled = _cancel_followups_after_reentry(db.session, assignment)
+                    if cancelled:
+                        db.session.commit()
+                        for c in cancelled:
+                            flash(f"Folgeanalyse {c.sample.batch.analysis.code}·{c.attempt_type} wurde storniert.", "info")
             elif r.passed is False:
                 if r.a_min is not None and r.a_max is not None:
                     tolerance_text = f"(Toleranz: {r.a_min:.4f} – {r.a_max:.4f})"
@@ -2099,6 +2186,8 @@ def register_routes(app):
                 flash_saved("Ergebnisse")
             else:
                 flash("⚠️ Bewertung nicht möglich – Einwaage/Toleranzdaten fehlen.", "warning")
+            if r.passed is False:
+                return redirect(url_for("assignments_overview", open_repeat=assignment_id))
             return redirect(url_for("results_overview", analysis_id=analysis.id))
         # Prepare live-evaluation context for JS (None if tolerances not configured)
         live_eval_ctx = None
@@ -2820,11 +2909,12 @@ def register_routes(app):
                 student = db.session.get(Student, student_id)
                 if student:
                     student.is_excluded = True
-                    open_assignments = SampleAssignment.query.filter_by(
-                        student_id=student_id, status="assigned"
+                    open_assignments = SampleAssignment.query.filter(
+                        SampleAssignment.student_id == student_id,
+                        SampleAssignment.status.in_(["assigned", "submitted", "failed"])
                     ).all()
                     for a in open_assignments:
-                        a.status = "cancelled"
+                        a.status = "expelled"
                     flash(f"{student.full_name} hat das Kolloquium dreimal nicht bestanden und scheidet aus dem Praktikum aus.", "danger")
 
             db.session.commit()

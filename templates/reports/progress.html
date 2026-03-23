@@ -30,7 +30,9 @@
   {% for a in analyses %}
   {% set p = progress[st.id][a.code] %}
   <td class="text-center">
-    {% if p is none %}
+    {% if st.is_excluded and p is not none and p.status != 'passed' %}
+      <span class="progress-cell bg-secondary text-white" title="Ausgeschieden">?</span>
+    {% elif p is none %}
       <span class="progress-cell bg-light" title="Kein Batch">–</span>
     {% elif p.status == 'not_assigned' %}
       <span class="progress-cell bg-light border" title="Nicht zugewiesen">–</span>
@@ -56,6 +58,7 @@
   <span><span class="progress-cell bg-danger text-white">✗</span> Nicht bestanden</span>
   <span><span class="progress-cell bg-warning">○</span> Zugewiesen</span>
   <span><span class="progress-cell bg-light border">–</span> Offen</span>
+  <span><span class="progress-cell bg-secondary text-white">?</span> Ausgeschieden</span>
 </div>
 {% endif %}
 {% endblock %}
