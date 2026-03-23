@@ -198,6 +198,15 @@
         });
     });
   });
+
+  // Auto-open after fail redirect
+  var openRepeatId = {{ open_repeat | tojson if open_repeat is defined and open_repeat is not none else 'null' }};
+  if (openRepeatId) {
+    var triggerBtn = document.querySelector('.open-repeat-modal[data-assignment-id="' + openRepeatId + '"]');
+    if (triggerBtn && !triggerBtn.disabled) {
+      triggerBtn.click();
+    }
+  }
 })();
 </script>
 {% endblock %}

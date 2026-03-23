@@ -1910,7 +1910,8 @@ def register_routes(app):
                 "buffer_count": len(buffer_samples),
                 "student_rows": student_rows,
             }
-        return render_template("assignments/overview.html", semester=sem, analyses=analyses, data=data)
+        open_repeat = request.args.get("open_repeat", type=int)
+        return render_template("assignments/overview.html", semester=sem, analyses=analyses, data=data, open_repeat=open_repeat)
 
     @app.route("/assignments/assign-buffer", methods=["POST"])
     @require_active_semester("assignments_overview")
@@ -2185,6 +2186,8 @@ def register_routes(app):
                 flash_saved("Ergebnisse")
             else:
                 flash("⚠️ Bewertung nicht möglich – Einwaage/Toleranzdaten fehlen.", "warning")
+            if r.passed is False:
+                return redirect(url_for("assignments_overview", open_repeat=assignment_id))
             return redirect(url_for("results_overview", analysis_id=analysis.id))
         # Prepare live-evaluation context for JS (None if tolerances not configured)
         live_eval_ctx = None
