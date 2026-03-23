@@ -202,6 +202,7 @@ def expand_reagent(
 def build_expansion(batches, flask_configs=None) -> dict:
     # flask_configs: dict[(reagent_id, block_id_or_None) -> flask_size_ml] | None
     # When None (default), no flask correction is applied (backward-compatible).
+    # Flask correction post-processing is implemented in Task 4 (provenance tracking).
     """Drive expand_reagent for all MethodReagents across all batches.
 
     Returns dict with:
