@@ -276,6 +276,7 @@ def build_expansion(batches, flask_configs=None) -> dict:
     # Flask correction: scale base-reagent contributions via composites
     if flask_configs and composite_contrib_acc:
         from math import ceil
+        old_totals = {k: order_acc[k]["total"] for k in order_acc}
         for (base_id, unit, composite_id, blk_info) in composite_contrib_acc:
             db_block_id = blk_info[0] if blk_info is not None else None
             flask_size = flask_configs.get((composite_id, db_block_id))
@@ -292,6 +293,14 @@ def build_expansion(batches, flask_configs=None) -> dict:
             scale = effective / theoretical  # always >= 1.0
             contrib = composite_contrib_acc[(base_id, unit, composite_id, blk_info)]
             order_acc[(base_id, unit)]["total"] += contrib * (scale - 1.0)
+        # Scale sources proportionally so the per-analysis breakdown matches the corrected total
+        for key, entry in order_acc.items():
+            old = old_totals.get(key, 0)
+            new = entry["total"]
+            if old > 0 and new != old:
+                src_scale = new / old
+                for src_key in entry.get("sources", {}):
+                    entry["sources"][src_key] *= src_scale
 
     order_items = sorted(
         [
