@@ -41,7 +41,17 @@
 <tr>
   <td>{{ item.name }}</td>
   <td class="text-muted small">{{ item.cas }}</td>
-  <td class="text-end"><strong>{{ "%.4g"|format(item.total) }}</strong></td>
+  <td class="text-end">
+    {% if item.is_titrant and item.practical_total is not none %}
+      <strong>{{ "%.4g"|format(item.practical_total) }}</strong>
+      <br><small class="text-muted">{{ "%.4g"|format(item.total) }} theoret.</small>
+    {% elif item.is_titrant %}
+      <strong>{{ "%.4g"|format(item.total) }}</strong>
+      <br><span class="badge bg-warning text-dark" style="font-size:0.65rem">Bürettengröße fehlt</span>
+    {% else %}
+      <strong>{{ "%.4g"|format(item.total) }}</strong>
+    {% endif %}
+  </td>
   <td>{{ item.unit }}</td>
   <td>
     {% if item.sources | length == 1 %}
