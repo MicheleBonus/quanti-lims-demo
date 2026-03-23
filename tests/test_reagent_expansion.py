@@ -467,3 +467,33 @@ class TestBuildExpansionPractical:
         item = result["order_items"][0]
         # practical: n=2, practical=25, k=1, b=1, k+b=2 → 2 * 25 * 2 = 100
         assert item["practical_total"] == 100.0
+
+
+class TestFlaskSuggestion:
+    def _suggest(self, total_ml):
+        from math import ceil
+        FLASK_SIZES_ML = [50, 100, 250, 500, 1000, 2000]
+        suggested = next((s for s in FLASK_SIZES_ML if s >= total_ml), None)
+        if suggested is None:
+            batches = ceil(total_ml / 2000)
+            return f"{batches}× 2000 mL"
+        return f"{suggested} mL"
+
+    def test_suggest_exact_match(self):
+        assert self._suggest(1000) == "1000 mL"
+
+    def test_suggest_rounds_up(self):
+        assert self._suggest(847) == "1000 mL"
+
+    def test_suggest_small(self):
+        assert self._suggest(30) == "50 mL"
+
+    def test_suggest_large_needs_multiple(self):
+        assert self._suggest(2500) == "2× 2000 mL"
+
+    def test_non_volume_unit_returns_none(self):
+        # Non-volume units (e.g., "g") should yield no suggestion
+        from reagent_expansion import _VOL_TO_ML
+        assert _VOL_TO_ML.get("g") is None  # "g" is not a volume unit
+        factor = _VOL_TO_ML.get("g")
+        assert factor is None

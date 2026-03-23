@@ -17,6 +17,20 @@
 <div class="alert alert-info">Keine Reagenzien-Zuordnungen vorhanden. Bitte Methoden-Reagenzien pflegen.</div>
 {% else %}
 
+{% if missing_burette_items %}
+<div class="alert alert-warning mb-3">
+  <strong><i class="bi bi-exclamation-triangle"></i> {{ missing_burette_items|length }} Maßlösung{{ 'en' if missing_burette_items|length != 1 else '' }} ohne Bürettengröße:</strong>
+  <ul class="mb-0 mt-1 small">
+    {% for item in missing_burette_items %}
+    <li>
+      {{ item.analysis_code }} {{ item.analysis_name }} ({{ item.method_type }}) — {{ item.reagent_name }}
+      <a href="{{ url_for('admin_method_reagents', method_id=item.method_id) }}" class="ms-1">konfigurieren →</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <p class="text-body-secondary small">
   Grundbedarf = n × (k × Menge/Best. + b × Menge/Blind) × Sicherheitsfaktor
   &nbsp;—&nbsp; <em>n = Erstproben (ohne Pufferproben); k = Anzahl Bestimmungen pro Probe</em>

@@ -33,6 +33,9 @@
         <div class="d-flex justify-content-between align-items-start mb-2">
           <strong>{{ rg.name }}</strong>
           <span class="badge bg-primary ms-2">{{ rg.total }} {{ rg.unit }}</span>
+          {% if rg.suggested_flask %}
+          <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem">→ {{ rg.suggested_flask }}</span>
+          {% endif %}
         </div>
         {% if rg.components %}
         <p class="text-muted small mb-1 text-uppercase fw-bold" style="font-size:0.65rem;letter-spacing:.05em">Zusammensetzung</p>

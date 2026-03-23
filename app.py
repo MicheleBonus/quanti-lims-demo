@@ -2325,7 +2325,36 @@ def register_routes(app):
     def reports_reagents():
         sem = active_semester()
         if not sem:
-            return render_template("reports/reagents.html", semester=None, demand=[])
+            return render_template("reports/reagents.html", semester=None, demand=[], missing_burette_items=[])
+        # Completeness: titrants without burette size, scoped to active semester
+        _active_analysis_ids = (
+            db.session.query(SampleBatch.analysis_id)
+            .filter(SampleBatch.semester_id == sem.id)
+            .distinct()
+        )
+        missing_burette = (
+            db.session.query(MethodReagent, Method, Analysis)
+            .join(Method, MethodReagent.method_id == Method.id)
+            .join(Analysis, Method.analysis_id == Analysis.id)
+            .filter(
+                MethodReagent.is_titrant == True,
+                MethodReagent.practical_amount_per_determination.is_(None),
+                Analysis.id.in_(_active_analysis_ids),
+            )
+            .order_by(Analysis.code)
+            .all()
+        )
+        missing_burette_items = [
+            {
+                "analysis_code": a.code,
+                "analysis_name": a.name,
+                "method_id": m.id,
+                "method_type": m.method_type,
+                "reagent_name": mr.reagent.name,
+            }
+            for mr, m, a in missing_burette
+        ]
+
         demand = []
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
         for batch in batches:
@@ -2359,7 +2388,13 @@ def register_routes(app):
                     "components": mr.reagent.components if mr.reagent.is_composite else [],
                 })
         has_non_volume_units = any(get_amount_unit_type(d["unit"]) != AMOUNT_UNIT_VOLUME for d in demand)
-        return render_template("reports/reagents.html", semester=sem, demand=demand, has_non_volume_units=has_non_volume_units)
+        return render_template(
+            "reports/reagents.html",
+            semester=sem,
+            demand=demand,
+            has_non_volume_units=has_non_volume_units,
+            missing_burette_items=missing_burette_items,
+        )
 
     @app.route("/reports/reagents/order-list")
     def reports_order_list():
@@ -2386,9 +2421,11 @@ def register_routes(app):
         sem = active_semester()
         if not sem:
             return render_template("reports/prep_list.html", semester=None, blocks=[], generated=None)
-        from reagent_expansion import build_expansion
+        from reagent_expansion import build_expansion, _VOL_TO_ML
         from datetime import date as _date
         from collections import defaultdict
+        from math import ceil
+        _FLASK_SIZES_ML = [50, 100, 250, 500, 1000, 2000]
 
         batches = SampleBatch.query.filter_by(semester_id=sem.id).all()
         result = build_expansion(batches)
@@ -2413,12 +2450,25 @@ def register_routes(app):
                             "amount": comp_total,
                             "unit": canonical_unit_label(comp.quantity_unit),
                         })
+                _rg_total = round(total, 1)
+                _rg_unit = item["unit"]
+                _vol_factor = _VOL_TO_ML.get(_rg_unit)
+                if _vol_factor is not None:
+                    _total_ml = _rg_total * _vol_factor
+                    _suggested = next((s for s in _FLASK_SIZES_ML if s >= _total_ml), None)
+                    _suggested_flask = (
+                        f"{_suggested} mL" if _suggested is not None
+                        else f"{ceil(_total_ml / 2000)}× 2000 mL"
+                    )
+                else:
+                    _suggested_flask = None
                 block_reagents[block_key].append({
                     "name": item["name"],
-                    "total": round(total, 1),
-                    "unit": item["unit"],
+                    "total": _rg_total,
+                    "unit": _rg_unit,
                     "components": components,
                     "prep_notes": reagent.notes or "",
+                    "suggested_flask": _suggested_flask,
                 })
 
         # Build blocks list: "Vorabherstellungen" (None key) first, then sorted by block id.
