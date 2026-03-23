@@ -225,3 +225,47 @@ def test_assign_buffer_skips_expelled_samples(client, db):
 
     after_count = SampleAssignment.query.filter_by(sample_id=target.id).count()
     assert after_count == before_count, "expelled-Probe wurde fälschlicherweise neu zugewiesen"
+
+
+def test_followup_cancelled_when_original_passes(db):
+    """Follow-up-Assignment wird storniert wenn Original nachträglich besteht."""
+    from models import SampleAssignment, Sample, SampleBatch, Student, Semester
+    from datetime import date
+
+    sem = Semester.query.first()
+    if not sem:
+        pytest.skip("Kein Semester")
+    batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+    if not batch:
+        pytest.skip("Kein Batch")
+    student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+    if not student:
+        pytest.skip("Kein Student")
+    buffers = Sample.query.filter_by(batch_id=batch.id, is_buffer=True).all()
+    if len(buffers) < 2:
+        pytest.skip("Zu wenige Pufferproben")
+
+    original = SampleAssignment(
+        sample=buffers[0], student=student,
+        attempt_number=1, attempt_type="Erstanalyse",
+        assigned_date=date.today().isoformat(),
+        status="failed",
+    )
+    followup = SampleAssignment(
+        sample=buffers[1], student=student,
+        attempt_number=2, attempt_type="A",
+        assigned_date=date.today().isoformat(),
+        status="assigned",
+    )
+    db.session.add_all([original, followup])
+    db.session.flush()
+    followup_id = followup.id
+
+    # Call the helper function directly
+    from app import _cancel_followups_after_reentry
+    _cancel_followups_after_reentry(db.session, original)
+    db.session.flush()
+
+    db.session.expire(followup)
+    refreshed = db.session.get(SampleAssignment, followup_id)
+    assert refreshed.status == "cancelled", f"Expected 'cancelled', got '{refreshed.status}'"

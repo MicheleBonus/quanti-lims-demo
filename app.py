@@ -172,6 +172,23 @@ def resolve_standardization_titer(semester_id: int) -> dict | None:
     }
 
 
+def _cancel_followups_after_reentry(session, original_assignment):
+    """Cancel follow-up assignments when the original passes on re-entry.
+
+    Returns list of cancelled assignments (for flash messages).
+    """
+    batch_id = original_assignment.sample.batch_id
+    followups = SampleAssignment.query.join(Sample).filter(
+        Sample.batch_id == batch_id,
+        SampleAssignment.student_id == original_assignment.student_id,
+        SampleAssignment.attempt_number > original_assignment.attempt_number,
+        SampleAssignment.status.in_(["assigned", "submitted"]),
+    ).all()
+    for f in followups:
+        f.status = "cancelled"
+    return followups
+
+
 def apply_legacy_sql_migrations(app):
     """Apply legacy SQL migrations from migrations/legacy_sql/ in filename order.
 
@@ -2086,6 +2103,7 @@ def register_routes(app):
                 tol_max_pct=analysis.tol_max,
                 attempt_type=assignment.attempt_type,
             )
+            old_status = assignment.status
             db.session.add(r)
             if r.passed is True:
                 assignment.status = "passed"
@@ -2097,6 +2115,12 @@ def register_routes(app):
             if r.passed is True:
                 flash(f"✅ Bestanden! Ansage: {val} {analysis.result_unit}", "success")
                 flash_saved("Ergebnisse")
+                if old_status == "failed":
+                    cancelled = _cancel_followups_after_reentry(db.session, assignment)
+                    if cancelled:
+                        db.session.commit()
+                        for c in cancelled:
+                            flash(f"Folgeanalyse {c.sample.batch.analysis.code}·{c.attempt_type} wurde storniert.", "info")
             elif r.passed is False:
                 if r.a_min is not None and r.a_max is not None:
                     tolerance_text = f"(Toleranz: {r.a_min:.4f} – {r.a_max:.4f})"
