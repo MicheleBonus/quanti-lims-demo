@@ -173,3 +173,55 @@ def test_colloquium_third_fail_sets_expelled(client, db):
     db.session.expire_all()
     refreshed_sa = db.session.get(SampleAssignment, sa_id)
     assert refreshed_sa.status == "expelled", f"Expected 'expelled', got '{refreshed_sa.status}'"
+
+
+def test_assign_buffer_skips_expelled_samples(client, db):
+    """assign_buffer darf keine Probe verwenden, die ein expelled-Assignment hat."""
+    from models import SampleBatch, Sample, SampleAssignment, Student
+    from datetime import date
+    from models import Semester
+
+    sem = Semester.query.first()
+    if not sem:
+        pytest.skip("Kein Semester")
+    batch = SampleBatch.query.filter_by(semester_id=sem.id).first()
+    if not batch:
+        pytest.skip("Kein Batch")
+
+    buffers = Sample.query.filter_by(batch_id=batch.id, is_buffer=True).all()
+    if not buffers:
+        pytest.skip("Keine Pufferproben")
+
+    target = buffers[0]
+    # Mark target with expelled
+    existing = SampleAssignment.query.filter_by(sample_id=target.id).first()
+    if existing:
+        existing.status = "expelled"
+    else:
+        student = Student.query.filter_by(semester_id=sem.id).first()
+        if not student:
+            pytest.skip("Kein Student")
+        sa = SampleAssignment(
+            sample=target, student=student,
+            attempt_number=99, attempt_type="expelled-test",
+            assigned_date=date.today().isoformat(),
+            status="expelled",
+        )
+        db.session.add(sa)
+    db.session.flush()
+
+    before_count = SampleAssignment.query.filter_by(sample_id=target.id).count()
+
+    # Try to assign buffer to a different student
+    active_student = Student.query.filter_by(semester_id=sem.id, is_excluded=False).first()
+    if not active_student:
+        pytest.skip("Kein aktiver Student")
+
+    client.post("/assignments/assign-buffer", data={
+        "csrf_token": "test",
+        "student_id": active_student.id,
+        "analysis_id": batch.analysis_id,
+    })
+
+    after_count = SampleAssignment.query.filter_by(sample_id=target.id).count()
+    assert after_count == before_count, "expelled-Probe wurde fälschlicherweise neu zugewiesen"

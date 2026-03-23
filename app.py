@@ -1909,11 +1909,19 @@ def register_routes(app):
         if not batch:
             flash("Kein Batch gefunden.", "danger")
             return redirect(url_for("assignments_overview"))
-        # Find next free buffer sample
-        used_ids = [sa.sample_id for sa in SampleAssignment.query.filter(SampleAssignment.status != "cancelled").all()]
+        # Find next free buffer sample.
+        # A sample is free only when ALL its assignments are cancelled.
+        # "expelled" assignments mean the sample was physically used and must
+        # never be reassigned — they are correctly excluded here because
+        # "expelled" != "cancelled".
+        occupied_sample_ids = {
+            sa.sample_id for sa in SampleAssignment.query.filter(
+                SampleAssignment.status != "cancelled"
+            ).all()
+        }
         buffer_sample = (
             Sample.query.filter_by(batch_id=batch.id, is_buffer=True)
-            .filter(~Sample.id.in_(used_ids))
+            .filter(~Sample.id.in_(occupied_sample_ids))
             .order_by(Sample.running_number).first()
         )
         if not buffer_sample:
